@@ -184,7 +184,7 @@ app.get('/', (c) => {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Streak Pipeline Report</title>
+        <title>Gershon Consulting Pipeline Report</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -195,9 +195,19 @@ app.get('/', (c) => {
             <div class="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-lg shadow-xl p-8 mb-8 text-white">
                 <h1 class="text-4xl font-bold mb-2">
                     <i class="fas fa-chart-line mr-3"></i>
-                    Streak Pipeline Report
+                    Gershon Consulting Pipeline Report
                 </h1>
-                <p class="text-blue-100">GC Pipeline Dashboard</p>
+                <div class="flex items-center justify-between">
+                    <p class="text-blue-100">GC Pipeline Dashboard</p>
+                    <p class="text-blue-100 text-sm">
+                        <i class="fas fa-sync-alt mr-2"></i>
+                        Last Updated: <span id="last-updated" class="font-semibold">Loading...</span>
+                    </p>
+                </div>
+                <p class="text-blue-200 text-xs mt-2">
+                    <i class="fas fa-calendar-alt mr-1"></i>
+                    Auto-refreshes every Monday at 8:00 AM
+                </p>
             </div>
 
             <!-- Loading State -->
@@ -325,12 +335,60 @@ app.get('/', (c) => {
         <script>
             let stageChart, priorityChart;
 
+            // Update last updated timestamp
+            function updateTimestamp() {
+                const now = new Date();
+                const options = { 
+                    weekday: 'short', 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric', 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    hour12: true
+                };
+                document.getElementById('last-updated').textContent = now.toLocaleDateString('en-US', options);
+            }
+
+            // Check if it's Monday 8AM and schedule auto-refresh
+            function setupAutoRefresh() {
+                const checkAndRefresh = () => {
+                    const now = new Date();
+                    const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday
+                    const hour = now.getHours();
+                    const minute = now.getMinutes();
+                    
+                    // If it's Monday (1) at 8:00 AM
+                    if (dayOfWeek === 1 && hour === 8 && minute === 0) {
+                        console.log('Auto-refreshing dashboard - Monday 8:00 AM');
+                        loadDashboard();
+                    }
+                };
+                
+                // Check every minute
+                setInterval(checkAndRefresh, 60000);
+                
+                // Also calculate time until next Monday 8AM for console info
+                const now = new Date();
+                const nextMonday = new Date();
+                const daysUntilMonday = (8 - now.getDay()) % 7 || 7; // Days until next Monday
+                nextMonday.setDate(now.getDate() + daysUntilMonday);
+                nextMonday.setHours(8, 0, 0, 0);
+                
+                const timeUntilRefresh = nextMonday - now;
+                const hoursUntil = Math.floor(timeUntilRefresh / (1000 * 60 * 60));
+                console.log(\`Next auto-refresh scheduled for: \${nextMonday.toLocaleString()} (in \${hoursUntil} hours)\`);
+            }
+
             async function loadDashboard() {
                 try {
                     const response = await fetch('/api/analytics');
                     if (!response.ok) throw new Error('Failed to fetch data');
                     
                     const data = await response.json();
+                    
+                    // Update timestamp
+                    updateTimestamp();
                     
                     // Update summary cards
                     document.getElementById('total-boxes').textContent = data.totalBoxes;
@@ -444,8 +502,9 @@ app.get('/', (c) => {
                 }
             }
 
-            // Load dashboard on page load
+            // Load dashboard on page load and setup auto-refresh
             loadDashboard();
+            setupAutoRefresh();
         </script>
     </body>
     </html>

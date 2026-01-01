@@ -1,8 +1,9 @@
-# Streak Pipeline Report App
+# Gershon Consulting Pipeline Report
 
 ## Project Overview
-- **Name**: Streak Pipeline Report App
+- **Name**: Gershon Consulting Pipeline Report
 - **Goal**: Create a comprehensive reporting dashboard for the GC Pipeline in Streak CRM
+- **Auto-Refresh**: Automatically updates every Monday at 8:00 AM
 - **Features**: 
   - Real-time analytics and visualizations
   - Stage distribution pie chart
@@ -123,16 +124,18 @@ Example Response:
 ### Viewing the Dashboard
 1. Open the application URL in your browser
 2. The dashboard will automatically load data from your Streak pipeline
-3. View summary statistics in the card widgets at the top:
+3. **Automatic Updates**: The dashboard refreshes automatically every Monday at 8:00 AM
+4. Check the "Last Updated" timestamp in the header to see when data was last refreshed
+5. View summary statistics in the card widgets at the top:
    - Total Boxes: Overall pipeline size
    - Active Stages: Number of stages with boxes
    - High Priority %: Percentage of high-priority boxes
    - With Due Date %: Percentage of boxes with due dates set
-4. Explore visual charts:
+6. Explore visual charts:
    - Stage Distribution: See how boxes are distributed across pipeline stages
    - Priority Distribution: View the priority breakdown with percentages
-5. Check top origins to see your best lead sources
-6. Review recent boxes table with priority and due date information
+7. Check top origins to see your best lead sources
+8. Review recent boxes table with priority and due date information
 
 ### Using the API
 All API endpoints support CORS for cross-origin requests. You can integrate these endpoints into your own applications:
