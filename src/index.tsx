@@ -78,6 +78,9 @@ app.get('/api/analytics', async (c) => {
     const stageDistribution = {}
     const originDistribution = {}
     const priorityDistribution = {}
+    const countryDistribution = {}
+    const languageDistribution = {}
+    const freshnessDistribution = { 'High (>0.5)': 0, 'Medium (0.2-0.5)': 0, 'Low (<0.2)': 0 }
     let boxesWithDueDate = 0
     
     // Find stage and field keys
@@ -90,6 +93,8 @@ app.get('/api/analytics', async (c) => {
     const originField = fields.find(f => f && f.name === 'Origin')
     const priorityField = fields.find(f => f && f.name === 'Priority')
     const dueDateField = fields.find(f => f && f.name === 'Est Start Date')
+    const countryField = fields.find(f => f && f.name === 'Country')
+    const languageField = fields.find(f => f && f.name === 'Language')
     
     if (Array.isArray(boxes)) {
       boxes.forEach(box => {
@@ -124,6 +129,38 @@ app.get('/api/analytics', async (c) => {
         if (dueDateField && box.fields && box.fields[dueDateField.key]) {
           boxesWithDueDate++
         }
+        
+        // Count by country
+        if (countryField && box.fields && box.fields[countryField.key]) {
+          const countryKey = box.fields[countryField.key]
+          const items = countryField.dropdownSettings?.items
+          const countryItem = Array.isArray(items) ? items.find(i => i && i.key === countryKey) : null
+          const countryName = countryItem ? countryItem.name : 'Unknown'
+          countryDistribution[countryName] = (countryDistribution[countryName] || 0) + 1
+        } else {
+          countryDistribution['Unknown'] = (countryDistribution['Unknown'] || 0) + 1
+        }
+        
+        // Count by language
+        if (languageField && box.fields && box.fields[languageField.key]) {
+          const languageKey = box.fields[languageField.key]
+          const items = languageField.dropdownSettings?.items
+          const languageItem = Array.isArray(items) ? items.find(i => i && i.key === languageKey) : null
+          const languageName = languageItem ? languageItem.name : 'Unknown'
+          languageDistribution[languageName] = (languageDistribution[languageName] || 0) + 1
+        } else {
+          languageDistribution['Unknown'] = (languageDistribution['Unknown'] || 0) + 1
+        }
+        
+        // Count by freshness
+        const freshness = box.freshness || 0
+        if (freshness > 0.5) {
+          freshnessDistribution['High (>0.5)']++
+        } else if (freshness >= 0.2) {
+          freshnessDistribution['Medium (0.2-0.5)']++
+        } else {
+          freshnessDistribution['Low (<0.2)']++
+        }
       })
     }
     
@@ -141,6 +178,9 @@ app.get('/api/analytics', async (c) => {
       originDistribution,
       priorityDistribution,
       priorityPercentages,
+      countryDistribution,
+      languageDistribution,
+      freshnessDistribution,
       boxesWithDueDate,
       dueDatePercentage: parseFloat(dueDatePercentage),
       recentBoxes: Array.isArray(boxes) ? boxes.slice(0, 10).map(box => {
@@ -161,12 +201,36 @@ app.get('/api/analytics', async (c) => {
           dueDate = new Date(box.fields[dueDateField.key]).toISOString()
         }
         
+        // Get country
+        let country = 'Unknown'
+        if (countryField && box.fields && box.fields[countryField.key]) {
+          const countryKey = box.fields[countryField.key]
+          const items = countryField.dropdownSettings?.items
+          const countryItem = Array.isArray(items) ? items.find(i => i && i.key === countryKey) : null
+          country = countryItem ? countryItem.name : 'Unknown'
+        }
+        
+        // Get language
+        let language = 'Unknown'
+        if (languageField && box.fields && box.fields[languageField.key]) {
+          const languageKey = box.fields[languageField.key]
+          const items = languageField.dropdownSettings?.items
+          const languageItem = Array.isArray(items) ? items.find(i => i && i.key === languageKey) : null
+          language = languageItem ? languageItem.name : 'Unknown'
+        }
+        
+        // Get freshness
+        const freshness = box.freshness || 0
+        
         return {
           name: box.name || 'Unnamed',
           key: box.boxKey,
           stage: stage ? stage.name : 'Unknown',
           priority: priority,
           dueDate: dueDate,
+          country: country,
+          language: language,
+          freshness: freshness.toFixed(3),
           lastUpdated: new Date(box.lastUpdatedTimestamp).toISOString()
         }
       }) : []
@@ -229,6 +293,33 @@ app.get('/', (c) => {
 
             <!-- Dashboard Content -->
             <div id="dashboard" class="hidden">
+                <!-- View Tabs -->
+                <div class="bg-white rounded-lg shadow mb-8">
+                    <div class="border-b border-gray-200">
+                        <nav class="flex -mb-px">
+                            <button onclick="switchView('overview')" id="tab-overview" class="view-tab active border-b-2 border-blue-500 py-4 px-6 text-sm font-medium text-blue-600">
+                                <i class="fas fa-chart-line mr-2"></i>Overview
+                            </button>
+                            <button onclick="switchView('stage')" id="tab-stage" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                                <i class="fas fa-layer-group mr-2"></i>By Stage
+                            </button>
+                            <button onclick="switchView('priority')" id="tab-priority" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                                <i class="fas fa-exclamation-circle mr-2"></i>By Priority
+                            </button>
+                            <button onclick="switchView('country')" id="tab-country" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                                <i class="fas fa-globe mr-2"></i>By Country
+                            </button>
+                            <button onclick="switchView('language')" id="tab-language" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                                <i class="fas fa-language mr-2"></i>By Language
+                            </button>
+                            <button onclick="switchView('freshness')" id="tab-freshness" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                                <i class="fas fa-heartbeat mr-2"></i>By Freshness
+                            </button>
+                        </nav>
+                    </div>
+                </div>
+
+                <!-- Overview View --><div id="view-overview" class="view-content">
                 <!-- Summary Cards -->
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                     <div class="bg-white rounded-lg shadow p-6">
@@ -329,11 +420,67 @@ app.get('/', (c) => {
                         </table>
                     </div>
                 </div>
+                </div>
+                <!-- End Overview View -->
+
+                <!-- By Stage View -->
+                <div id="view-stage" class="view-content hidden">
+                    <div id="stage-content"></div>
+                </div>
+
+                <!-- By Priority View -->
+                <div id="view-priority" class="view-content hidden">
+                    <div id="priority-content"></div>
+                </div>
+
+                <!-- By Country View -->
+                <div id="view-country" class="view-content hidden">
+                    <div id="country-content"></div>
+                </div>
+
+                <!-- By Language View -->
+                <div id="view-language" class="view-content hidden">
+                    <div id="language-content"></div>
+                </div>
+
+                <!-- By Freshness View -->
+                <div id="view-freshness" class="view-content hidden">
+                    <div id="freshness-content"></div>
+                </div>
+
             </div>
         </div>
 
         <script>
             let stageChart, priorityChart;
+            let currentData = null;
+
+            // View switching function
+            function switchView(viewName) {
+                // Hide all views
+                document.querySelectorAll('.view-content').forEach(view => {
+                    view.classList.add('hidden');
+                });
+                
+                // Remove active class from all tabs
+                document.querySelectorAll('.view-tab').forEach(tab => {
+                    tab.classList.remove('active', 'border-blue-500', 'text-blue-600');
+                    tab.classList.add('border-transparent', 'text-gray-500');
+                });
+                
+                // Show selected view
+                document.getElementById('view-' + viewName).classList.remove('hidden');
+                
+                // Add active class to selected tab
+                const activeTab = document.getElementById('tab-' + viewName);
+                activeTab.classList.add('active', 'border-blue-500', 'text-blue-600');
+                activeTab.classList.remove('border-transparent', 'text-gray-500');
+                
+                // Render view-specific content
+                if (currentData && viewName !== 'overview') {
+                    renderView(viewName, currentData);
+                }
+            }
 
             // Update last updated timestamp
             function updateTimestamp() {
@@ -380,12 +527,198 @@ app.get('/', (c) => {
                 console.log(\`Next auto-refresh scheduled for: \${nextMonday.toLocaleString()} (in \${hoursUntil} hours)\`);
             }
 
+            // Render view-specific content
+            function renderView(viewName, data) {
+                const contentId = viewName + '-content';
+                const contentDiv = document.getElementById(contentId);
+                
+                if (viewName === 'stage') {
+                    contentDiv.innerHTML = renderStageView(data);
+                } else if (viewName === 'priority') {
+                    contentDiv.innerHTML = renderPriorityView(data);
+                } else if (viewName === 'country') {
+                    contentDiv.innerHTML = renderCountryView(data);
+                } else if (viewName === 'language') {
+                    contentDiv.innerHTML = renderLanguageView(data);
+                } else if (viewName === 'freshness') {
+                    contentDiv.innerHTML = renderFreshnessView(data);
+                }
+            }
+
+            function renderStageView(data) {
+                const stages = Object.entries(data.stageDistribution).sort((a, b) => b[1] - a[1]);
+                return \`
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        \${stages.map(([stage, count]) => {
+                            const percentage = ((count / data.totalBoxes) * 100).toFixed(1);
+                            return \`
+                                <div class="bg-white rounded-lg shadow p-6">
+                                    <h3 class="text-lg font-semibold text-gray-800 mb-2">\${stage}</h3>
+                                    <div class="flex items-end justify-between">
+                                        <div>
+                                            <p class="text-3xl font-bold text-blue-600">\${count}</p>
+                                            <p class="text-sm text-gray-500">boxes</p>
+                                        </div>
+                                        <div class="text-right">
+                                            <p class="text-2xl font-semibold text-gray-700">\${percentage}%</p>
+                                            <p class="text-xs text-gray-500">of total</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            \`;
+                        }).join('')}
+                    </div>
+                \`;
+            }
+
+            function renderPriorityView(data) {
+                const priorities = [
+                    { name: '1. High', key: '1. High', color: 'red' },
+                    { name: '2. Medium', key: '2. Medium', color: 'yellow' },
+                    { name: '3. Low', key: '3. Low', color: 'green' },
+                    { name: 'No Priority', key: 'No Priority', color: 'gray' }
+                ];
+                return \`
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        \${priorities.map(priority => {
+                            const count = data.priorityDistribution[priority.key] || 0;
+                            const percentage = data.priorityPercentages[priority.key] || '0';
+                            return \`
+                                <div class="bg-white rounded-lg shadow p-6">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <h3 class="text-lg font-semibold text-gray-800">\${priority.name}</h3>
+                                        <span class="bg-\${priority.color}-100 text-\${priority.color}-800 px-3 py-1 rounded-full text-sm font-semibold">
+                                            \${percentage}%
+                                        </span>
+                                    </div>
+                                    <p class="text-4xl font-bold text-\${priority.color}-600">\${count}</p>
+                                    <p class="text-sm text-gray-500 mt-2">boxes in this priority</p>
+                                </div>
+                            \`;
+                        }).join('')}
+                    </div>
+                \`;
+            }
+
+            function renderCountryView(data) {
+                const countries = Object.entries(data.countryDistribution).sort((a, b) => b[1] - a[1]);
+                return \`
+                    <div class="bg-white rounded-lg shadow overflow-hidden">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Country</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Boxes</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Percentage</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                \${countries.map(([country, count]) => {
+                                    const percentage = ((count / data.totalBoxes) * 100).toFixed(1);
+                                    return \`
+                                        <tr class="hover:bg-gray-50">
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <div class="flex items-center">
+                                                    <i class="fas fa-globe text-blue-500 mr-3"></i>
+                                                    <span class="text-sm font-medium text-gray-900">\${country}</span>
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">\${count}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <div class="flex items-center">
+                                                    <div class="w-16 bg-gray-200 rounded-full h-2 mr-2">
+                                                        <div class="bg-blue-600 h-2 rounded-full" style="width: \${percentage}%"></div>
+                                                    </div>
+                                                    <span class="text-sm text-gray-900">\${percentage}%</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    \`;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                \`;
+            }
+
+            function renderLanguageView(data) {
+                const languages = Object.entries(data.languageDistribution).sort((a, b) => b[1] - a[1]);
+                return \`
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        \${languages.map(([language, count]) => {
+                            const percentage = ((count / data.totalBoxes) * 100).toFixed(1);
+                            return \`
+                                <div class="bg-white rounded-lg shadow p-8 text-center">
+                                    <div class="inline-flex items-center justify-center w-16 h-16 bg-purple-100 rounded-full mb-4">
+                                        <i class="fas fa-language text-purple-600 text-2xl"></i>
+                                    </div>
+                                    <h3 class="text-xl font-semibold text-gray-800 mb-2">\${language}</h3>
+                                    <p class="text-4xl font-bold text-purple-600 mb-1">\${count}</p>
+                                    <p class="text-sm text-gray-500">\${percentage}% of total</p>
+                                </div>
+                            \`;
+                        }).join('')}
+                    </div>
+                \`;
+            }
+
+            function renderFreshnessView(data) {
+                const freshness = [
+                    { name: 'High Activity', key: 'High (>0.5)', desc: 'Very recent interactions', color: 'green', icon: 'fa-fire' },
+                    { name: 'Medium Activity', key: 'Medium (0.2-0.5)', desc: 'Moderate engagement', color: 'yellow', icon: 'fa-heartbeat' },
+                    { name: 'Low Activity', key: 'Low (<0.2)', desc: 'Needs attention', color: 'red', icon: 'fa-clock' }
+                ];
+                return \`
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        \${freshness.map(item => {
+                            const count = data.freshnessDistribution[item.key] || 0;
+                            const percentage = ((count / data.totalBoxes) * 100).toFixed(1);
+                            return \`
+                                <div class="bg-white rounded-lg shadow p-6">
+                                    <div class="flex items-center mb-4">
+                                        <div class="bg-\${item.color}-100 rounded-full p-3 mr-4">
+                                            <i class="fas \${item.icon} text-\${item.color}-600 text-xl"></i>
+                                        </div>
+                                        <div>
+                                            <h3 class="text-lg font-semibold text-gray-800">\${item.name}</h3>
+                                            <p class="text-xs text-gray-500">\${item.desc}</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-end justify-between">
+                                        <div>
+                                            <p class="text-3xl font-bold text-\${item.color}-600">\${count}</p>
+                                            <p class="text-sm text-gray-500">boxes</p>
+                                        </div>
+                                        <div class="text-right">
+                                            <p class="text-xl font-semibold text-gray-700">\${percentage}%</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            \`;
+                        }).join('')}
+                    </div>
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div class="flex items-start">
+                            <i class="fas fa-info-circle text-blue-600 text-lg mt-1 mr-3"></i>
+                            <div>
+                                <h4 class="font-semibold text-blue-900 mb-1">About Freshness Score</h4>
+                                <p class="text-sm text-blue-800">
+                                    Freshness indicates how recently a box has been updated or interacted with. 
+                                    Higher scores mean more recent activity. Use this to identify boxes that may need follow-up.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                \`;
+            }
+
             async function loadDashboard() {
                 try {
                     const response = await fetch('/api/analytics');
                     if (!response.ok) throw new Error('Failed to fetch data');
                     
                     const data = await response.json();
+                    currentData = data; // Store for view switching
                     
                     // Update timestamp
                     updateTimestamp();
