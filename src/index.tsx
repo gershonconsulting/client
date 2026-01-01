@@ -65,6 +65,134 @@ app.get('/api/boxes/:boxKey', async (c) => {
   }
 })
 
+// Google Sheets compatible endpoints - return plain text for IMPORTDATA
+// Get count by stage
+app.get('/api/sheets/stage/:stageName/count', async (c) => {
+  try {
+    const stageName = c.req.param('stageName')
+    const [pipeline, boxes] = await Promise.all([
+      callStreakAPI(`/pipelines/${PIPELINE_KEY}`),
+      callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`)
+    ])
+    
+    const stageMap = pipeline.stageOrder || []
+    const stages = Array.isArray(stageMap) ? stageMap.map(key => ({
+      key,
+      name: pipeline.stages?.[key]?.name || 'Unknown'
+    })) : []
+    
+    const count = Array.isArray(boxes) ? boxes.filter(box => {
+      const stage = stages.find(s => s && s.key === box.stageKey)
+      return stage && stage.name.toLowerCase() === stageName.toLowerCase()
+    }).length : 0
+    
+    return c.text(count.toString())
+  } catch (error) {
+    return c.text('ERROR')
+  }
+})
+
+// Get count by priority
+app.get('/api/sheets/priority/:priorityName/count', async (c) => {
+  try {
+    const priorityName = c.req.param('priorityName')
+    const [pipeline, boxes] = await Promise.all([
+      callStreakAPI(`/pipelines/${PIPELINE_KEY}`),
+      callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`)
+    ])
+    
+    const fields = Array.isArray(pipeline.fields) ? pipeline.fields : []
+    const priorityField = fields.find(f => f && f.name === 'Priority')
+    
+    const count = Array.isArray(boxes) ? boxes.filter(box => {
+      if (!priorityField || !box.fields || !box.fields[priorityField.key]) {
+        return priorityName.toLowerCase() === 'no priority'
+      }
+      const priorityKey = box.fields[priorityField.key]
+      const items = priorityField.dropdownSettings?.items
+      const priorityItem = Array.isArray(items) ? items.find(i => i && i.key === priorityKey) : null
+      const priority = priorityItem ? priorityItem.name : 'No Priority'
+      return priority.toLowerCase().includes(priorityName.toLowerCase())
+    }).length : 0
+    
+    return c.text(count.toString())
+  } catch (error) {
+    return c.text('ERROR')
+  }
+})
+
+// Get count by country
+app.get('/api/sheets/country/:countryName/count', async (c) => {
+  try {
+    const countryName = c.req.param('countryName')
+    const [pipeline, boxes] = await Promise.all([
+      callStreakAPI(`/pipelines/${PIPELINE_KEY}`),
+      callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`)
+    ])
+    
+    const fields = Array.isArray(pipeline.fields) ? pipeline.fields : []
+    const countryField = fields.find(f => f && f.name === 'Country')
+    
+    const count = Array.isArray(boxes) ? boxes.filter(box => {
+      if (!countryField || !box.fields || !box.fields[countryField.key]) {
+        return countryName.toLowerCase() === 'unknown'
+      }
+      const countryKey = box.fields[countryField.key]
+      const items = countryField.dropdownSettings?.items
+      const countryItem = Array.isArray(items) ? items.find(i => i && i.key === countryKey) : null
+      const country = countryItem ? countryItem.name : 'Unknown'
+      return country.toLowerCase() === countryName.toLowerCase()
+    }).length : 0
+    
+    return c.text(count.toString())
+  } catch (error) {
+    return c.text('ERROR')
+  }
+})
+
+// Get total boxes count
+app.get('/api/sheets/total', async (c) => {
+  try {
+    const boxes = await callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`)
+    const count = Array.isArray(boxes) ? boxes.length : 0
+    return c.text(count.toString())
+  } catch (error) {
+    return c.text('ERROR')
+  }
+})
+
+// Get boxes with due dates (relevant stages only)
+app.get('/api/sheets/duedate/count', async (c) => {
+  try {
+    const [pipeline, boxes] = await Promise.all([
+      callStreakAPI(`/pipelines/${PIPELINE_KEY}`),
+      callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`)
+    ])
+    
+    const dueDateRelevantStages = ['Proposal Sent', 'Nurtering', 'Negotiating', 'Closing']
+    const stageMap = pipeline.stageOrder || []
+    const stages = Array.isArray(stageMap) ? stageMap.map(key => ({
+      key,
+      name: pipeline.stages?.[key]?.name || 'Unknown'
+    })) : []
+    const fields = Array.isArray(pipeline.fields) ? pipeline.fields : []
+    const dueDateField = fields.find(f => f && f.name === 'Est Start Date')
+    
+    const count = Array.isArray(boxes) ? boxes.filter(box => {
+      const stage = stages.find(s => s && s.key === box.stageKey)
+      const stageName = stage ? stage.name : 'Unknown'
+      return dueDateRelevantStages.includes(stageName) && 
+             dueDateField && 
+             box.fields && 
+             box.fields[dueDateField.key]
+    }).length : 0
+    
+    return c.text(count.toString())
+  } catch (error) {
+    return c.text('ERROR')
+  }
+})
+
 // Get analytics summary
 app.get('/api/analytics', async (c) => {
   try {
@@ -458,6 +586,164 @@ app.get('/', (c) => {
                     <div id="freshness-content"></div>
                 </div>
 
+            </div>
+
+            <!-- Google Sheets Integration Section -->
+            <div class="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg shadow-lg p-8 mt-8 border border-green-200">
+                <div class="flex items-center mb-6">
+                    <div class="bg-green-500 rounded-full p-3 mr-4">
+                        <i class="fas fa-table text-white text-2xl"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-800">Google Sheets Integration</h2>
+                        <p class="text-gray-600">Pull live data directly into your spreadsheets</p>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg p-6 shadow mb-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-info-circle text-blue-500 mr-2"></i>
+                        How to Use
+                    </h3>
+                    <p class="text-gray-700 mb-4">
+                        Use the <code class="bg-gray-100 px-2 py-1 rounded text-sm font-mono">IMPORTDATA()</code> function in Google Sheets to import live data from your pipeline.
+                        The data updates automatically when you refresh your sheet.
+                    </p>
+                    <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
+                        <p class="text-sm text-blue-800">
+                            <strong>Tip:</strong> Copy the formulas below and paste them directly into your Google Sheets cells.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- General Metrics -->
+                    <div class="bg-white rounded-lg p-6 shadow">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-chart-bar text-purple-500 mr-2"></i>
+                            General Metrics
+                        </h3>
+                        <div class="space-y-3">
+                            <div class="border-b pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">Total Boxes</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/sheets/total")
+                                </code>
+                            </div>
+                            <div class="border-b pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">Boxes with Due Dates</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/sheets/duedate/count")
+                                </code>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- By Stage -->
+                    <div class="bg-white rounded-lg p-6 shadow">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-layer-group text-blue-500 mr-2"></i>
+                            By Stage
+                        </h3>
+                        <div class="space-y-3">
+                            <div class="border-b pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">Closing Stage</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/sheets/stage/Closing/count")
+                                </code>
+                            </div>
+                            <div class="border-b pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">Proposal Sent</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/sheets/stage/Proposal Sent/count")
+                                </code>
+                            </div>
+                            <div class="border-b pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">Negotiating</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/sheets/stage/Negotiating/count")
+                                </code>
+                            </div>
+                            <div class="pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">Contacted</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/sheets/stage/Contacted/count")
+                                </code>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- By Priority -->
+                    <div class="bg-white rounded-lg p-6 shadow">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-exclamation-circle text-red-500 mr-2"></i>
+                            By Priority
+                        </h3>
+                        <div class="space-y-3">
+                            <div class="border-b pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">High Priority</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/sheets/priority/high/count")
+                                </code>
+                            </div>
+                            <div class="border-b pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">Medium Priority</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/sheets/priority/medium/count")
+                                </code>
+                            </div>
+                            <div class="pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">Low Priority</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/sheets/priority/low/count")
+                                </code>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- By Country -->
+                    <div class="bg-white rounded-lg p-6 shadow">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-globe text-green-500 mr-2"></i>
+                            By Country
+                        </h3>
+                        <div class="space-y-3">
+                            <div class="border-b pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">France</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/sheets/country/France/count")
+                                </code>
+                            </div>
+                            <div class="border-b pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">USA</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/sheets/country/USA/count")
+                                </code>
+                            </div>
+                            <div class="pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">Canada</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/sheets/country/Canada/count")
+                                </code>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-6">
+                    <div class="flex items-start">
+                        <i class="fas fa-lightbulb text-yellow-600 text-lg mt-1 mr-3"></i>
+                        <div>
+                            <h4 class="font-semibold text-yellow-900 mb-2">Advanced Tips</h4>
+                            <ul class="text-sm text-yellow-800 space-y-1">
+                                <li>• Replace stage names in URLs to get counts for other stages (e.g., "Nurtering", "Pitched", "Scheduled")</li>
+                                <li>• Use these formulas in your weekly reports for automatic data updates</li>
+                                <li>• Combine with Google Sheets charts for custom visualizations</li>
+                                <li>• Data refreshes automatically when you reopen or refresh your Google Sheet</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
