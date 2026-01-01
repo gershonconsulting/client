@@ -19,11 +19,15 @@
 ## Currently Completed Features
 
 ### ✅ Dashboard
-- **Summary Cards**: Total boxes, stages, origins, and team members
-- **Stage Distribution Chart**: Visual pie chart showing distribution across pipeline stages
-- **Assignee Distribution Chart**: Bar chart showing workload distribution
+- **Summary Cards**: 
+  - Total boxes count
+  - Active stages count
+  - High priority percentage (6.4% of boxes)
+  - Boxes with due dates percentage (12.1% of boxes)
+- **Stage Distribution Chart**: Visual pie chart showing distribution across 7 pipeline stages
+- **Priority Distribution Chart**: Doughnut chart showing priority breakdown with percentages
 - **Top Origins List**: Shows the most common lead sources
-- **Recent Boxes Table**: Lists the 10 most recently updated boxes
+- **Recent Boxes Table**: Lists the 10 most recently updated boxes with priority and due date columns
 
 ### ✅ API Endpoints
 
@@ -70,17 +74,29 @@ Example Response:
     "Contacted": 71,
     "Pitched": 13
   },
-  "originDistribution": {
-    "Kular": 58,
-    "LinkedIn": 37,
-    "Buzz Campaign": 21,
-    "Web": 17
+  "priorityDistribution": {
+    "1. High": 11,
+    "2. Medium": 54,
+    "3. Low": 14,
+    "No Priority": 94
   },
-  "assigneeDistribution": {
-    "Aina Rama": 130,
-    "Olivier Attia": 42
+  "priorityPercentages": {
+    "1. High": "6.4",
+    "2. Medium": "31.2",
+    "3. Low": "8.1",
+    "No Priority": "54.3"
   },
-  "recentBoxes": [...]
+  "boxesWithDueDate": 21,
+  "dueDatePercentage": 12.1,
+  "recentBoxes": [
+    {
+      "name": "Smart Silicon",
+      "stage": "Closing",
+      "priority": "1. High",
+      "dueDate": "2026-01-05T17:00:00.000Z",
+      "lastUpdated": "2025-12-30T20:02:23.000Z"
+    }
+  ]
 }
 ```
 
@@ -107,10 +123,16 @@ Example Response:
 ### Viewing the Dashboard
 1. Open the application URL in your browser
 2. The dashboard will automatically load data from your Streak pipeline
-3. View summary statistics in the card widgets at the top
-4. Explore visual charts for stage and assignee distribution
+3. View summary statistics in the card widgets at the top:
+   - Total Boxes: Overall pipeline size
+   - Active Stages: Number of stages with boxes
+   - High Priority %: Percentage of high-priority boxes
+   - With Due Date %: Percentage of boxes with due dates set
+4. Explore visual charts:
+   - Stage Distribution: See how boxes are distributed across pipeline stages
+   - Priority Distribution: View the priority breakdown with percentages
 5. Check top origins to see your best lead sources
-6. Review recent boxes in the table at the bottom
+6. Review recent boxes table with priority and due date information
 
 ### Using the API
 All API endpoints support CORS for cross-origin requests. You can integrate these endpoints into your own applications:
