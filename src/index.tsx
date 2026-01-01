@@ -82,6 +82,10 @@ app.get('/api/analytics', async (c) => {
     const languageDistribution = {}
     const freshnessDistribution = { 'High (>0.5)': 0, 'Medium (0.2-0.5)': 0, 'Low (<0.2)': 0 }
     let boxesWithDueDate = 0
+    let relevantStageBoxes = 0 // Boxes in stages where due date matters
+    
+    // Stages where due date is important
+    const dueDateRelevantStages = ['Proposal Sent', 'Nurtering', 'Negotiating', 'Closing']
     
     // Find stage and field keys
     const stageMap = pipeline.stageOrder || []
