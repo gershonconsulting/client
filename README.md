@@ -126,16 +126,19 @@ Example Response:
 2. The dashboard will automatically load data from your Streak pipeline
 3. **Automatic Updates**: The dashboard refreshes automatically every Monday at 8:00 AM
 4. Check the "Last Updated" timestamp in the header to see when data was last refreshed
-5. View summary statistics in the card widgets at the top:
-   - Total Boxes: Overall pipeline size
-   - Active Stages: Number of stages with boxes
-   - High Priority %: Percentage of high-priority boxes
-   - With Due Date %: Percentage of boxes with due dates set
-6. Explore visual charts:
-   - Stage Distribution: See how boxes are distributed across pipeline stages
-   - Priority Distribution: View the priority breakdown with percentages
-7. Check top origins to see your best lead sources
-8. Review recent boxes table with priority and due date information
+5. **Switch between views** using the navigation tabs:
+   - **Overview**: See overall pipeline health and key metrics
+   - **By Stage**: Analyze distribution across all 7 pipeline stages
+   - **By Priority**: Focus on priority management and urgent items
+   - **By Country**: View geographic distribution of your pipeline
+   - **By Language**: Understand language breakdown of your deals
+   - **By Freshness**: Identify boxes needing follow-up based on activity
+6. Each view provides specific insights:
+   - **Stage View**: Card grid showing each stage's volume and percentage
+   - **Priority View**: Color-coded priority breakdown with counts
+   - **Country View**: Sortable table with percentage bars
+   - **Language View**: Simple language distribution cards
+   - **Freshness View**: Activity levels with actionable insights
 
 ### Using the API
 All API endpoints support CORS for cross-origin requests. You can integrate these endpoints into your own applications:
