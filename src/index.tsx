@@ -643,19 +643,13 @@ app.get('/', (c) => {
                     <div class="bg-white rounded-lg p-6 shadow">
                         <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
                             <i class="fas fa-layer-group text-blue-500 mr-2"></i>
-                            By Stage
+                            By Stage (Active Stages)
                         </h3>
                         <div class="space-y-3">
                             <div class="border-b pb-3">
-                                <p class="text-sm font-medium text-gray-700 mb-1">Closing Stage</p>
+                                <p class="text-sm font-medium text-gray-700 mb-1">Closing</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
                                     =IMPORTDATA("https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/sheets/stage/Closing/count")
-                                </code>
-                            </div>
-                            <div class="border-b pb-3">
-                                <p class="text-sm font-medium text-gray-700 mb-1">Proposal Sent</p>
-                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/sheets/stage/Proposal Sent/count")
                                 </code>
                             </div>
                             <div class="border-b pb-3">
@@ -664,10 +658,16 @@ app.get('/', (c) => {
                                     =IMPORTDATA("https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/sheets/stage/Negotiating/count")
                                 </code>
                             </div>
-                            <div class="pb-3">
-                                <p class="text-sm font-medium text-gray-700 mb-1">Contacted</p>
+                            <div class="border-b pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">Nurtering</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/sheets/stage/Contacted/count")
+                                    =IMPORTDATA("https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/sheets/stage/Nurtering/count")
+                                </code>
+                            </div>
+                            <div class="pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">Proposal Sent</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/sheets/stage/Proposal Sent/count")
                                 </code>
                             </div>
                         </div>
@@ -736,7 +736,8 @@ app.get('/', (c) => {
                         <div>
                             <h4 class="font-semibold text-yellow-900 mb-2">Advanced Tips</h4>
                             <ul class="text-sm text-yellow-800 space-y-1">
-                                <li>• Replace stage names in URLs to get counts for other stages (e.g., "Nurtering", "Pitched", "Scheduled")</li>
+                                <li>• The "By Stage" section shows the 4 key active stages where due dates matter</li>
+                                <li>• You can also query other stages (e.g., "Contacted", "Pitched", "Scheduled", "Lead") by replacing the stage name in the URL</li>
                                 <li>• Use these formulas in your weekly reports for automatic data updates</li>
                                 <li>• Combine with Google Sheets charts for custom visualizations</li>
                                 <li>• Data refreshes automatically when you reopen or refresh your Google Sheet</li>
