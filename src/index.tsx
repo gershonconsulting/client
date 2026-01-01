@@ -100,7 +100,7 @@ app.get('/api/analytics', async (c) => {
       boxes.forEach(box => {
         if (!box) return
         
-        // Count by stage
+        // Get stage info (used multiple times)
         const stage = stages.find(s => s && s.key === box.stageKey)
         const stageName = stage ? stage.name : 'Unknown'
         stageDistribution[stageName] = (stageDistribution[stageName] || 0) + 1
@@ -125,9 +125,12 @@ app.get('/api/analytics', async (c) => {
           priorityDistribution['No Priority'] = (priorityDistribution['No Priority'] || 0) + 1
         }
         
-        // Count boxes with due date
-        if (dueDateField && box.fields && box.fields[dueDateField.key]) {
-          boxesWithDueDate++
+        // Count boxes with due date (only for relevant stages: Proposal Sent, Nurtering, Negotiating, Closing)
+        if (dueDateRelevantStages.includes(stageName)) {
+          relevantStageBoxes++
+          if (dueDateField && box.fields && box.fields[dueDateField.key]) {
+            boxesWithDueDate++
+          }
         }
         
         // Count by country
@@ -170,7 +173,8 @@ app.get('/api/analytics', async (c) => {
       priorityPercentages[key] = totalBoxes > 0 ? ((priorityDistribution[key] / totalBoxes) * 100).toFixed(1) : 0
     })
     
-    const dueDatePercentage = totalBoxes > 0 ? ((boxesWithDueDate / totalBoxes) * 100).toFixed(1) : 0
+    // Due date percentage only for relevant stages (Proposal Sent, Nurtering, Negotiating, Closing)
+    const dueDatePercentage = relevantStageBoxes > 0 ? ((boxesWithDueDate / relevantStageBoxes) * 100).toFixed(1) : 0
     
     return c.json({
       totalBoxes,
@@ -181,6 +185,7 @@ app.get('/api/analytics', async (c) => {
       countryDistribution,
       languageDistribution,
       freshnessDistribution,
+      relevantStageBoxes,
       boxesWithDueDate,
       dueDatePercentage: parseFloat(dueDatePercentage),
       recentBoxes: Array.isArray(boxes) ? boxes.slice(0, 10).map(box => {
@@ -270,7 +275,7 @@ app.get('/', (c) => {
                 </div>
                 <p class="text-blue-200 text-xs mt-2">
                     <i class="fas fa-calendar-alt mr-1"></i>
-                    Auto-refreshes every Monday at 8:00 AM
+                    Auto-refreshes every Monday at 8:00 AM | *Due dates tracked for: Proposal Sent, Nurtering, Negotiating, Closing
                 </p>
             </div>
 
@@ -363,6 +368,7 @@ app.get('/', (c) => {
                             <div>
                                 <p class="text-gray-500 text-sm font-medium">With Due Date</p>
                                 <p id="due-date-percentage" class="text-3xl font-bold text-purple-600 mt-1">0%</p>
+                                <p class="text-xs text-gray-400 mt-1">Active stages only*</p>
                             </div>
                             <div class="bg-purple-100 rounded-full p-3">
                                 <i class="fas fa-calendar-check text-purple-600 text-2xl"></i>
