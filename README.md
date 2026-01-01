@@ -1,21 +1,190 @@
-```txt
+# Streak Pipeline Report App
+
+## Project Overview
+- **Name**: Streak Pipeline Report App
+- **Goal**: Create a comprehensive reporting dashboard for the GC Pipeline in Streak CRM
+- **Features**: 
+  - Real-time analytics and visualizations
+  - Stage distribution pie chart
+  - Assignee workload bar chart
+  - Top origins tracking
+  - Recent boxes table
+  - REST API for programmatic access
+
+## URLs
+- **Development**: https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai
+- **API Base**: https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api
+- **GitHub**: (To be deployed)
+
+## Currently Completed Features
+
+### ✅ Dashboard
+- **Summary Cards**: Total boxes, stages, origins, and team members
+- **Stage Distribution Chart**: Visual pie chart showing distribution across pipeline stages
+- **Assignee Distribution Chart**: Bar chart showing workload distribution
+- **Top Origins List**: Shows the most common lead sources
+- **Recent Boxes Table**: Lists the 10 most recently updated boxes
+
+### ✅ API Endpoints
+
+#### GET `/api/pipeline`
+Returns complete pipeline information including fields, stages, and settings.
+```bash
+curl https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/pipeline
+```
+
+#### GET `/api/boxes`
+Returns all boxes in the pipeline with full details.
+```bash
+curl https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/boxes
+```
+
+#### GET `/api/boxes/:boxKey`
+Returns detailed information for a specific box.
+```bash
+curl https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/boxes/BOX_KEY
+```
+
+#### GET `/api/analytics`
+Returns aggregated analytics data including:
+- Total box count
+- Stage distribution
+- Origin distribution
+- Assignee distribution
+- Recent boxes summary
+
+```bash
+curl https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/analytics
+```
+
+Example Response:
+```json
+{
+  "totalBoxes": 173,
+  "stageDistribution": {
+    "Closing": 9,
+    "Proposal Sent": 42,
+    "Scheduled": 4,
+    "Negotiating": 9,
+    "Nurtering": 25,
+    "Contacted": 71,
+    "Pitched": 13
+  },
+  "originDistribution": {
+    "Kular": 58,
+    "LinkedIn": 37,
+    "Buzz Campaign": 21,
+    "Web": 17
+  },
+  "assigneeDistribution": {
+    "Aina Rama": 130,
+    "Olivier Attia": 42
+  },
+  "recentBoxes": [...]
+}
+```
+
+## Data Architecture
+- **Data Source**: Streak CRM API v1
+- **Pipeline**: GC Pipeline (agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgICAwLWbCgw)
+- **Authentication**: API Key authentication with Streak
+- **Data Models**:
+  - **Boxes**: Individual deals/leads in the pipeline
+  - **Stages**: Pipeline stages (Lead, Contacted, Scheduled, Pitched, Proposal Sent, Negotiating, Closing, Nurtering)
+  - **Fields**: Custom fields including Deal Size, Origin, etc.
+  - **Assignees**: Team members responsible for boxes
+- **Real-time**: All data fetched in real-time from Streak API
+
+## Technologies Used
+- **Backend**: Hono (lightweight web framework)
+- **Runtime**: Cloudflare Workers/Pages
+- **Frontend**: Vanilla JavaScript with Tailwind CSS
+- **Charts**: Chart.js
+- **API**: Streak CRM REST API v1
+
+## User Guide
+
+### Viewing the Dashboard
+1. Open the application URL in your browser
+2. The dashboard will automatically load data from your Streak pipeline
+3. View summary statistics in the card widgets at the top
+4. Explore visual charts for stage and assignee distribution
+5. Check top origins to see your best lead sources
+6. Review recent boxes in the table at the bottom
+
+### Using the API
+All API endpoints support CORS for cross-origin requests. You can integrate these endpoints into your own applications:
+
+```javascript
+// Fetch analytics data
+const response = await fetch('https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/analytics');
+const analytics = await response.json();
+console.log(`Total boxes: ${analytics.totalBoxes}`);
+```
+
+## Deployment
+- **Platform**: Cloudflare Pages (Ready for deployment)
+- **Status**: ✅ Development - Running locally
+- **Tech Stack**: Hono + TypeScript + TailwindCSS + Chart.js
+- **Last Updated**: 2026-01-01
+
+## Development
+
+### Local Setup
+```bash
+# Install dependencies
 npm install
-npm run dev
+
+# Build the project
+npm run build
+
+# Start development server
+pm2 start ecosystem.config.cjs
+
+# View logs
+pm2 logs webapp --nostream
 ```
 
-```txt
-npm run deploy
+### Project Structure
+```
+webapp/
+├── src/
+│   └── index.tsx          # Main Hono application with API routes
+├── public/
+│   └── static/            # Static assets
+├── dist/                  # Build output
+├── ecosystem.config.cjs   # PM2 configuration
+├── wrangler.jsonc         # Cloudflare configuration
+├── package.json           # Dependencies and scripts
+└── README.md              # This file
 ```
 
-[For generating/synchronizing types based on your Worker configuration run](https://developers.cloudflare.com/workers/wrangler/commands/#types):
+## Features Not Yet Implemented
+- [ ] Date range filtering for analytics
+- [ ] Export data to CSV/Excel
+- [ ] Custom report builder
+- [ ] Webhook integration for real-time updates
+- [ ] User authentication for multi-user access
+- [ ] Advanced filtering and search
+- [ ] Historical trend analysis
+- [ ] Automated email reports
+- [ ] Integration with other CRM systems
+- [ ] Mobile responsive improvements
 
-```txt
-npm run cf-typegen
-```
+## Recommended Next Steps
+1. **Add Date Filtering**: Implement date range selector to filter analytics by time period
+2. **Export Functionality**: Add CSV/Excel export for reports
+3. **Deploy to Production**: Deploy to Cloudflare Pages for public access
+4. **Email Notifications**: Set up automated daily/weekly report emails
+5. **Advanced Visualizations**: Add conversion funnel, time-in-stage analysis
+6. **Custom Dashboards**: Allow users to create custom views and save preferences
+7. **Real-time Updates**: Implement WebSocket or polling for live data updates
+8. **Mobile App**: Create responsive mobile version or native app
 
-Pass the `CloudflareBindings` as generics when instantiation `Hono`:
+## API Rate Limits
+Streak API has the following rate limits:
+- 100 requests per 15 seconds per API key
+- The app caches pipeline data to minimize API calls
 
-```ts
-// src/index.ts
-const app = new Hono<{ Bindings: CloudflareBindings }>()
-```
+## Support
+For issues or questions, please contact the development team.
