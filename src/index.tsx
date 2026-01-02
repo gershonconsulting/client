@@ -482,7 +482,7 @@ app.get('/', (c) => {
 
                 <!-- Overview View --><div id="view-overview" class="view-content">
                 <!-- Summary Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                     <div class="bg-white rounded-lg shadow p-6">
                         <div class="flex items-center justify-between">
                             <div>
@@ -491,18 +491,6 @@ app.get('/', (c) => {
                             </div>
                             <div class="bg-blue-100 rounded-full p-3">
                                 <i class="fas fa-box text-blue-600 text-2xl"></i>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="bg-white rounded-lg shadow p-6">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-gray-500 text-sm font-medium">Active Stages</p>
-                                <p id="total-stages" class="text-3xl font-bold text-gray-800 mt-1">0</p>
-                            </div>
-                            <div class="bg-green-100 rounded-full p-3">
-                                <i class="fas fa-layer-group text-green-600 text-2xl"></i>
                             </div>
                         </div>
                     </div>
@@ -1070,7 +1058,6 @@ app.get('/', (c) => {
                     
                     // Update summary cards
                     document.getElementById('total-boxes').textContent = data.totalBoxes;
-                    document.getElementById('total-stages').textContent = Object.keys(data.stageDistribution).length;
                     document.getElementById('high-priority').textContent = data.priorityPercentages['1. High'] ? data.priorityPercentages['1. High'] + '%' : '0%';
                     document.getElementById('due-date-percentage').textContent = data.dueDatePercentage + '%';
 
