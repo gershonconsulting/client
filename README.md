@@ -20,9 +20,8 @@
 ## Currently Completed Features
 
 ### ✅ Dashboard
-- **Summary Cards**: 
+- **Summary Cards** (3 cards): 
   - Total boxes count (173)
-  - Active stages count (7)
   - High priority percentage (6.4% of boxes)
   - Boxes with due dates percentage (24.7% of active stage boxes)
 - **Multiple Views**:
