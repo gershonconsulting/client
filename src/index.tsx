@@ -906,7 +906,7 @@ app.get('/', (c) => {
                                     <div class="flex items-end justify-between">
                                         <div>
                                             <p class="text-3xl font-bold text-blue-600">\${count}</p>
-                                            <p class="text-sm text-gray-500">boxes</p>
+                                            <p class="text-sm text-gray-500">opportunities</p>
                                         </div>
                                         <div class="text-right">
                                             <p class="text-2xl font-semibold text-gray-700">\${percentage}%</p>
@@ -922,26 +922,22 @@ app.get('/', (c) => {
 
             function renderPriorityView(data) {
                 const priorities = [
-                    { name: '1. High', key: '1. High', color: 'red' },
-                    { name: '2. Medium', key: '2. Medium', color: 'yellow' },
-                    { name: '3. Low', key: '3. Low', color: 'green' },
-                    { name: 'No Priority', key: 'No Priority', color: 'gray' }
+                    { name: 'High', key: '1. High', color: 'red', icon: 'fa-exclamation-circle' },
+                    { name: 'Medium', key: '2. Medium', color: 'yellow', icon: 'fa-exclamation-triangle' },
+                    { name: 'Low', key: '3. Low', color: 'green', icon: 'fa-info-circle' }
                 ];
                 return \`
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         \${priorities.map(priority => {
                             const count = data.priorityDistribution[priority.key] || 0;
-                            const percentage = data.priorityPercentages[priority.key] || '0';
                             return \`
-                                <div class="bg-white rounded-lg shadow p-6">
-                                    <div class="flex items-center justify-between mb-4">
-                                        <h3 class="text-lg font-semibold text-gray-800">\${priority.name}</h3>
-                                        <span class="bg-\${priority.color}-100 text-\${priority.color}-800 px-3 py-1 rounded-full text-sm font-semibold">
-                                            \${percentage}%
-                                        </span>
+                                <div class="bg-white rounded-lg shadow p-8 text-center">
+                                    <div class="inline-flex items-center justify-center w-16 h-16 bg-\${priority.color}-100 rounded-full mb-4">
+                                        <i class="fas \${priority.icon} text-\${priority.color}-600 text-2xl"></i>
                                     </div>
-                                    <p class="text-4xl font-bold text-\${priority.color}-600">\${count}</p>
-                                    <p class="text-sm text-gray-500 mt-2">boxes in this priority</p>
+                                    <h3 class="text-xl font-semibold text-gray-800 mb-2">\${priority.name} Priority</h3>
+                                    <p class="text-5xl font-bold text-\${priority.color}-600 mb-2">\${count}</p>
+                                    <p class="text-sm text-gray-500">opportunities</p>
                                 </div>
                             \`;
                         }).join('')}
