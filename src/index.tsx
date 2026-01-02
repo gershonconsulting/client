@@ -344,7 +344,17 @@ app.get('/api/analytics', async (c) => {
       relevantStageBoxes,
       boxesWithDueDate,
       dueDatePercentage: parseFloat(dueDatePercentage),
-      recentBoxes: Array.isArray(boxes) ? boxes.slice(0, 10).map(box => {
+      recentBoxes: Array.isArray(boxes) ? boxes.filter(box => {
+        // Filter for High priority only
+        if (priorityField && box.fields && box.fields[priorityField.key]) {
+          const priorityKey = box.fields[priorityField.key]
+          const items = priorityField.dropdownSettings?.items
+          const priorityItem = Array.isArray(items) ? items.find(i => i && i.key === priorityKey) : null
+          const priorityName = priorityItem ? priorityItem.name : 'No Priority'
+          return priorityName === '1. High'
+        }
+        return false
+      }).slice(0, 10).map(box => {
         const stage = stages.find(s => s && s.key === box.stageKey)
         
         // Get priority
@@ -553,8 +563,8 @@ app.get('/', (c) => {
                 <!-- Recent Boxes -->
                 <div class="bg-white rounded-lg shadow p-6">
                     <h3 class="text-xl font-semibold text-gray-800 mb-4">
-                        <i class="fas fa-clock mr-2 text-indigo-600"></i>
-                        Recent Boxes
+                        <i class="fas fa-exclamation-circle mr-2 text-red-600"></i>
+                        Recent High Priority Boxes
                     </h3>
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200">
@@ -1233,7 +1243,9 @@ app.get('/', (c) => {
 
                     // Display recent boxes
                     const recentBoxes = document.getElementById('recent-boxes');
-                    recentBoxes.innerHTML = data.recentBoxes.map(box => {
+                    // Filter to only show High priority boxes
+                    const highPriorityBoxes = data.recentBoxes.filter(box => box.priority.includes('High'));
+                    recentBoxes.innerHTML = highPriorityBoxes.map(box => {
                         const priorityColor = box.priority.includes('High') ? 'bg-red-100 text-red-800' : 
                                             box.priority.includes('Medium') ? 'bg-yellow-100 text-yellow-800' : 
                                             box.priority.includes('Low') ? 'bg-green-100 text-green-800' : 
