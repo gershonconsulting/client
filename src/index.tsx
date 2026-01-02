@@ -193,6 +193,30 @@ app.get('/api/sheets/duedate/count', async (c) => {
   }
 })
 
+// Get count by freshness level
+app.get('/api/sheets/freshness/:level/count', async (c) => {
+  try {
+    const level = c.req.param('level').toLowerCase()
+    const boxes = await callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`)
+    
+    const count = Array.isArray(boxes) ? boxes.filter(box => {
+      const freshness = box.freshness || 0
+      if (level === 'high') {
+        return freshness > 0.5
+      } else if (level === 'medium') {
+        return freshness >= 0.2 && freshness <= 0.5
+      } else if (level === 'low') {
+        return freshness < 0.2
+      }
+      return false
+    }).length : 0
+    
+    return c.text(count.toString())
+  } catch (error) {
+    return c.text('ERROR')
+  }
+})
+
 // Get analytics summary
 app.get('/api/analytics', async (c) => {
   try {
@@ -724,6 +748,34 @@ app.get('/', (c) => {
                                 <p class="text-sm font-medium text-gray-700 mb-1">Canada</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
                                     =IMPORTDATA("https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/sheets/country/Canada/count")
+                                </code>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- By Freshness -->
+                    <div class="bg-white rounded-lg p-6 shadow">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-heartbeat text-pink-500 mr-2"></i>
+                            By Freshness (Activity Level)
+                        </h3>
+                        <div class="space-y-3">
+                            <div class="border-b pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">High Activity (>0.5)</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/sheets/freshness/high/count")
+                                </code>
+                            </div>
+                            <div class="border-b pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">Medium Activity (0.2-0.5)</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/sheets/freshness/medium/count")
+                                </code>
+                            </div>
+                            <div class="pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">Low Activity (<0.2)</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/sheets/freshness/low/count")
                                 </code>
                             </div>
                         </div>
