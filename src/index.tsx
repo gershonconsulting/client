@@ -537,8 +537,8 @@ app.get('/', (c) => {
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
                     <div class="bg-white rounded-lg shadow p-6">
                         <h3 class="text-xl font-semibold text-gray-800 mb-4">
-                            <i class="fas fa-chart-pie mr-2 text-blue-600"></i>
-                            Distribution by Stage
+                            <i class="fas fa-chart-bar mr-2 text-blue-600"></i>
+                            Opportunities by Stage
                         </h3>
                         <canvas id="stageChart"></canvas>
                     </div>
@@ -546,7 +546,7 @@ app.get('/', (c) => {
                     <div class="bg-white rounded-lg shadow p-6">
                         <h3 class="text-xl font-semibold text-gray-800 mb-4">
                             <i class="fas fa-chart-bar mr-2 text-red-600"></i>
-                            Priority Distribution
+                            Opportunities by Priority
                         </h3>
                         <canvas id="priorityChart"></canvas>
                     </div>
@@ -1081,49 +1081,109 @@ app.get('/', (c) => {
                     const stageCtx = document.getElementById('stageChart').getContext('2d');
                     if (stageChart) stageChart.destroy();
                     stageChart = new Chart(stageCtx, {
-                        type: 'pie',
+                        type: 'bar',
                         data: {
                             labels: stageLabels,
                             datasets: [{
+                                label: 'Opportunities',
                                 data: stageValues,
                                 backgroundColor: [
                                     '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
                                     '#EC4899', '#14B8A6', '#F97316', '#6366F1', '#84CC16'
-                                ]
+                                ],
+                                borderWidth: 2,
+                                borderColor: '#ffffff',
+                                borderRadius: 8
                             }]
                         },
                         options: {
                             responsive: true,
+                            maintainAspectRatio: true,
                             plugins: {
-                                legend: { position: 'bottom' }
+                                legend: { display: false },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            return context.parsed.y + ' opportunities';
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        stepSize: 10,
+                                        font: { size: 12 }
+                                    },
+                                    grid: {
+                                        color: '#E5E7EB'
+                                    }
+                                },
+                                x: {
+                                    ticks: {
+                                        font: { size: 11 },
+                                        maxRotation: 45,
+                                        minRotation: 45
+                                    },
+                                    grid: {
+                                        display: false
+                                    }
+                                }
                             }
                         }
                     });
 
                     // Create priority distribution chart
-                    const priorityLabels = Object.keys(data.priorityPercentages);
-                    const priorityValues = Object.values(data.priorityPercentages).map(v => parseFloat(v));
+                    const priorityLabels = ['High', 'Medium', 'Low'];
+                    const priorityKeys = ['1. High', '2. Medium', '3. Low'];
+                    const priorityValues = priorityKeys.map(key => data.priorityDistribution[key] || 0);
                     
                     const priorityCtx = document.getElementById('priorityChart').getContext('2d');
                     if (priorityChart) priorityChart.destroy();
                     priorityChart = new Chart(priorityCtx, {
-                        type: 'doughnut',
+                        type: 'bar',
                         data: {
                             labels: priorityLabels,
                             datasets: [{
+                                label: 'Opportunities',
                                 data: priorityValues,
-                                backgroundColor: ['#EF4444', '#F59E0B', '#10B981', '#9CA3AF']
+                                backgroundColor: ['#EF4444', '#F59E0B', '#10B981'],
+                                borderWidth: 2,
+                                borderColor: '#ffffff',
+                                borderRadius: 8
                             }]
                         },
                         options: {
                             responsive: true,
+                            maintainAspectRatio: true,
                             plugins: {
-                                legend: { position: 'bottom' },
+                                legend: { display: false },
                                 tooltip: {
                                     callbacks: {
                                         label: function(context) {
-                                            return context.label + ': ' + context.parsed + '%';
+                                            return context.parsed.y + ' opportunities';
                                         }
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        stepSize: 10,
+                                        font: { size: 12 }
+                                    },
+                                    grid: {
+                                        color: '#E5E7EB'
+                                    }
+                                },
+                                x: {
+                                    ticks: {
+                                        font: { size: 13, weight: 'bold' }
+                                    },
+                                    grid: {
+                                        display: false
                                     }
                                 }
                             }
