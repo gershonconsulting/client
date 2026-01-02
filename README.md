@@ -21,12 +21,18 @@
 
 ### ✅ Dashboard
 - **Summary Cards**: 
-  - Total boxes count
-  - Active stages count
+  - Total boxes count (173)
+  - Active stages count (7)
   - High priority percentage (6.4% of boxes)
-  - Boxes with due dates percentage (12.1% of boxes)
+  - Boxes with due dates percentage (24.7% of active stage boxes)
+- **Multiple Views**:
+  - **By Stage**: Shows number of opportunities per stage (e.g., Contacted: 71 opportunities)
+  - **By Priority**: Displays 3 priority groups with absolute numbers only (High: 11, Medium: 54, Low: 14)
+  - **By Country**: Table view with country distribution and percentages
+  - **By Language**: Cards showing language distribution (English, French)
+  - **By Freshness**: Activity levels (High, Medium, Low) based on engagement metrics
 - **Stage Distribution Chart**: Visual pie chart showing distribution across 7 pipeline stages
-- **Priority Distribution Chart**: Doughnut chart showing priority breakdown with percentages
+- **Priority Distribution Chart**: Doughnut chart showing priority breakdown
 - **Top Origins List**: Shows the most common lead sources
 - **Recent Boxes Table**: Lists the 10 most recently updated boxes with priority and due date columns
 
