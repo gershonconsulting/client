@@ -30,8 +30,8 @@
   - **By Country**: Table view with country distribution and percentages
   - **By Language**: Cards showing language distribution (English, French)
   - **By Freshness**: Activity levels (High, Medium, Low) based on engagement metrics
-- **Opportunities by Stage Chart**: 3D-style bar chart showing 4 active stages in order: Proposal Sent (42, 49.4%), Nurtering (25, 29.4%), Negotiating (9, 10.6%), Closing (9, 10.6%). Tooltips display count and percentage.
-- **Opportunities by Priority Chart**: 3D-style bar chart showing priorities in order: Low (14, 8.1%), Medium (54, 31.2%), High (11, 6.4%), No Priority (94, 54.3%). Tooltips display count and percentage.
+- **By Stage Chart**: 3D-style bar chart with data labels showing both count and percentage on each bar. Order: Proposal Sent (42, 49.4%), Nurtering (25, 29.4%), Negotiating (9, 10.6%), Closing (9, 10.6%). Values displayed directly on bars.
+- **By Priority Chart**: 3D-style bar chart with data labels showing both count and percentage on each bar. Order: Low (14, 8.1%), Medium (54, 31.2%), High (11, 6.4%), No Priority (94, 54.3%). Values displayed directly on bars.
 - **Top Origins List**: Shows the most common lead sources
 - **Recent Boxes Table**: Lists the 10 most recently updated boxes with priority and due date columns
 
