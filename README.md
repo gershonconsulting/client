@@ -27,12 +27,12 @@
   - Boxes with due dates percentage (24.7% of active stage boxes)
 - **Multiple Views**:
   - **By Stage**: Shows number of opportunities per stage (e.g., Contacted: 71 opportunities)
-  - **By Priority**: Displays 3 priority groups with absolute numbers only (High: 11, Medium: 54, Low: 14)
+  - **By Priority**: Displays 4 priority groups with absolute numbers and percentages (Low: 14, Medium: 54, High: 11, No Priority: 94)
   - **By Country**: Table view with country distribution and percentages
   - **By Language**: Cards showing language distribution (English, French)
   - **By Freshness**: Activity levels (High, Medium, Low) based on engagement metrics
-- **Opportunities by Stage Chart**: Colorful 3D-style bar chart showing opportunities across 7 pipeline stages
-- **Opportunities by Priority Chart**: 3D-style bar chart displaying High, Medium, and Low priority counts
+- **Opportunities by Stage Chart**: 3D-style bar chart showing 4 active stages in order: Proposal Sent (42, 49.4%), Nurtering (25, 29.4%), Negotiating (9, 10.6%), Closing (9, 10.6%). Tooltips display count and percentage.
+- **Opportunities by Priority Chart**: 3D-style bar chart showing priorities in order: Low (14, 8.1%), Medium (54, 31.2%), High (11, 6.4%), No Priority (94, 54.3%). Tooltips display count and percentage.
 - **Top Origins List**: Shows the most common lead sources
 - **Recent Boxes Table**: Lists the 10 most recently updated boxes with priority and due date columns
 
