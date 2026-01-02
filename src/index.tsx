@@ -1074,9 +1074,18 @@ app.get('/', (c) => {
                     document.getElementById('high-priority').textContent = data.priorityPercentages['1. High'] ? data.priorityPercentages['1. High'] + '%' : '0%';
                     document.getElementById('due-date-percentage').textContent = data.dueDatePercentage + '%';
 
-                    // Create stage distribution chart
-                    const stageLabels = Object.keys(data.stageDistribution);
-                    const stageValues = Object.values(data.stageDistribution);
+                    // Create stage distribution chart - specific stages in order
+                    const stageOrder = ['Proposal Sent', 'Nurtering', 'Negotiating', 'Closing'];
+                    const stageLabels = [];
+                    const stageValues = [];
+                    const stageColors = ['#10B981', '#F59E0B', '#EF4444', '#8B5CF6']; // Green, Orange, Red, Purple
+                    
+                    stageOrder.forEach(stageName => {
+                        if (data.stageDistribution[stageName]) {
+                            stageLabels.push(stageName);
+                            stageValues.push(data.stageDistribution[stageName]);
+                        }
+                    });
                     
                     const stageCtx = document.getElementById('stageChart').getContext('2d');
                     if (stageChart) stageChart.destroy();
@@ -1087,10 +1096,7 @@ app.get('/', (c) => {
                             datasets: [{
                                 label: 'Opportunities',
                                 data: stageValues,
-                                backgroundColor: [
-                                    '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
-                                    '#EC4899', '#14B8A6', '#F97316', '#6366F1', '#84CC16'
-                                ],
+                                backgroundColor: stageColors.slice(0, stageLabels.length),
                                 borderWidth: 2,
                                 borderColor: '#ffffff',
                                 borderRadius: 8
@@ -1104,7 +1110,9 @@ app.get('/', (c) => {
                                 tooltip: {
                                     callbacks: {
                                         label: function(context) {
-                                            return context.parsed.y + ' opportunities';
+                                            const total = stageValues.reduce((a, b) => a + b, 0);
+                                            const percentage = ((context.parsed.y / total) * 100).toFixed(1);
+                                            return context.parsed.y + ' opportunities (' + percentage + '%)';
                                         }
                                     }
                                 }
@@ -1134,10 +1142,11 @@ app.get('/', (c) => {
                         }
                     });
 
-                    // Create priority distribution chart
-                    const priorityLabels = ['High', 'Medium', 'Low'];
-                    const priorityKeys = ['1. High', '2. Medium', '3. Low'];
+                    // Create priority distribution chart - Low, Medium, High, No Priority
+                    const priorityLabels = ['Low', 'Medium', 'High', 'No Priority'];
+                    const priorityKeys = ['3. Low', '2. Medium', '1. High', 'No Priority'];
                     const priorityValues = priorityKeys.map(key => data.priorityDistribution[key] || 0);
+                    const totalPriority = priorityValues.reduce((a, b) => a + b, 0);
                     
                     const priorityCtx = document.getElementById('priorityChart').getContext('2d');
                     if (priorityChart) priorityChart.destroy();
@@ -1148,7 +1157,7 @@ app.get('/', (c) => {
                             datasets: [{
                                 label: 'Opportunities',
                                 data: priorityValues,
-                                backgroundColor: ['#EF4444', '#F59E0B', '#10B981'],
+                                backgroundColor: ['#10B981', '#F59E0B', '#EF4444', '#9CA3AF'], // Green, Orange, Red, Gray
                                 borderWidth: 2,
                                 borderColor: '#ffffff',
                                 borderRadius: 8
@@ -1162,7 +1171,8 @@ app.get('/', (c) => {
                                 tooltip: {
                                     callbacks: {
                                         label: function(context) {
-                                            return context.parsed.y + ' opportunities';
+                                            const percentage = ((context.parsed.y / totalPriority) * 100).toFixed(1);
+                                            return context.parsed.y + ' opportunities (' + percentage + '%)';
                                         }
                                     }
                                 }
