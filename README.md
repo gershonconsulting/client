@@ -33,7 +33,7 @@
 - **By Stage Chart**: 3D-style bar chart with data labels showing both count and percentage on each bar. Order: Proposal Sent (42, 49.4%), Nurtering (25, 29.4%), Negotiating (9, 10.6%), Closing (9, 10.6%). Values displayed directly on bars.
 - **By Priority Chart**: 3D-style bar chart with data labels showing both count and percentage on each bar. Order: Low (14, 8.1%), Medium (54, 31.2%), High (11, 6.4%), No Priority (94, 54.3%). Values displayed directly on bars.
 - **Top Origins List**: Shows the most common lead sources
-- **Recent Boxes Table**: Lists the 10 most recently updated boxes with priority and due date columns
+- **Recent High Priority Boxes Table**: Lists up to 10 High priority boxes with stage, priority, due date, and last updated columns. Filtered to show only boxes marked as High priority for focused attention on critical opportunities.
 
 ### ✅ API Endpoints
 
