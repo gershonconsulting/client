@@ -413,6 +413,7 @@ app.get('/', (c) => {
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
     </head>
     <body class="bg-gray-50 min-h-screen">
         <div class="container mx-auto px-4 py-8">
@@ -526,7 +527,7 @@ app.get('/', (c) => {
                     <div class="bg-white rounded-lg shadow p-6">
                         <h3 class="text-xl font-semibold text-gray-800 mb-4">
                             <i class="fas fa-chart-bar mr-2 text-blue-600"></i>
-                            Opportunities by Stage
+                            By Stage
                         </h3>
                         <canvas id="stageChart"></canvas>
                     </div>
@@ -534,7 +535,7 @@ app.get('/', (c) => {
                     <div class="bg-white rounded-lg shadow p-6">
                         <h3 class="text-xl font-semibold text-gray-800 mb-4">
                             <i class="fas fa-chart-bar mr-2 text-red-600"></i>
-                            Opportunities by Priority
+                            By Priority
                         </h3>
                         <canvas id="priorityChart"></canvas>
                     </div>
@@ -789,6 +790,9 @@ app.get('/', (c) => {
         </div>
 
         <script>
+            // Register Chart.js datalabels plugin
+            Chart.register(ChartDataLabels);
+            
             let stageChart, priorityChart;
             let currentData = null;
 
@@ -1102,6 +1106,20 @@ app.get('/', (c) => {
                                             return context.parsed.y + ' opportunities (' + percentage + '%)';
                                         }
                                     }
+                                },
+                                datalabels: {
+                                    anchor: 'end',
+                                    align: 'top',
+                                    formatter: function(value, context) {
+                                        const total = stageValues.reduce((a, b) => a + b, 0);
+                                        const percentage = ((value / total) * 100).toFixed(1);
+                                        return value + '\\n(' + percentage + '%)';
+                                    },
+                                    font: {
+                                        weight: 'bold',
+                                        size: 12
+                                    },
+                                    color: '#1F2937'
                                 }
                             },
                             scales: {
@@ -1162,6 +1180,19 @@ app.get('/', (c) => {
                                             return context.parsed.y + ' opportunities (' + percentage + '%)';
                                         }
                                     }
+                                },
+                                datalabels: {
+                                    anchor: 'end',
+                                    align: 'top',
+                                    formatter: function(value, context) {
+                                        const percentage = ((value / totalPriority) * 100).toFixed(1);
+                                        return value + '\\n(' + percentage + '%)';
+                                    },
+                                    font: {
+                                        weight: 'bold',
+                                        size: 12
+                                    },
+                                    color: '#1F2937'
                                 }
                             },
                             scales: {
