@@ -31,8 +31,8 @@
   - **By Country**: Table view with country distribution and percentages
   - **By Language**: Cards showing language distribution (English, French)
   - **By Freshness**: Activity levels (High, Medium, Low) based on engagement metrics
-- **Stage Distribution Chart**: Visual pie chart showing distribution across 7 pipeline stages
-- **Priority Distribution Chart**: Doughnut chart showing priority breakdown
+- **Opportunities by Stage Chart**: Colorful 3D-style bar chart showing opportunities across 7 pipeline stages
+- **Opportunities by Priority Chart**: 3D-style bar chart displaying High, Medium, and Low priority counts
 - **Top Origins List**: Shows the most common lead sources
 - **Recent Boxes Table**: Lists the 10 most recently updated boxes with priority and due date columns
 
