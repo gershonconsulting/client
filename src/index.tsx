@@ -14,11 +14,11 @@ app.use('/static/*', serveStatic({ root: './public' }))
 const STREAK_API_KEY = 'e77554988b424c6498d85362b0367757'
 const STREAK_API_BASE = 'https://www.streak.com/api/v1'
 
-// Gershon Consulting Pipeline - Fixed configuration
+// MabSilico Pipeline - Fixed configuration
 const PIPELINE_KEY = 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw'
-const PIPELINE_NAME = 'Gershon Consulting'
-const PRIORITY_FIELD = 'Priority'
-const PRIORITY_MAPPING = { 'High': '1. High', 'Medium': '2. Medium', 'Low': '3. Low' }
+const PIPELINE_NAME = 'MabSilico'
+const FIT_FIELD = 'Fit'
+const INTEREST_FIELD = 'Interest'
 
 // Helper function to make Streak API calls
 async function callStreakAPI(endpoint: string) {
@@ -225,7 +225,7 @@ app.get('/api/sheets/freshness/:level/count', async (c) => {
 // Get analytics summary
 app.get('/api/analytics', async (c) => {
   try {
-    // Fixed to Gershon Consulting pipeline
+    // Fixed to MabSilico pipeline
     const [pipeline, boxes] = await Promise.all([
       callStreakAPI(`/pipelines/${PIPELINE_KEY}`),
       callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`)
@@ -235,7 +235,8 @@ app.get('/api/analytics', async (c) => {
     const totalBoxes = Array.isArray(boxes) ? boxes.length : 0
     const stageDistribution = {}
     const originDistribution = {}
-    const priorityDistribution = {}
+    const fitDistribution = {}
+    const interestDistribution = {}
     const countryDistribution = {}
     const languageDistribution = {}
     const freshnessDistribution = { 'High (>0.5)': 0, 'Medium (0.2-0.5)': 0, 'Low (<0.2)': 0 }
@@ -253,7 +254,8 @@ app.get('/api/analytics', async (c) => {
     })) : []
     const fields = Array.isArray(pipeline.fields) ? pipeline.fields : []
     const originField = fields.find(f => f && f.name === 'Origin')
-    const priorityField = fields.find(f => f && f.name === PRIORITY_FIELD)
+    const fitField = fields.find(f => f && f.name === FIT_FIELD)
+    const interestField = fields.find(f => f && f.name === INTEREST_FIELD)
     const dueDateField = fields.find(f => f && f.name === 'Est Start Date')
     const countryField = fields.find(f => f && f.name === 'Country')
     const languageField = fields.find(f => f && f.name === 'Language')
@@ -276,15 +278,26 @@ app.get('/api/analytics', async (c) => {
           originDistribution[originName] = (originDistribution[originName] || 0) + 1
         }
         
-        // Count by priority
-        if (priorityField && box.fields && box.fields[priorityField.key]) {
-          const priorityKey = box.fields[priorityField.key]
-          const items = priorityField.dropdownSettings?.items
-          const priorityItem = Array.isArray(items) ? items.find(i => i && i.key === priorityKey) : null
-          const priorityName = priorityItem ? priorityItem.name : 'No Priority'
-          priorityDistribution[priorityName] = (priorityDistribution[priorityName] || 0) + 1
+        // Count by FIT
+        if (fitField && box.fields && box.fields[fitField.key]) {
+          const fitKey = box.fields[fitField.key]
+          const items = fitField.dropdownSettings?.items
+          const fitItem = Array.isArray(items) ? items.find(i => i && i.key === fitKey) : null
+          const fitName = fitItem ? fitItem.name : 'Not Set'
+          fitDistribution[fitName] = (fitDistribution[fitName] || 0) + 1
         } else {
-          priorityDistribution['No Priority'] = (priorityDistribution['No Priority'] || 0) + 1
+          fitDistribution['Not Set'] = (fitDistribution['Not Set'] || 0) + 1
+        }
+        
+        // Count by INTEREST
+        if (interestField && box.fields && box.fields[interestField.key]) {
+          const interestKey = box.fields[interestField.key]
+          const items = interestField.dropdownSettings?.items
+          const interestItem = Array.isArray(items) ? items.find(i => i && i.key === interestKey) : null
+          const interestName = interestItem ? interestItem.name : 'Not Set'
+          interestDistribution[interestName] = (interestDistribution[interestName] || 0) + 1
+        } else {
+          interestDistribution['Not Set'] = (interestDistribution['Not Set'] || 0) + 1
         }
         
         // Count boxes with due date (only for relevant stages: Proposal Sent, Nurtering, Negotiating, Closing)
@@ -330,9 +343,14 @@ app.get('/api/analytics', async (c) => {
     }
     
     // Calculate percentages
-    const priorityPercentages = {}
-    Object.keys(priorityDistribution).forEach(key => {
-      priorityPercentages[key] = totalBoxes > 0 ? ((priorityDistribution[key] / totalBoxes) * 100).toFixed(1) : 0
+    const fitPercentages = {}
+    Object.keys(fitDistribution).forEach(key => {
+      fitPercentages[key] = totalBoxes > 0 ? ((fitDistribution[key] / totalBoxes) * 100).toFixed(1) : 0
+    })
+    
+    const interestPercentages = {}
+    Object.keys(interestDistribution).forEach(key => {
+      interestPercentages[key] = totalBoxes > 0 ? ((interestDistribution[key] / totalBoxes) * 100).toFixed(1) : 0
     })
     
     // Due date percentage only for relevant stages (Proposal Sent, Nurtering, Negotiating, Closing)
@@ -342,8 +360,10 @@ app.get('/api/analytics', async (c) => {
       totalBoxes,
       stageDistribution,
       originDistribution,
-      priorityDistribution,
-      priorityPercentages,
+      fitDistribution,
+      fitPercentages,
+      interestDistribution,
+      interestPercentages,
       countryDistribution,
       languageDistribution,
       freshnessDistribution,
@@ -351,25 +371,47 @@ app.get('/api/analytics', async (c) => {
       boxesWithDueDate,
       dueDatePercentage: parseFloat(dueDatePercentage),
       recentBoxes: Array.isArray(boxes) ? boxes.filter(box => {
-        // Filter for High priority only
-        if (priorityField && box.fields && box.fields[priorityField.key]) {
-          const priorityKey = box.fields[priorityField.key]
-          const items = priorityField.dropdownSettings?.items
-          const priorityItem = Array.isArray(items) ? items.find(i => i && i.key === priorityKey) : null
-          const priorityName = priorityItem ? priorityItem.name : 'No Priority'
-          return priorityName === '1. High'
+        // Filter for High FIT and High INTEREST
+        const hasFit = fitField && box.fields && box.fields[fitField.key]
+        const hasInterest = interestField && box.fields && box.fields[interestField.key]
+        
+        let fitName = 'Not Set'
+        if (hasFit) {
+          const fitKey = box.fields[fitField.key]
+          const items = fitField.dropdownSettings?.items
+          const fitItem = Array.isArray(items) ? items.find(i => i && i.key === fitKey) : null
+          fitName = fitItem ? fitItem.name : 'Not Set'
         }
-        return false
+        
+        let interestName = 'Not Set'
+        if (hasInterest) {
+          const interestKey = box.fields[interestField.key]
+          const items = interestField.dropdownSettings?.items
+          const interestItem = Array.isArray(items) ? items.find(i => i && i.key === interestKey) : null
+          interestName = interestItem ? interestItem.name : 'Not Set'
+        }
+        
+        // Show boxes with High FIT or High INTEREST
+        return fitName === 'High' || interestName === 'High'
       }).slice(0, 10).map(box => {
         const stage = stages.find(s => s && s.key === box.stageKey)
         
-        // Get priority
-        let priority = 'No Priority'
-        if (priorityField && box.fields && box.fields[priorityField.key]) {
-          const priorityKey = box.fields[priorityField.key]
-          const items = priorityField.dropdownSettings?.items
-          const priorityItem = Array.isArray(items) ? items.find(i => i && i.key === priorityKey) : null
-          priority = priorityItem ? priorityItem.name : 'No Priority'
+        // Get FIT
+        let fit = 'Not Set'
+        if (fitField && box.fields && box.fields[fitField.key]) {
+          const fitKey = box.fields[fitField.key]
+          const items = fitField.dropdownSettings?.items
+          const fitItem = Array.isArray(items) ? items.find(i => i && i.key === fitKey) : null
+          fit = fitItem ? fitItem.name : 'Not Set'
+        }
+        
+        // Get INTEREST
+        let interest = 'Not Set'
+        if (interestField && box.fields && box.fields[interestField.key]) {
+          const interestKey = box.fields[interestField.key]
+          const items = interestField.dropdownSettings?.items
+          const interestItem = Array.isArray(items) ? items.find(i => i && i.key === interestKey) : null
+          interest = interestItem ? interestItem.name : 'Not Set'
         }
         
         // Get due date
@@ -403,7 +445,8 @@ app.get('/api/analytics', async (c) => {
           name: box.name || 'Unnamed',
           key: box.boxKey,
           stage: stage ? stage.name : 'Unknown',
-          priority: priority,
+          fit: fit,
+          interest: interest,
           dueDate: dueDate,
           country: country,
           language: language,
@@ -425,7 +468,7 @@ app.get('/', (c) => {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Gershon Consulting Pipeline Report</title>
+        <title>MabSilico Pipeline Report</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -438,11 +481,11 @@ app.get('/', (c) => {
                 <div class="flex items-center justify-between mb-4">
                     <h1 class="text-4xl font-bold">
                         <i class="fas fa-chart-line mr-3"></i>
-                        Gershon Consulting Pipeline Report
+                        MabSilico Pipeline Report
                     </h1>
                 </div>
                 <div class="flex items-center justify-between">
-                    <p class="text-blue-100">GC Pipeline Dashboard</p>
+                    <p class="text-blue-100">MabSilico Pipeline Dashboard</p>
                     <p class="text-blue-100 text-sm">
                         <i class="fas fa-sync-alt mr-2"></i>
                         Last Updated: <span id="last-updated" class="font-semibold">Loading...</span>
@@ -483,8 +526,11 @@ app.get('/', (c) => {
                             <button onclick="switchView('stage')" id="tab-stage" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
                                 <i class="fas fa-layer-group mr-2"></i>By Stage
                             </button>
-                            <button onclick="switchView('priority')" id="tab-priority" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                                <i class="fas fa-exclamation-circle mr-2"></i>By Priority
+                            <button onclick="switchView('fit')" id="tab-fit" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                                <i class="fas fa-check-circle mr-2"></i>By FIT
+                            </button>
+                            <button onclick="switchView('interest')" id="tab-interest" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                                <i class="fas fa-star mr-2"></i>By INTEREST
                             </button>
                             <button onclick="switchView('country')" id="tab-country" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
                                 <i class="fas fa-globe mr-2"></i>By Country
@@ -517,8 +563,8 @@ app.get('/', (c) => {
                     <div class="bg-white rounded-lg shadow p-6">
                         <div class="flex items-center justify-between">
                             <div>
-                                <p class="text-gray-500 text-sm font-medium">High Priority</p>
-                                <p id="high-priority" class="text-3xl font-bold text-red-600 mt-1">0%</p>
+                                <p class="text-gray-500 text-sm font-medium">High FIT</p>
+                                <p id="high-fit" class="text-3xl font-bold text-red-600 mt-1">0%</p>
                             </div>
                             <div class="bg-red-100 rounded-full p-3">
                                 <i class="fas fa-exclamation-circle text-red-600 text-2xl"></i>
@@ -553,9 +599,9 @@ app.get('/', (c) => {
                     <div class="bg-white rounded-lg shadow p-6">
                         <h3 class="text-xl font-semibold text-gray-800 mb-4">
                             <i class="fas fa-chart-bar mr-2 text-red-600"></i>
-                            By Priority
+                            By FIT
                         </h3>
-                        <canvas id="priorityChart"></canvas>
+                        <canvas id="fitChart"></canvas>
                     </div>
                 </div>
 
@@ -572,7 +618,7 @@ app.get('/', (c) => {
                 <div class="bg-white rounded-lg shadow p-6">
                     <h3 class="text-xl font-semibold text-gray-800 mb-4">
                         <i class="fas fa-exclamation-circle mr-2 text-red-600"></i>
-                        Recent High Priority Boxes
+                        High FIT/INTEREST Opportunities
                     </h3>
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200">
@@ -580,8 +626,8 @@ app.get('/', (c) => {
                                 <tr>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stage</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Priority</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">FIT</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">INTEREST</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Updated</th>
                                 </tr>
                             </thead>
@@ -597,9 +643,14 @@ app.get('/', (c) => {
                     <div id="stage-content"></div>
                 </div>
 
-                <!-- By Priority View -->
-                <div id="view-priority" class="view-content hidden">
-                    <div id="priority-content"></div>
+                <!-- By FIT View -->
+                <div id="view-fit" class="view-content hidden">
+                    <div id="fit-content"></div>
+                </div>
+                
+                <!-- By INTEREST View -->
+                <div id="view-interest" class="view-content hidden">
+                    <div id="interest-content"></div>
                 </div>
 
                 <!-- By Country View -->
@@ -811,7 +862,7 @@ app.get('/', (c) => {
             // Register Chart.js datalabels plugin
             Chart.register(ChartDataLabels);
             
-            let stageChart, priorityChart;
+            let stageChart, fitChart;
             let currentData = null;
 
             // View switching function
@@ -893,8 +944,10 @@ app.get('/', (c) => {
                 
                 if (viewName === 'stage') {
                     contentDiv.innerHTML = renderStageView(data);
-                } else if (viewName === 'priority') {
-                    contentDiv.innerHTML = renderPriorityView(data);
+                } else if (viewName === 'fit') {
+                    contentDiv.innerHTML = renderFitView(data);
+                } else if (viewName === 'interest') {
+                    contentDiv.innerHTML = renderInterestView(data);
                 } else if (viewName === 'country') {
                     contentDiv.innerHTML = renderCountryView(data);
                 } else if (viewName === 'language') {
@@ -930,24 +983,51 @@ app.get('/', (c) => {
                 \`;
             }
 
-            function renderPriorityView(data) {
-                const priorities = [
-                    { name: 'High', key: '1. High', color: 'red', icon: 'fa-exclamation-circle' },
-                    { name: 'Medium', key: '2. Medium', color: 'yellow', icon: 'fa-exclamation-triangle' },
-                    { name: 'Low', key: '3. Low', color: 'green', icon: 'fa-info-circle' }
+            function renderFitView(data) {
+                const fitLevels = [
+                    { name: 'High', key: 'High', color: 'green', icon: 'fa-check-circle' },
+                    { name: 'Medium', key: 'Medium', color: 'yellow', icon: 'fa-adjust' },
+                    { name: 'Low', key: 'Low', color: 'red', icon: 'fa-times-circle' }
                 ];
                 return \`
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        \${priorities.map(priority => {
-                            const count = data.priorityDistribution[priority.key] || 0;
+                        \${fitLevels.map(fit => {
+                            const count = data.fitDistribution[fit.key] || 0;
+                            const percentage = ((count / data.totalBoxes) * 100).toFixed(1);
                             return \`
                                 <div class="bg-white rounded-lg shadow p-8 text-center">
-                                    <div class="inline-flex items-center justify-center w-16 h-16 bg-\${priority.color}-100 rounded-full mb-4">
-                                        <i class="fas \${priority.icon} text-\${priority.color}-600 text-2xl"></i>
+                                    <div class="inline-flex items-center justify-center w-16 h-16 bg-\${fit.color}-100 rounded-full mb-4">
+                                        <i class="fas \${fit.icon} text-\${fit.color}-600 text-2xl"></i>
                                     </div>
-                                    <h3 class="text-xl font-semibold text-gray-800 mb-2">\${priority.name} Priority</h3>
-                                    <p class="text-5xl font-bold text-\${priority.color}-600 mb-2">\${count}</p>
-                                    <p class="text-sm text-gray-500">opportunities</p>
+                                    <h3 class="text-xl font-semibold text-gray-800 mb-2">\${fit.name} FIT</h3>
+                                    <p class="text-5xl font-bold text-\${fit.color}-600 mb-2">\${count}</p>
+                                    <p class="text-sm text-gray-500">\${percentage}% of total</p>
+                                </div>
+                            \`;
+                        }).join('')}
+                    </div>
+                \`;
+            }
+
+            function renderInterestView(data) {
+                const interestLevels = [
+                    { name: 'High', key: 'High', color: 'purple', icon: 'fa-star' },
+                    { name: 'Medium', key: 'Medium', color: 'blue', icon: 'fa-star-half-alt' },
+                    { name: 'Low', key: 'Low', color: 'gray', icon: 'fa-star-o' }
+                ];
+                return \`
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        \${interestLevels.map(interest => {
+                            const count = data.interestDistribution[interest.key] || 0;
+                            const percentage = ((count / data.totalBoxes) * 100).toFixed(1);
+                            return \`
+                                <div class="bg-white rounded-lg shadow p-8 text-center">
+                                    <div class="inline-flex items-center justify-center w-16 h-16 bg-\${interest.color}-100 rounded-full mb-4">
+                                        <i class="fas \${interest.icon} text-\${interest.color}-600 text-2xl"></i>
+                                    </div>
+                                    <h3 class="text-xl font-semibold text-gray-800 mb-2">\${interest.name} INTEREST</h3>
+                                    <p class="text-5xl font-bold text-\${interest.color}-600 mb-2">\${count}</p>
+                                    <p class="text-sm text-gray-500">\${percentage}% of total</p>
                                 </div>
                             \`;
                         }).join('')}
@@ -1080,7 +1160,7 @@ app.get('/', (c) => {
                     
                     // Update summary cards
                     document.getElementById('total-boxes').textContent = data.totalBoxes;
-                    document.getElementById('high-priority').textContent = data.priorityPercentages['1. High'] ? data.priorityPercentages['1. High'] + '%' : '0%';
+                    document.getElementById('high-fit').textContent = data.fitPercentages['High'] ? data.fitPercentages['High'] + '%' : '0%';
                     document.getElementById('due-date-percentage').textContent = data.dueDatePercentage + '%';
 
                     // Create stage distribution chart - specific stages in order
@@ -1165,22 +1245,22 @@ app.get('/', (c) => {
                         }
                     });
 
-                    // Create priority distribution chart - Low, Medium, High, No Priority
-                    const priorityLabels = ['Low', 'Medium', 'High', 'No Priority'];
-                    const priorityKeys = ['3. Low', '2. Medium', '1. High', 'No Priority'];
-                    const priorityValues = priorityKeys.map(key => data.priorityDistribution[key] || 0);
-                    const totalPriority = priorityValues.reduce((a, b) => a + b, 0);
+                    // Create FIT distribution chart - Low, Medium, High, Not Set
+                    const fitLabels = ['Low', 'Medium', 'High', 'Not Set'];
+                    const fitKeys = ['Low', 'Medium', 'High', 'Not Set'];
+                    const fitValues = fitKeys.map(key => data.fitDistribution[key] || 0);
+                    const totalFit = fitValues.reduce((a, b) => a + b, 0);
                     
-                    const priorityCtx = document.getElementById('priorityChart').getContext('2d');
-                    if (priorityChart) priorityChart.destroy();
-                    priorityChart = new Chart(priorityCtx, {
+                    const fitCtx = document.getElementById('fitChart').getContext('2d');
+                    if (fitChart) fitChart.destroy();
+                    fitChart = new Chart(fitCtx, {
                         type: 'bar',
                         data: {
-                            labels: priorityLabels,
+                            labels: fitLabels,
                             datasets: [{
                                 label: 'Opportunities',
-                                data: priorityValues,
-                                backgroundColor: ['#10B981', '#F59E0B', '#EF4444', '#9CA3AF'], // Green, Orange, Red, Gray
+                                data: fitValues,
+                                backgroundColor: ['#EF4444', '#F59E0B', '#10B981', '#9CA3AF'], // Red, Orange, Green, Gray
                                 borderWidth: 2,
                                 borderColor: '#ffffff',
                                 borderRadius: 8
@@ -1194,7 +1274,7 @@ app.get('/', (c) => {
                                 tooltip: {
                                     callbacks: {
                                         label: function(context) {
-                                            const percentage = ((context.parsed.y / totalPriority) * 100).toFixed(1);
+                                            const percentage = ((context.parsed.y / totalFit) * 100).toFixed(1);
                                             return context.parsed.y + ' opportunities (' + percentage + '%)';
                                         }
                                     }
@@ -1203,7 +1283,7 @@ app.get('/', (c) => {
                                     anchor: 'end',
                                     align: 'top',
                                     formatter: function(value, context) {
-                                        const percentage = ((value / totalPriority) * 100).toFixed(1);
+                                        const percentage = ((value / totalFit) * 100).toFixed(1);
                                         return value + '\\n(' + percentage + '%)';
                                     },
                                     font: {
@@ -1251,14 +1331,17 @@ app.get('/', (c) => {
 
                     // Display recent boxes
                     const recentBoxes = document.getElementById('recent-boxes');
-                    // Filter to only show High priority boxes
-                    const highPriorityBoxes = data.recentBoxes.filter(box => box.priority.includes('High'));
-                    recentBoxes.innerHTML = highPriorityBoxes.map(box => {
-                        const priorityColor = box.priority.includes('High') ? 'bg-red-100 text-red-800' : 
-                                            box.priority.includes('Medium') ? 'bg-yellow-100 text-yellow-800' : 
-                                            box.priority.includes('Low') ? 'bg-green-100 text-green-800' : 
-                                            'bg-gray-100 text-gray-600';
-                        const dueDate = box.dueDate ? new Date(box.dueDate).toLocaleDateString() : '-';
+                    // Show boxes with High FIT or High INTEREST
+                    recentBoxes.innerHTML = data.recentBoxes.map(box => {
+                        const fitColor = box.fit === 'High' ? 'bg-green-100 text-green-800' : 
+                                        box.fit === 'Medium' ? 'bg-yellow-100 text-yellow-800' : 
+                                        box.fit === 'Low' ? 'bg-red-100 text-red-800' : 
+                                        'bg-gray-100 text-gray-600';
+                        
+                        const interestColor = box.interest === 'High' ? 'bg-purple-100 text-purple-800' : 
+                                             box.interest === 'Medium' ? 'bg-blue-100 text-blue-800' : 
+                                             box.interest === 'Low' ? 'bg-gray-100 text-gray-800' : 
+                                             'bg-gray-100 text-gray-600';
                         
                         return \`
                         <tr class="hover:bg-gray-50">
@@ -1267,9 +1350,11 @@ app.get('/', (c) => {
                                 <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded">\${box.stage}</span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                <span class="px-2 py-1 \${priorityColor} rounded">\${box.priority}</span>
+                                <span class="px-2 py-1 \${fitColor} rounded">\${box.fit}</span>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">\${dueDate}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                <span class="px-2 py-1 \${interestColor} rounded">\${box.interest}</span>
+                            </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                 \${new Date(box.lastUpdated).toLocaleDateString()}
                             </td>
