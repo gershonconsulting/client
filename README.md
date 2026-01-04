@@ -2,14 +2,15 @@
 
 ## Project Overview
 - **Name**: Gershon Consulting Pipeline Report
-- **Goal**: Create a comprehensive reporting dashboard for the GC Pipeline in Streak CRM
+- **Goal**: Create a comprehensive reporting dashboard exclusively for the Gershon Consulting Pipeline in Streak CRM
+- **Pipeline Focus**: Exclusively focused on Gershon Consulting - no multi-pipeline support
 - **Auto-Refresh**: Automatically updates every Monday at 8:00 AM
 - **Features**: 
   - Real-time analytics and visualizations
-  - Stage distribution pie chart
-  - Assignee workload bar chart
+  - 3D-style bar charts with data labels for Stage and Priority
+  - Multiple view tabs (Overview, By Stage, By Priority, By Country, By Language, By Freshness)
   - Top origins tracking
-  - Recent boxes table
+  - Recent High Priority boxes table
   - REST API for programmatic access
 
 ## URLs
