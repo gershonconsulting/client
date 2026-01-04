@@ -413,10 +413,18 @@ app.get('/api/sheets/:companyName/monthly-stats', async (c) => {
 // Get analytics summary
 app.get('/api/analytics', async (c) => {
   try {
-    // Fixed to MabSilico pipeline
+    // Get company from query parameter or default to MabSilico
+    const companyKey = c.req.query('company') || 'mabsilico'
+    const company = COMPANIES[companyKey]
+    
+    if (!company) {
+      return c.json({ error: 'Invalid company key' }, 400)
+    }
+    
+    const pipelineKey = company.pipelineKey
     const [pipeline, boxes] = await Promise.all([
-      callStreakAPI(`/pipelines/${PIPELINE_KEY}`),
-      callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`)
+      callStreakAPI(`/pipelines/${pipelineKey}`),
+      callStreakAPI(`/pipelines/${pipelineKey}/boxes`)
     ])
     
     // Calculate analytics
@@ -562,6 +570,8 @@ app.get('/api/analytics', async (c) => {
     const averagePercentage = ((parseFloat(averageLeadsPerMonth) / leadObjective) * 100).toFixed(1)
     
     return c.json({
+      company: company.name,
+      companyKey: companyKey,
       totalBoxes,
       stageDistribution,
       originDistribution,
@@ -685,22 +695,46 @@ app.get('/', (c) => {
             <!-- Header -->
             <div class="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-lg shadow-xl p-8 mb-8 text-white">
                 <div class="flex items-center justify-between mb-4">
-                    <h1 class="text-4xl font-bold">
-                        <i class="fas fa-chart-line mr-3"></i>
-                        Gershon Consulting - Multi-Company Report
-                    </h1>
+                    <div>
+                        <h1 class="text-4xl font-bold mb-3">
+                            <i class="fas fa-chart-line mr-3"></i>
+                            Gershon Consulting - Multi-Company Report
+                        </h1>
+                        <!-- Company Selector -->
+                        <div class="flex items-center space-x-3">
+                            <label for="company-selector" class="text-blue-100 text-sm font-medium">
+                                <i class="fas fa-building mr-2"></i>Select Company:
+                            </label>
+                            <select id="company-selector" onchange="switchCompany(this.value)" class="bg-white text-gray-800 rounded-lg px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-300 shadow-md">
+                                <option value="mabsilico">MabSilico</option>
+                                <option value="finance-montreal">Finance Montreal (Steve)</option>
+                                <option value="apm-music">APM Music</option>
+                                <option value="ducrocq">Ducrocq</option>
+                                <option value="milvue">Milvue</option>
+                                <option value="seekyo">Seekyo Therapeutics</option>
+                                <option value="altavia">Altavia</option>
+                                <option value="valos">Valos</option>
+                                <option value="dab-embedded">DAB-Embedded</option>
+                            </select>
+                            <button onclick="refreshDashboard()" class="bg-blue-500 hover:bg-blue-400 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors shadow-md">
+                                <i class="fas fa-sync-alt mr-2"></i>Refresh
+                            </button>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-blue-100 text-sm mb-2">
+                            <i class="fas fa-sync-alt mr-2"></i>
+                            Last Updated: <span id="last-updated" class="font-semibold">Loading...</span>
+                        </p>
+                        <p class="text-blue-200 text-xs">
+                            <i class="fas fa-calendar-alt mr-1"></i>
+                            Auto-refreshes every Monday at 8:00 AM
+                        </p>
+                    </div>
                 </div>
-                <div class="flex items-center justify-between">
+                <div>
                     <p class="text-blue-100">Tracking 9 Company Pipelines with Streak CRM</p>
-                    <p class="text-blue-100 text-sm">
-                        <i class="fas fa-sync-alt mr-2"></i>
-                        Last Updated: <span id="last-updated" class="font-semibold">Loading...</span>
-                    </p>
                 </div>
-                <p class="text-blue-200 text-xs mt-2">
-                    <i class="fas fa-calendar-alt mr-1"></i>
-                    Auto-refreshes every Monday at 8:00 AM
-                </p>
             </div>
 
             <!-- Loading State -->
@@ -1153,6 +1187,101 @@ app.get('/', (c) => {
             
             let stageChart, fitChart;
             let currentData = null;
+            let currentCompany = 'mabsilico'; // Default company
+
+            // Company configuration
+            const COMPANIES = {
+                'mabsilico': {
+                    name: 'MabSilico',
+                    pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw'
+                },
+                'finance-montreal': {
+                    name: 'Finance Montreal (Steve)',
+                    pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgI7YkpykCQw'
+                },
+                'apm-music': {
+                    name: 'APM Music',
+                    pipelineKey: 'agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgIClnNb8gwsM'
+                },
+                'ducrocq': {
+                    name: 'Ducrocq',
+                    pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgNaSl4OGCww'
+                },
+                'milvue': {
+                    name: 'Milvue',
+                    pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEhhXb3JrZmxvdxiAgMX-7baZCgw'
+                },
+                'seekyo': {
+                    name: 'Seekyo Therapeutics',
+                    pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgLnYo_uUCww'
+                },
+                'altavia': {
+                    name: 'Altavia',
+                    pipelineKey: 'agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgICFz_elmwgM'
+                },
+                'valos': {
+                    name: 'Valos',
+                    pipelineKey: 'agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgICF5ei7lgkM'
+                },
+                'dab-embedded': {
+                    name: 'DAB-Embedded',
+                    pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgKWyqIboCww'
+                }
+            };
+
+            // Switch to a different company
+            function switchCompany(companyKey) {
+                currentCompany = companyKey;
+                console.log('Switching to company:', COMPANIES[companyKey].name);
+                
+                // Show loading state
+                document.getElementById('dashboard').classList.add('hidden');
+                document.getElementById('loading').classList.remove('hidden');
+                document.getElementById('error').classList.add('hidden');
+                
+                // Fetch new company data
+                fetchCompanyData(companyKey);
+            }
+
+            // Refresh current dashboard
+            function refreshDashboard() {
+                switchCompany(currentCompany);
+            }
+
+            // Fetch data for a specific company
+            async function fetchCompanyData(companyKey) {
+                try {
+                    const company = COMPANIES[companyKey];
+                    const response = await fetch(\`/api/analytics?company=\${companyKey}\`);
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch company data');
+                    }
+                    
+                    const data = await response.json();
+                    currentData = data;
+                    
+                    // Update page title with company name
+                    document.querySelector('h1').innerHTML = \`
+                        <i class="fas fa-chart-line mr-3"></i>
+                        \${company.name} - Pipeline Report
+                    \`;
+                    
+                    // Hide loading, show dashboard
+                    document.getElementById('loading').classList.add('hidden');
+                    document.getElementById('dashboard').classList.remove('hidden');
+                    updateTimestamp();
+                    
+                    // Update summary cards and charts
+                    updateDashboard(data);
+                    
+                } catch (error) {
+                    console.error('Error fetching company data:', error);
+                    document.getElementById('loading').classList.add('hidden');
+                    document.getElementById('error').classList.remove('hidden');
+                    document.getElementById('error-message').textContent = error.message;
+                }
+            }
 
             // View switching function
             function switchView(viewName) {
@@ -1437,20 +1566,18 @@ app.get('/', (c) => {
             }
 
             async function loadDashboard() {
-                try {
-                    const response = await fetch('/api/analytics');
-                    if (!response.ok) throw new Error('Failed to fetch data');
-                    
-                    const data = await response.json();
-                    currentData = data; // Store for view switching
-                    
-                    // Update timestamp
-                    updateTimestamp();
-                    
-                    // Update summary cards
-                    document.getElementById('total-boxes').textContent = data.totalBoxes;
-                    document.getElementById('high-fit').textContent = data.fitPercentages['High'] ? data.fitPercentages['High'] + '%' : '0%';
-                    document.getElementById('high-interest').textContent = data.interestPercentages['High'] ? data.interestPercentages['High'] + '%' : '0%';
+                // Use the new fetchCompanyData function instead
+                fetchCompanyData(currentCompany);
+            }
+            
+            // Update dashboard with new data
+            function updateDashboard(data) {
+                currentData = data;
+                
+                // Update summary cards
+                document.getElementById('total-boxes').textContent = data.totalBoxes;
+                document.getElementById('high-fit').textContent = data.fitPercentages['High'] ? data.fitPercentages['High'] + '%' : '0%';
+                document.getElementById('high-interest').textContent = data.interestPercentages['High'] ? data.interestPercentages['High'] + '%' : '0%';
 
                     // Create stage distribution chart - specific stages in order
                     const stageOrder = ['Proposal Sent', 'Nurtering', 'Negotiating', 'Closing'];
@@ -1650,16 +1777,6 @@ app.get('/', (c) => {
                         </tr>
                         \`;
                     }).join('');
-
-                    // Show dashboard
-                    document.getElementById('loading').classList.add('hidden');
-                    document.getElementById('dashboard').classList.remove('hidden');
-                    
-                } catch (error) {
-                    document.getElementById('loading').classList.add('hidden');
-                    document.getElementById('error').classList.remove('hidden');
-                    document.getElementById('error-message').textContent = error.message;
-                }
             }
 
             // Load dashboard on page load and setup auto-refresh
