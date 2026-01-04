@@ -569,10 +569,30 @@ app.get('/api/analytics', async (c) => {
     const averageLeadsPerMonth = (totalMonthlyLeads / 12).toFixed(1)
     const averagePercentage = ((parseFloat(averageLeadsPerMonth) / leadObjective) * 100).toFixed(1)
     
+    // Calculate campaign duration (from first lead to now)
+    let campaignDurationMonths = 0
+    let firstLeadDate = null
+    
+    if (Array.isArray(boxes) && boxes.length > 0) {
+      // Find the earliest lead creation date
+      const timestamps = boxes.map(box => box.creationTimestamp).filter(t => t)
+      if (timestamps.length > 0) {
+        const earliestTimestamp = Math.min(...timestamps)
+        firstLeadDate = new Date(earliestTimestamp)
+        
+        // Calculate months between first lead and now
+        const yearsDiff = now.getFullYear() - firstLeadDate.getFullYear()
+        const monthsDiff = now.getMonth() - firstLeadDate.getMonth()
+        campaignDurationMonths = (yearsDiff * 12) + monthsDiff + 1 // +1 to include current month
+      }
+    }
+    
     return c.json({
       company: company.name,
       companyKey: companyKey,
       totalBoxes,
+      campaignDurationMonths,
+      firstLeadDate: firstLeadDate ? firstLeadDate.toISOString() : null,
       stageDistribution,
       originDistribution,
       fitDistribution,
@@ -786,40 +806,59 @@ app.get('/', (c) => {
                 </div>
 
                 <!-- Overview View --><div id="view-overview" class="view-content">
-                <!-- Summary Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <!-- Campaign Performance Summary Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                    <!-- Total Leads Card -->
                     <div class="bg-white rounded-lg shadow p-6">
                         <div class="flex items-center justify-between">
                             <div>
-                                <p class="text-gray-500 text-sm font-medium">Total Boxes</p>
+                                <p class="text-gray-500 text-sm font-medium">Total Leads</p>
                                 <p id="total-boxes" class="text-3xl font-bold text-gray-800 mt-1">0</p>
                             </div>
                             <div class="bg-blue-100 rounded-full p-3">
-                                <i class="fas fa-box text-blue-600 text-2xl"></i>
+                                <i class="fas fa-users text-blue-600 text-2xl"></i>
                             </div>
                         </div>
                     </div>
 
+                    <!-- Campaign Duration Card -->
                     <div class="bg-white rounded-lg shadow p-6">
                         <div class="flex items-center justify-between">
                             <div>
-                                <p class="text-gray-500 text-sm font-medium">High FIT</p>
-                                <p id="high-fit" class="text-3xl font-bold text-red-600 mt-1">0%</p>
+                                <p class="text-gray-500 text-sm font-medium">Campaign Duration</p>
+                                <p id="campaign-months" class="text-3xl font-bold text-indigo-600 mt-1">0</p>
+                                <p class="text-xs text-gray-500 mt-1">months running</p>
                             </div>
-                            <div class="bg-red-100 rounded-full p-3">
-                                <i class="fas fa-exclamation-circle text-red-600 text-2xl"></i>
+                            <div class="bg-indigo-100 rounded-full p-3">
+                                <i class="fas fa-calendar-alt text-indigo-600 text-2xl"></i>
                             </div>
                         </div>
                     </div>
 
+                    <!-- Average Leads per Month Card -->
                     <div class="bg-white rounded-lg shadow p-6">
                         <div class="flex items-center justify-between">
                             <div>
-                                <p class="text-gray-500 text-sm font-medium">High INTEREST</p>
-                                <p id="high-interest" class="text-3xl font-bold text-purple-600 mt-1">0%</p>
+                                <p class="text-gray-500 text-sm font-medium">Avg Leads/Month</p>
+                                <p id="avg-leads" class="text-3xl font-bold text-green-600 mt-1">0.0</p>
+                                <p class="text-xs text-gray-500 mt-1">new leads/month</p>
                             </div>
-                            <div class="bg-purple-100 rounded-full p-3">
-                                <i class="fas fa-star text-purple-600 text-2xl"></i>
+                            <div class="bg-green-100 rounded-full p-3">
+                                <i class="fas fa-chart-line text-green-600 text-2xl"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Objective Achievement Card -->
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-500 text-sm font-medium">Objective Achievement</p>
+                                <p id="objective-percentage" class="text-3xl font-bold text-purple-600 mt-1">0%</p>
+                                <p class="text-xs text-gray-500 mt-1">of 10 leads/month</p>
+                            </div>
+                            <div id="objective-icon" class="bg-purple-100 rounded-full p-3">
+                                <i class="fas fa-bullseye text-purple-600 text-2xl"></i>
                             </div>
                         </div>
                     </div>
@@ -1574,10 +1613,30 @@ app.get('/', (c) => {
             function updateDashboard(data) {
                 currentData = data;
                 
-                // Update summary cards
+                // Update campaign performance summary cards
                 document.getElementById('total-boxes').textContent = data.totalBoxes;
-                document.getElementById('high-fit').textContent = data.fitPercentages['High'] ? data.fitPercentages['High'] + '%' : '0%';
-                document.getElementById('high-interest').textContent = data.interestPercentages['High'] ? data.interestPercentages['High'] + '%' : '0%';
+                document.getElementById('campaign-months').textContent = data.campaignDurationMonths || 0;
+                document.getElementById('avg-leads').textContent = data.averageLeadsPerMonth || '0.0';
+                
+                const objectivePercentage = data.averagePercentage || 0;
+                document.getElementById('objective-percentage').textContent = objectivePercentage + '%';
+                
+                // Update objective icon color based on achievement
+                const objectiveIcon = document.getElementById('objective-icon');
+                const objectiveText = document.getElementById('objective-percentage');
+                if (objectivePercentage >= 100) {
+                    objectiveIcon.className = 'bg-green-100 rounded-full p-3';
+                    objectiveIcon.innerHTML = '<i class="fas fa-check-circle text-green-600 text-2xl"></i>';
+                    objectiveText.className = 'text-3xl font-bold text-green-600 mt-1';
+                } else if (objectivePercentage >= 75) {
+                    objectiveIcon.className = 'bg-yellow-100 rounded-full p-3';
+                    objectiveIcon.innerHTML = '<i class="fas fa-exclamation-triangle text-yellow-600 text-2xl"></i>';
+                    objectiveText.className = 'text-3xl font-bold text-yellow-600 mt-1';
+                } else {
+                    objectiveIcon.className = 'bg-red-100 rounded-full p-3';
+                    objectiveIcon.innerHTML = '<i class="fas fa-times-circle text-red-600 text-2xl"></i>';
+                    objectiveText.className = 'text-3xl font-bold text-red-600 mt-1';
+                }
 
                     // Create stage distribution chart - specific stages in order
                     const stageOrder = ['Proposal Sent', 'Nurtering', 'Negotiating', 'Closing'];
