@@ -709,6 +709,20 @@ app.get('/', (c) => {
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+        <style>
+            @media print {
+                .no-print { display: none !important; }
+                .page-break { page-break-before: always; }
+                body { margin: 0; padding: 20px; }
+                table { page-break-inside: avoid; }
+                .print-header { margin-bottom: 30px; }
+                @page { margin: 1cm; }
+            }
+            .print-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            .print-table th { background-color: #f3f4f6; padding: 12px 8px; text-align: left; font-weight: 600; border-bottom: 2px solid #e5e7eb; }
+            .print-table td { padding: 10px 8px; border-bottom: 1px solid #e5e7eb; }
+            .print-table tr:hover { background-color: #f9fafb; }
+        </style>
     </head>
     <body class="bg-gray-50 min-h-screen">
         <div class="container mx-auto px-4 py-8">
@@ -800,6 +814,9 @@ app.get('/', (c) => {
                             </button>
                             <button onclick="switchView('freshness')" id="tab-freshness" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
                                 <i class="fas fa-heartbeat mr-2"></i>By Freshness
+                            </button>
+                            <button onclick="switchView('print')" id="tab-print" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                                <i class="fas fa-print mr-2"></i>Print Report
                             </button>
                         </nav>
                     </div>
@@ -944,6 +961,108 @@ app.get('/', (c) => {
                 <!-- By Freshness View -->
                 <div id="view-freshness" class="view-content hidden">
                     <div id="freshness-content"></div>
+                </div>
+
+                <!-- Print Report View -->
+                <div id="view-print" class="view-content hidden">
+                    <div class="bg-white rounded-lg shadow p-8">
+                        <div class="flex justify-between items-center mb-6 no-print">
+                            <h2 class="text-2xl font-bold text-gray-800">
+                                <i class="fas fa-file-alt mr-2 text-blue-600"></i>
+                                Complete Pipeline Report
+                            </h2>
+                            <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg shadow flex items-center">
+                                <i class="fas fa-print mr-2"></i>
+                                Print Report
+                            </button>
+                        </div>
+
+                        <!-- Print Header -->
+                        <div class="print-header mb-8 pb-4 border-b-2 border-gray-200">
+                            <h1 id="print-company-name" class="text-3xl font-bold text-gray-900 mb-2">Company Pipeline Report</h1>
+                            <p class="text-gray-600">Generated on <span id="print-date"></span></p>
+                        </div>
+
+                        <!-- Campaign Summary Section -->
+                        <div class="mb-8">
+                            <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-chart-bar mr-2 text-blue-600"></i>
+                                Campaign Performance Summary
+                            </h3>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                <div class="border border-gray-200 rounded-lg p-4">
+                                    <p class="text-gray-600 text-sm font-medium">Total Leads</p>
+                                    <p id="print-total-leads" class="text-2xl font-bold text-gray-900 mt-1">0</p>
+                                </div>
+                                <div class="border border-gray-200 rounded-lg p-4">
+                                    <p class="text-gray-600 text-sm font-medium">Campaign Duration</p>
+                                    <p id="print-duration" class="text-2xl font-bold text-indigo-600 mt-1">0 months</p>
+                                </div>
+                                <div class="border border-gray-200 rounded-lg p-4">
+                                    <p class="text-gray-600 text-sm font-medium">Avg Leads/Month</p>
+                                    <p id="print-avg-leads" class="text-2xl font-bold text-green-600 mt-1">0.0</p>
+                                </div>
+                                <div class="border border-gray-200 rounded-lg p-4">
+                                    <p class="text-gray-600 text-sm font-medium">Objective Achievement</p>
+                                    <p id="print-achievement" class="text-2xl font-bold text-purple-600 mt-1">0%</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Stage Distribution Section -->
+                        <div class="mb-8">
+                            <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-layer-group mr-2 text-blue-600"></i>
+                                Lead Distribution by Stage
+                            </h3>
+                            <div id="print-stage-table"></div>
+                        </div>
+
+                        <!-- FIT Distribution Section -->
+                        <div class="mb-8">
+                            <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-check-circle mr-2 text-green-600"></i>
+                                FIT Distribution
+                            </h3>
+                            <div id="print-fit-table"></div>
+                        </div>
+
+                        <!-- INTEREST Distribution Section -->
+                        <div class="mb-8">
+                            <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-star mr-2 text-purple-600"></i>
+                                INTEREST Distribution
+                            </h3>
+                            <div id="print-interest-table"></div>
+                        </div>
+
+                        <!-- Country Distribution Section -->
+                        <div class="mb-8">
+                            <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-globe mr-2 text-blue-600"></i>
+                                Geographic Distribution (Top 10)
+                            </h3>
+                            <div id="print-country-table"></div>
+                        </div>
+
+                        <!-- Monthly Performance Section -->
+                        <div class="mb-8 page-break">
+                            <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-calendar-alt mr-2 text-indigo-600"></i>
+                                Monthly Performance (Last 12 Months)
+                            </h3>
+                            <div id="print-monthly-table"></div>
+                        </div>
+
+                        <!-- High Value Opportunities Section -->
+                        <div class="mb-8">
+                            <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-trophy mr-2 text-yellow-600"></i>
+                                High Value Opportunities (Top 20)
+                            </h3>
+                            <div id="print-opportunities-table"></div>
+                        </div>
+                    </div>
                 </div>
 
             </div>
@@ -1394,8 +1513,12 @@ app.get('/', (c) => {
                 activeTab.classList.remove('border-transparent', 'text-gray-500');
                 
                 // Render view-specific content
-                if (currentData && viewName !== 'overview') {
-                    renderView(viewName, currentData);
+                if (currentData) {
+                    if (viewName === 'print') {
+                        renderPrintView(currentData);
+                    } else if (viewName !== 'overview') {
+                        renderView(viewName, currentData);
+                    }
                 }
             }
 
@@ -1444,6 +1567,83 @@ app.get('/', (c) => {
                 console.log(\`Next auto-refresh scheduled for: \${nextMonday.toLocaleString()} (in \${hoursUntil} hours)\`);
             }
 
+            // Render print view with all data
+            function renderPrintView(data) {
+                // Set company name and date
+                const companyName = COMPANIES[currentCompany]?.name || 'Company';
+                document.getElementById('print-company-name').textContent = `${companyName} - Pipeline Report`;
+                document.getElementById('print-date').textContent = new Date().toLocaleDateString('en-US', { 
+                    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+                });
+                
+                // Campaign summary
+                document.getElementById('print-total-leads').textContent = data.totalBoxes || '0';
+                document.getElementById('print-duration').textContent = (data.campaignDurationMonths || 0) + ' months';
+                document.getElementById('print-avg-leads').textContent = data.averageLeadsPerMonth || '0.0';
+                document.getElementById('print-achievement').textContent = (data.averagePercentage || 0) + '%';
+                
+                // Stage distribution table
+                let stageHTML = '<table class="print-table"><thead><tr><th>Stage</th><th>Count</th><th>Percentage</th></tr></thead><tbody>';
+                const totalBoxes = data.totalBoxes || 1;
+                Object.keys(data.stageDistribution || {}).sort((a, b) => (data.stageDistribution[b] || 0) - (data.stageDistribution[a] || 0)).forEach(stage => {
+                    const count = data.stageDistribution[stage] || 0;
+                    const pct = ((count / totalBoxes) * 100).toFixed(1);
+                    stageHTML += `<tr><td>${stage}</td><td>${count}</td><td>${pct}%</td></tr>`;
+                });
+                stageHTML += '</tbody></table>';
+                document.getElementById('print-stage-table').innerHTML = stageHTML;
+                
+                // FIT distribution table
+                let fitHTML = '<table class="print-table"><thead><tr><th>FIT Level</th><th>Count</th><th>Percentage</th></tr></thead><tbody>';
+                ['High', 'Medium', 'Low', 'Not Set'].forEach(level => {
+                    const count = data.fitDistribution[level] || 0;
+                    const pct = data.fitPercentages[level] || 0;
+                    fitHTML += `<tr><td>${level}</td><td>${count}</td><td>${pct}%</td></tr>`;
+                });
+                fitHTML += '</tbody></table>';
+                document.getElementById('print-fit-table').innerHTML = fitHTML;
+                
+                // INTEREST distribution table
+                let interestHTML = '<table class="print-table"><thead><tr><th>INTEREST Level</th><th>Count</th><th>Percentage</th></tr></thead><tbody>';
+                ['High', 'Medium', 'Low', 'Not Set'].forEach(level => {
+                    const count = data.interestDistribution[level] || 0;
+                    const pct = data.interestPercentages[level] || 0;
+                    interestHTML += `<tr><td>${level}</td><td>${count}</td><td>${pct}%</td></tr>`;
+                });
+                interestHTML += '</tbody></table>';
+                document.getElementById('print-interest-table').innerHTML = interestHTML;
+                
+                // Country distribution table (top 10)
+                let countryHTML = '<table class="print-table"><thead><tr><th>Country</th><th>Count</th><th>Percentage</th></tr></thead><tbody>';
+                const countries = Object.keys(data.countryDistribution || {})
+                    .sort((a, b) => (data.countryDistribution[b] || 0) - (data.countryDistribution[a] || 0))
+                    .slice(0, 10);
+                countries.forEach(country => {
+                    const count = data.countryDistribution[country] || 0;
+                    const pct = ((count / totalBoxes) * 100).toFixed(1);
+                    countryHTML += `<tr><td>${country}</td><td>${count}</td><td>${pct}%</td></tr>`;
+                });
+                countryHTML += '</tbody></table>';
+                document.getElementById('print-country-table').innerHTML = countryHTML;
+                
+                // Monthly performance table
+                let monthlyHTML = '<table class="print-table"><thead><tr><th>Month</th><th>Leads</th><th>Objective</th><th>Achievement</th><th>Status</th></tr></thead><tbody>';
+                (data.monthlyLeads || []).forEach(month => {
+                    const status = month.count >= 10 ? '✓ Achieved' : '○ Pending';
+                    monthlyHTML += `<tr><td>${month.monthName}</td><td>${month.count}</td><td>10</td><td>${month.percentage}%</td><td>${status}</td></tr>`;
+                });
+                monthlyHTML += '</tbody></table>';
+                document.getElementById('print-monthly-table').innerHTML = monthlyHTML;
+                
+                // High value opportunities table (top 20)
+                let oppHTML = '<table class="print-table"><thead><tr><th>Name</th><th>Stage</th><th>FIT</th><th>INTEREST</th><th>Country</th></tr></thead><tbody>';
+                (data.recentBoxes || []).slice(0, 20).forEach(box => {
+                    oppHTML += `<tr><td>${box.name}</td><td>${box.stage}</td><td>${box.fit || 'N/A'}</td><td>${box.interest || 'N/A'}</td><td>${box.country || 'N/A'}</td></tr>`;
+                });
+                oppHTML += '</tbody></table>';
+                document.getElementById('print-opportunities-table').innerHTML = oppHTML;
+            }
+            
             // Render view-specific content
             function renderView(viewName, data) {
                 const contentId = viewName + '-content';
