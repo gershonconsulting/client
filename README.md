@@ -23,14 +23,14 @@
 
 ### ✅ Dashboard
 - **Summary Cards** (3 cards): 
-  - Total boxes count (173)
-  - High priority percentage (6.4% of boxes)
-  - Boxes with due dates percentage (24.7% of active stage boxes)
+  - Total boxes count (1,299)
+  - High priority percentage (tracked by priority field)
+  - Boxes with due dates percentage (for active stage boxes)
 - **Multiple Views**:
-  - **By Stage**: Shows number of opportunities per stage (e.g., Contacted: 71 opportunities)
-  - **By Priority**: Displays 4 priority groups with absolute numbers and percentages (Low: 14, Medium: 54, High: 11, No Priority: 94)
-  - **By Country**: Table view with country distribution and percentages
-  - **By Language**: Cards showing language distribution (English, French)
+  - **By Stage**: Shows number of opportunities per stage (Contacted: 323, Connected: 175, Recycled: 711, etc.)
+  - **By Priority**: Displays 4 priority groups with absolute numbers and percentages
+  - **By Country**: Table view with country distribution (USA: 21, Germany: 4, France: 2, etc.)
+  - **By Language**: Cards showing language distribution
   - **By Freshness**: Activity levels (High, Medium, Low) based on engagement metrics
 - **By Stage Chart**: 3D-style bar chart with data labels showing both count and percentage on each bar. Order: Proposal Sent (42, 49.4%), Nurtering (25, 29.4%), Negotiating (9, 10.6%), Closing (9, 10.6%). Values displayed directly on bars.
 - **By Priority Chart**: 3D-style bar chart with data labels showing both count and percentage on each bar. Order: Low (14, 8.1%), Medium (54, 31.2%), High (11, 6.4%), No Priority (94, 54.3%). Values displayed directly on bars.
@@ -42,19 +42,19 @@
 #### GET `/api/pipeline`
 Returns complete pipeline information including fields, stages, and settings.
 ```bash
-curl https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/pipeline
+curl https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/pipeline
 ```
 
 #### GET `/api/boxes`
 Returns all boxes in the pipeline with full details.
 ```bash
-curl https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/boxes
+curl https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/boxes
 ```
 
 #### GET `/api/boxes/:boxKey`
 Returns detailed information for a specific box.
 ```bash
-curl https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/boxes/BOX_KEY
+curl https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/boxes/BOX_KEY
 ```
 
 #### GET `/api/analytics`
@@ -66,45 +66,39 @@ Returns aggregated analytics data including:
 - Recent boxes summary
 
 ```bash
-curl https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/analytics
+curl https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/analytics
 ```
 
 Example Response:
 ```json
 {
-  "totalBoxes": 173,
+  "totalBoxes": 1299,
   "stageDistribution": {
-    "Closing": 9,
-    "Proposal Sent": 42,
-    "Scheduled": 4,
-    "Negotiating": 9,
-    "Nurtering": 25,
-    "Contacted": 71,
-    "Pitched": 13
+    "Lead": 7,
+    "Contacted": 323,
+    "Connected": 175,
+    "Recycled": 711,
+    "Engaged": 10,
+    "Proposal Sent": 4,
+    "Call Scheduled": 33,
+    "WON": 5,
+    "Later Stage": 11,
+    "Reconnect By GC": 20
   },
   "priorityDistribution": {
-    "1. High": 11,
-    "2. Medium": 54,
-    "3. Low": 14,
-    "No Priority": 94
+    "No Priority": 1299
   },
   "priorityPercentages": {
-    "1. High": "6.4",
-    "2. Medium": "31.2",
-    "3. Low": "8.1",
-    "No Priority": "54.3"
+    "No Priority": "100.0"
   },
-  "boxesWithDueDate": 21,
-  "dueDatePercentage": 12.1,
-  "recentBoxes": [
-    {
-      "name": "Smart Silicon",
-      "stage": "Closing",
-      "priority": "1. High",
-      "dueDate": "2026-01-05T17:00:00.000Z",
-      "lastUpdated": "2025-12-30T20:02:23.000Z"
-    }
-  ]
+  "countryDistribution": {
+    "Unknown": 1250,
+    "USA": 21,
+    "Germany": 4,
+    "France": 2
+  },
+  "boxesWithDueDate": 0,
+  "dueDatePercentage": 0
 }
 ```
 
@@ -114,9 +108,9 @@ Example Response:
 - **Pipeline URL**: https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw
 - **Authentication**: API Key authentication with Streak
 - **Data Models**:
-  - **Boxes**: Individual deals/leads in the pipeline
-  - **Stages**: Pipeline stages (Lead, Contacted, Scheduled, Pitched, Proposal Sent, Negotiating, Closing, Nurtering)
-  - **Fields**: Custom fields including Deal Size, Origin, etc.
+  - **Boxes**: Individual deals/leads in the pipeline (1,299 total)
+  - **Stages**: Pipeline stages (Lead, Contacted, Connected, Engaged, Call Scheduled, Proposal Sent, Later Stage, WON, Reconnect By GC, Recycled)
+  - **Fields**: Custom fields including Priority, Country, Language, etc.
   - **Assignees**: Team members responsible for boxes
 - **Real-time**: All data fetched in real-time from Streak API
 
@@ -153,7 +147,7 @@ All API endpoints support CORS for cross-origin requests. You can integrate thes
 
 ```javascript
 // Fetch analytics data
-const response = await fetch('https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api/analytics');
+const response = await fetch('https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/analytics');
 const analytics = await response.json();
 console.log(`Total boxes: ${analytics.totalBoxes}`);
 ```
