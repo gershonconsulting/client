@@ -674,7 +674,7 @@ app.get('/', (c) => {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>MabSilico Pipeline Report</title>
+        <title>Gershon Consulting - Multi-Company Pipeline Report</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -687,11 +687,11 @@ app.get('/', (c) => {
                 <div class="flex items-center justify-between mb-4">
                     <h1 class="text-4xl font-bold">
                         <i class="fas fa-chart-line mr-3"></i>
-                        MabSilico Pipeline Report
+                        Gershon Consulting - Multi-Company Report
                     </h1>
                 </div>
                 <div class="flex items-center justify-between">
-                    <p class="text-blue-100">MabSilico Pipeline Dashboard</p>
+                    <p class="text-blue-100">Tracking 9 Company Pipelines with Streak CRM</p>
                     <p class="text-blue-100 text-sm">
                         <i class="fas fa-sync-alt mr-2"></i>
                         Last Updated: <span id="last-updated" class="font-semibold">Loading...</span>

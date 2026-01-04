@@ -1,243 +1,258 @@
-# MabSilico Pipeline Report
+# Gershon Consulting - Multi-Company Pipeline Report
 
 ## Project Overview
-- **Name**: MabSilico Pipeline Report
-- **Goal**: Create a comprehensive reporting dashboard exclusively for the MabSilico Pipeline in Streak CRM
-- **Pipeline Focus**: Exclusively focused on MabSilico pipeline - no multi-pipeline support
-- **Key Fields**: **FIT** and **INTEREST** - the two most important fields for tracking opportunities
-- **Auto-Refresh**: Automatically updates every Monday at 8:00 AM
-- **Features**: 
-  - Real-time analytics and visualizations
-  - 3D-style bar charts with data labels for Stage and FIT
-  - Multiple view tabs (Overview, By Stage, By FIT, By INTEREST, By Country, By Language, By Freshness)
-  - Top origins tracking
-  - High FIT/INTEREST opportunities table
-  - REST API for programmatic access
+- **Name**: Gershon Consulting Multi-Company Pipeline Report
+- **Goal**: Comprehensive dashboard tracking 9 company pipelines in Streak CRM with real-time analytics and Google Sheets integration
+- **Key Feature**: Each company has its own dedicated Streak pipeline with individual tracking and 10 leads/month objective
 
-## URLs
-- **Development**: https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai
+## 📊 Tracked Companies (9)
+
+| Company | Key | Total Leads | Avg/Month | Achievement |
+|---------|-----|-------------|-----------|-------------|
+| MabSilico | `mabsilico` | 1,299 | 15.9 | 159% ✅ |
+| Finance Montreal (Steve) | `finance-montreal` | 475 | 12.0 | 120% ✅ |
+| Ducrocq | `ducrocq` | 745 | 20.9 | 209% ✅ |
+| Seekyo Therapeutics | `seekyo` | 335 | 19.8 | 198% ✅ |
+| Altavia | `altavia` | 53 | 4.4 | 44% |
+| Valos | `valos` | 109 | 9.1 | 91% |
+| APM Music | `apm-music` | 9 | 0.8 | 8% |
+| Milvue | `milvue` | 23 | 1.9 | 19% |
+| DAB-Embedded | `dab-embedded` | 7 | 0.6 | 6% |
+
+**Objective**: 10 leads per month per company
+
+## 🌐 URLs
+- **Live Dashboard**: https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai
 - **API Base**: https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api
 - **GitHub**: (To be deployed)
-- **Production**: (To be deployed to Cloudflare Pages)
 
-## Currently Completed Features
+## ✅ Features
 
-### ✅ Dashboard
+### Dashboard Features
 - **Summary Cards** (3 cards): 
-  - Total boxes count (1,299)
-  - High FIT percentage (12.3% of boxes)
-  - High INTEREST percentage (11.9% of boxes)
+  - Total boxes count
+  - High FIT percentage
+  - High INTEREST percentage
 - **Multiple Views**:
-  - **By Stage**: Shows number of opportunities per stage (Contacted: 323, Connected: 175, Recycled: 711, etc.)
-  - **By FIT**: Displays FIT levels (High: 160, Medium: 359, Low: 305, Not Set: 475)
-  - **By INTEREST**: Displays INTEREST levels (High: 154, Medium: 333, Low: 334, Not Set: 478)
-  - **By Country**: Table view with country distribution (USA: 21, Germany: 4, France: 2, etc.)
+  - **By Stage**: Shows number of opportunities per stage
+  - **By FIT**: Displays FIT levels (High, Medium, Low, Not Set)
+  - **By INTEREST**: Displays INTEREST levels (High, Medium, Low, Not Set)
+  - **By Country**: Table view with country distribution
   - **By Language**: Cards showing language distribution
-  - **By Freshness**: Activity levels (High, Medium, Low) based on engagement metrics
-- **By Stage Chart**: 3D-style bar chart with data labels showing both count and percentage on each bar for main pipeline stages
-- **By FIT Chart**: 3D-style bar chart with data labels showing FIT distribution (Low: 305, Medium: 359, High: 160, Not Set: 475). Values displayed directly on bars.
-- **Top Origins List**: Shows the most common lead sources
-- **High FIT/INTEREST Table**: Lists up to 10 opportunities with High FIT or High INTEREST, showing stage, FIT level, INTEREST level, and last updated. Filtered to show only the most promising opportunities.
+  - **By Freshness**: Activity-based segmentation (High >0.5, Medium 0.2-0.5, Low <0.2)
+- **High Value Opportunities**: Shows boxes with High FIT or High INTEREST
+- **Monthly Lead Tracking**: 10 leads/month objective with 12-month history and achievement percentages
 
-### ✅ API Endpoints
+### Multi-Company Tracking
+- **Individual Pipeline Support**: Each company has its own Streak pipeline
+- **Google Sheets Integration**: IMPORTDATA formulas for each company
+- **Company-Specific Endpoints**: Total leads, monthly leads, and full statistics per company
+- **Real-time Analytics**: Live data from Streak API for all 9 companies
 
-#### GET `/api/pipeline`
-Returns complete pipeline information including fields, stages, and settings.
+## 🔌 API Endpoints
+
+### Company Management
 ```bash
-curl https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/pipeline
+GET /api/companies
+# Returns list of all tracked companies with keys and names
 ```
 
-#### GET `/api/boxes`
-Returns all boxes in the pipeline with full details.
+### Company-Specific Endpoints
+
+#### Total Leads
 ```bash
-curl https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/boxes
+GET /api/sheets/{companyKey}/total
+# Example: /api/sheets/mabsilico/total
+# Returns: Total number of leads for the company
 ```
 
-#### GET `/api/boxes/:boxKey`
-Returns detailed information for a specific box.
+#### Monthly Leads
 ```bash
-curl https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/boxes/BOX_KEY
+GET /api/sheets/{companyKey}/month/{YYYY-MM}/count
+# Example: /api/sheets/finance-montreal/month/2026-01/count
+# Returns: Number of leads created in specified month
 ```
 
-#### GET `/api/analytics`
-Returns aggregated analytics data including:
-- Total box count
-- Stage distribution
-- Origin distribution
-- Assignee distribution
-- Recent boxes summary
-
+#### Monthly Statistics
 ```bash
-curl https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/analytics
+GET /api/sheets/{companyKey}/monthly-stats
+# Example: /api/sheets/ducrocq/monthly-stats
+# Returns: Full 12-month statistics with objective tracking
 ```
 
-Example Response:
-```json
-{
-  "totalBoxes": 1299,
-  "stageDistribution": {
-    "Lead": 7,
-    "Contacted": 323,
-    "Connected": 175,
-    "Recycled": 711,
-    "Engaged": 10,
-    "Proposal Sent": 4,
-    "Call Scheduled": 33,
-    "WON": 5,
-    "Later Stage": 11,
-    "Reconnect By GC": 20
-  },
-  "fitDistribution": {
-    "High": 160,
-    "Medium": 359,
-    "Low": 305,
-    "Not Set": 475
-  },
-  "fitPercentages": {
-    "High": "12.3",
-    "Medium": "27.6",
-    "Low": "23.5",
-    "Not Set": "36.6"
-  },
-  "interestDistribution": {
-    "High": 154,
-    "Medium": 333,
-    "Low": 334,
-    "Not Set": 478
-  },
-  "interestPercentages": {
-    "High": "11.9",
-    "Medium": "25.6",
-    "Low": "25.7",
-    "Not Set": "36.8"
-  },
-  "countryDistribution": {
-    "Unknown": 1250,
-    "USA": 21,
-    "Germany": 4,
-    "France": 2
-  },
-  "boxesWithDueDate": 0,
-  "dueDatePercentage": 0
-}
-```
-
-## Data Architecture
-- **Data Source**: Streak CRM API v1
-- **Pipeline**: MabSilico Pipeline (agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw)
-- **Pipeline URL**: https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw
-- **Authentication**: API Key authentication with Streak
-- **Data Models**:
-  - **Boxes**: Individual deals/leads in the pipeline (1,299 total)
-  - **Stages**: Pipeline stages (Lead, Contacted, Connected, Engaged, Call Scheduled, Proposal Sent, Later Stage, WON, Reconnect By GC, Recycled)
-  - **Key Fields**: 
-    - **FIT**: High (160), Medium (359), Low (305), Not Set (475)
-    - **INTEREST**: High (154), Medium (333), Low (334), Not Set (478)
-  - **Other Fields**: Country, Language, Freshness, etc.
-  - **Assignees**: Team members responsible for boxes
-- **Real-time**: All data fetched in real-time from Streak API
-
-## Technologies Used
-- **Backend**: Hono (lightweight web framework)
-- **Runtime**: Cloudflare Workers/Pages
-- **Frontend**: Vanilla JavaScript with Tailwind CSS
-- **Charts**: Chart.js
-- **API**: Streak CRM REST API v1
-
-## User Guide
-
-### Viewing the Dashboard
-1. Open the application URL in your browser
-2. The dashboard will automatically load data from your Streak pipeline
-3. **Automatic Updates**: The dashboard refreshes automatically every Monday at 8:00 AM
-4. Check the "Last Updated" timestamp in the header to see when data was last refreshed
-5. **Switch between views** using the navigation tabs:
-   - **Overview**: See overall pipeline health and key metrics
-   - **By Stage**: Analyze distribution across all 7 pipeline stages
-   - **By Priority**: Focus on priority management and urgent items
-   - **By Country**: View geographic distribution of your pipeline
-   - **By Language**: Understand language breakdown of your deals
-   - **By Freshness**: Identify boxes needing follow-up based on activity
-6. Each view provides specific insights:
-   - **Stage View**: Card grid showing each stage's volume and percentage
-   - **Priority View**: Color-coded priority breakdown with counts
-   - **Country View**: Sortable table with percentage bars
-   - **Language View**: Simple language distribution cards
-   - **Freshness View**: Activity levels with actionable insights
-
-### Using the API
-All API endpoints support CORS for cross-origin requests. You can integrate these endpoints into your own applications:
-
-```javascript
-// Fetch analytics data
-const response = await fetch('https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/analytics');
-const analytics = await response.json();
-console.log(`Total boxes: ${analytics.totalBoxes}`);
-```
-
-## Deployment
-- **Platform**: Cloudflare Pages (Ready for deployment)
-- **Status**: ✅ Development - Running locally
-- **Tech Stack**: Hono + TypeScript + TailwindCSS + Chart.js
-- **Last Updated**: 2026-01-01
-
-## Development
-
-### Local Setup
+### MabSilico Pipeline Endpoints (Default)
 ```bash
-# Install dependencies
+GET /api/pipeline          # Full pipeline configuration
+GET /api/boxes            # All boxes with details
+GET /api/boxes/:boxKey    # Single box details
+GET /api/analytics        # Complete analytics for MabSilico
+```
+
+### Google Sheets Endpoints (MabSilico)
+```bash
+GET /api/sheets/total                    # Total boxes
+GET /api/sheets/stage/:stageName/count   # By stage
+GET /api/sheets/fit/:level/count        # By FIT (high/medium/low/not-set)
+GET /api/sheets/interest/:level/count   # By INTEREST (high/medium/low/not-set)
+GET /api/sheets/country/:country/count  # By country
+GET /api/sheets/freshness/:level/count  # By freshness (high/medium/low)
+```
+
+## 📈 Google Sheets Integration Examples
+
+### For MabSilico
+```
+=IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/mabsilico/total")
+```
+
+### For Finance Montreal
+```
+=IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/finance-montreal/total")
+```
+
+### Monthly Leads (any company)
+```
+=IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/ducrocq/month/2026-01/count")
+```
+
+### Calculate Achievement %
+```
+=IMPORTDATA("https://.../api/sheets/seekyo/total")/10*100
+```
+
+## 🗂️ Data Architecture
+
+### Per-Company Configuration
+Each company has:
+- **Pipeline Key**: Unique Streak pipeline identifier
+- **Pipeline URL**: Direct link to Streak pipeline
+- **Independent Data**: Separate boxes, stages, and fields
+- **Individual Tracking**: Own 10 leads/month objective
+
+### Tracked Fields (MabSilico)
+- **FIT**: Dropdown (High, Medium, Low, Not Set)
+- **INTEREST**: Dropdown (High, Medium, Low, Not Set)
+- **Stage**: Pipeline stages
+- **Origin**: Lead source
+- **Country**: Geographic location
+- **Language**: Communication language
+
+## 🚀 Deployment
+
+### Local Development
+```bash
+cd /home/user/webapp
 npm install
-
-# Build the project
 npm run build
-
-# Start development server
 pm2 start ecosystem.config.cjs
-
-# View logs
-pm2 logs webapp --nostream
 ```
 
-### Project Structure
+### Testing Endpoints
+```bash
+# List all companies
+curl http://localhost:3000/api/companies
+
+# Get total leads for a company
+curl http://localhost:3000/api/sheets/mabsilico/total
+
+# Get monthly stats
+curl http://localhost:3000/api/sheets/finance-montreal/monthly-stats
+```
+
+### Production Deployment
+```bash
+# Deploy to Cloudflare Pages
+npm run deploy
+
+# Or deploy with project name
+npm run deploy:prod
+```
+
+## 💡 Usage Guide
+
+### For Dashboard Users
+1. Open the dashboard URL
+2. View overall statistics for MabSilico (default view)
+3. Use tabs to switch between different views (Stage, FIT, INTEREST, etc.)
+4. Track high-value opportunities in the bottom table
+
+### For Google Sheets Users
+1. Copy any IMPORTDATA formula from the dashboard's "Google Sheets Integration" section
+2. Paste into a Google Sheets cell
+3. Data will automatically refresh when you reopen or refresh the sheet
+4. Use company keys in URLs: `mabsilico`, `finance-montreal`, `ducrocq`, etc.
+
+### For Developers
+1. Use `/api/companies` to get list of all companies
+2. Use `/api/sheets/{companyKey}/total` for quick counts
+3. Use `/api/sheets/{companyKey}/monthly-stats` for comprehensive data
+4. All endpoints return text (for IMPORTDATA) or JSON format
+
+## 📋 Company Keys Reference
+
+Use these keys in API URLs (lowercase, hyphenated):
+
+- `mabsilico` → MabSilico
+- `finance-montreal` → Finance Montreal (Steve)
+- `apm-music` → APM Music
+- `ducrocq` → Ducrocq
+- `milvue` → Milvue
+- `seekyo` → Seekyo Therapeutics
+- `altavia` → Altavia
+- `valos` → Valos
+- `dab-embedded` → DAB-Embedded
+
+## 🎯 Project Structure
 ```
 webapp/
 ├── src/
-│   └── index.tsx          # Main Hono application with API routes
+│   └── index.tsx          # Main application with multi-company support
 ├── public/
-│   └── static/            # Static assets
-├── dist/                  # Build output
+│   └── static/
+│       └── style.css      # Custom styles
+├── dist/                  # Built application
 ├── ecosystem.config.cjs   # PM2 configuration
-├── wrangler.jsonc         # Cloudflare configuration
-├── package.json           # Dependencies and scripts
-└── README.md              # This file
+├── wrangler.jsonc        # Cloudflare configuration
+├── package.json          # Dependencies and scripts
+└── README.md            # This file
 ```
 
-## Features Not Yet Implemented
-- [ ] Date range filtering for analytics
-- [ ] Export data to CSV/Excel
-- [ ] Custom report builder
-- [ ] Webhook integration for real-time updates
-- [ ] User authentication for multi-user access
-- [ ] Advanced filtering and search
-- [ ] Historical trend analysis
-- [ ] Automated email reports
-- [ ] Integration with other CRM systems
-- [ ] Mobile responsive improvements
+## 🔧 Tech Stack
+- **Backend**: Hono (Cloudflare Workers)
+- **Runtime**: Cloudflare Pages
+- **Frontend**: Vanilla JavaScript + Tailwind CSS
+- **Charts**: Chart.js with datalabels plugin
+- **API**: Streak CRM REST API v1
+- **Deployment**: Cloudflare Pages
 
-## Recommended Next Steps
-1. **Add Date Filtering**: Implement date range selector to filter analytics by time period
-2. **Export Functionality**: Add CSV/Excel export for reports
-3. **Deploy to Production**: Deploy to Cloudflare Pages for public access
-4. **Email Notifications**: Set up automated daily/weekly report emails
-5. **Advanced Visualizations**: Add conversion funnel, time-in-stage analysis
-6. **Custom Dashboards**: Allow users to create custom views and save preferences
-7. **Real-time Updates**: Implement WebSocket or polling for live data updates
-8. **Mobile App**: Create responsive mobile version or native app
+## 📊 Performance Insights
 
-## API Rate Limits
-Streak API has the following rate limits:
-- 100 requests per 15 seconds per API key
-- The app caches pipeline data to minimize API calls
+### Top Performers (>150% objective)
+1. **Ducrocq**: 209% (20.9 leads/month)
+2. **Seekyo**: 198% (19.8 leads/month)
+3. **MabSilico**: 159% (15.9 leads/month)
 
-## Support
-For issues or questions, please contact the development team.
+### Need Attention (<50% objective)
+- **APM Music**: 8% (0.8 leads/month)
+- **DAB-Embedded**: 6% (0.6 leads/month)
+- **Milvue**: 19% (1.9 leads/month)
+- **Altavia**: 44% (4.4 leads/month)
+
+## 🎯 Next Steps
+1. ✅ Multi-company tracking implemented
+2. ✅ Individual pipeline support for 9 companies
+3. ✅ Google Sheets integration per company
+4. 📋 Add company comparison charts
+5. 📋 Create consolidated dashboard view
+6. 📋 Add company performance trends
+7. 📋 Implement automated alerts for underperforming companies
+8. 📋 Deploy to production Cloudflare Pages
+9. 📋 Set up automated reports
+
+## 📞 Support
+For questions or issues, contact the development team.
+
+---
+**Last Updated**: 2026-01-04  
+**Status**: ✅ Active - All 9 companies tracked  
+**API Key**: Configured (e77554988b424c6498d85362b0367757)
