@@ -638,7 +638,7 @@ app.get('/', (c) => {
                 </div>
                 <p class="text-blue-200 text-xs mt-2">
                     <i class="fas fa-calendar-alt mr-1"></i>
-                    Auto-refreshes every Monday at 8:00 AM | *Due dates tracked for: Proposal Sent, Nurtering, Negotiating, Closing
+                    Auto-refreshes every Monday at 8:00 AM
                 </p>
             </div>
 
