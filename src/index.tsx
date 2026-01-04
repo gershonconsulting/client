@@ -1154,41 +1154,91 @@ app.get('/', (c) => {
                                 Each company has its own Streak pipeline. Use the company key in URLs (lowercase, hyphenated).
                             </p>
                         </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                            <h4 class="text-sm font-semibold text-blue-900 mb-2">Company Keys Reference:</h4>
+                            <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                                <div><code class="bg-white px-2 py-1 rounded">mabsilico</code> → MabSilico</div>
+                                <div><code class="bg-white px-2 py-1 rounded">finance-montreal</code> → Finance Montreal</div>
+                                <div><code class="bg-white px-2 py-1 rounded">apm-music</code> → APM Music</div>
+                                <div><code class="bg-white px-2 py-1 rounded">ducrocq</code> → Ducrocq</div>
+                                <div><code class="bg-white px-2 py-1 rounded">milvue</code> → Milvue</div>
+                                <div><code class="bg-white px-2 py-1 rounded">seekyo</code> → Seekyo Therapeutics</div>
+                                <div><code class="bg-white px-2 py-1 rounded">altavia</code> → Altavia</div>
+                                <div><code class="bg-white px-2 py-1 rounded">valos</code> → Valos</div>
+                                <div><code class="bg-white px-2 py-1 rounded">dab-embedded</code> → DAB-Embedded</div>
+                            </div>
+                        </div>
+                        
+                        <h4 class="text-md font-semibold text-gray-800 mb-3">All Companies - Total Leads Formulas:</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                             <div class="border-b pb-3">
-                                <p class="text-sm font-medium text-gray-700 mb-1">Total Leads - MabSilico</p>
+                                <p class="text-sm font-medium text-gray-700 mb-1">MabSilico</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
                                     =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/mabsilico/total")
                                 </code>
                             </div>
                             <div class="border-b pb-3">
-                                <p class="text-sm font-medium text-gray-700 mb-1">Total Leads - Finance Montreal</p>
+                                <p class="text-sm font-medium text-gray-700 mb-1">Finance Montreal</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
                                     =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/finance-montreal/total")
                                 </code>
                             </div>
                             <div class="border-b pb-3">
-                                <p class="text-sm font-medium text-gray-700 mb-1">Jan 2026 Leads - Ducrocq</p>
+                                <p class="text-sm font-medium text-gray-700 mb-1">APM Music</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/ducrocq/month/2026-01/count")
+                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/apm-music/total")
                                 </code>
                             </div>
                             <div class="border-b pb-3">
-                                <p class="text-sm font-medium text-gray-700 mb-1">Total Leads - Seekyo</p>
+                                <p class="text-sm font-medium text-gray-700 mb-1">Ducrocq</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/ducrocq/total")
+                                </code>
+                            </div>
+                            <div class="border-b pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">Milvue</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/milvue/total")
+                                </code>
+                            </div>
+                            <div class="border-b pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">Seekyo Therapeutics</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
                                     =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/seekyo/total")
                                 </code>
                             </div>
                             <div class="border-b pb-3">
-                                <p class="text-sm font-medium text-gray-700 mb-1">Dec 2025 - APM Music</p>
+                                <p class="text-sm font-medium text-gray-700 mb-1">Altavia</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/apm-music/month/2025-12/count")
+                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/altavia/total")
+                                </code>
+                            </div>
+                            <div class="border-b pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">Valos</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/valos/total")
+                                </code>
+                            </div>
+                            <div class="border-b pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">DAB-Embedded</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/dab-embedded/total")
+                                </code>
+                            </div>
+                        </div>
+                        
+                        <h4 class="text-md font-semibold text-gray-800 mb-3">Monthly Tracking Examples:</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="border-b pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">MabSilico - January 2026</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/mabsilico/month/2026-01/count")
                                 </code>
                             </div>
                             <div class="pb-3">
-                                <p class="text-sm font-medium text-gray-700 mb-1">All Companies List</p>
+                                <p class="text-sm font-medium text-gray-700 mb-1">Ducrocq - December 2025</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    GET /api/companies (returns JSON with all company keys and names)
+                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/ducrocq/month/2025-12/count")
                                 </code>
                             </div>
                         </div>
