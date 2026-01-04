@@ -14,9 +14,58 @@ app.use('/static/*', serveStatic({ root: './public' }))
 const STREAK_API_KEY = 'e77554988b424c6498d85362b0367757'
 const STREAK_API_BASE = 'https://www.streak.com/api/v1'
 
-// MabSilico Pipeline - Fixed configuration
-const PIPELINE_KEY = 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw'
-const PIPELINE_NAME = 'MabSilico'
+// Multi-Company Pipeline Configuration
+const COMPANIES = {
+  'mabsilico': {
+    name: 'MabSilico',
+    pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw',
+    url: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw'
+  },
+  'finance-montreal': {
+    name: 'Finance Montreal (Steve)',
+    pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgI7YkpykCQw',
+    url: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgI7YkpykCQw'
+  },
+  'apm-music': {
+    name: 'APM Music',
+    pipelineKey: 'agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgIClnNb8gwsM',
+    url: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgIClnNb8gwsM'
+  },
+  'ducrocq': {
+    name: 'Ducrocq',
+    pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgNaSl4OGCww',
+    url: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgNaSl4OGCww'
+  },
+  'milvue': {
+    name: 'Milvue',
+    pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgMX-7baZCgw',
+    url: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgMX-7baZCgw'
+  },
+  'seekyo': {
+    name: 'Seekyo Therapeutics',
+    pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgLnYo_uUCww',
+    url: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgLnYo_uUCww'
+  },
+  'altavia': {
+    name: 'Altavia',
+    pipelineKey: 'agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgICFz_elmwgM',
+    url: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgICFz_elmwgM'
+  },
+  'valos': {
+    name: 'Valos',
+    pipelineKey: 'agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgICF5ei7lgkM',
+    url: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgICF5ei7lgkM'
+  },
+  'dab-embedded': {
+    name: 'DAB-Embedded',
+    pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgKWyqIboCww',
+    url: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgKWyqIboCww'
+  }
+}
+
+// Default pipeline for backward compatibility
+const PIPELINE_KEY = COMPANIES['mabsilico'].pipelineKey
+const PIPELINE_NAME = COMPANIES['mabsilico'].name
 const FIT_FIELD = 'Fit'
 const INTEREST_FIELD = 'Interest'
 
@@ -249,16 +298,28 @@ app.get('/api/sheets/interest/:interestLevel/count', async (c) => {
   }
 })
 
+// List all available companies
+app.get('/api/companies', async (c) => {
+  const companiesList = Object.keys(COMPANIES).map(key => ({
+    key: key,
+    name: COMPANIES[key].name,
+    url: COMPANIES[key].url
+  }))
+  return c.json({ companies: companiesList, count: companiesList.length })
+})
+
 // Get total leads for a specific company (case-insensitive)
 app.get('/api/sheets/:companyName/total', async (c) => {
   try {
-    const companyName = c.req.param('companyName')
-    const boxes = await callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`)
+    const companyName = c.req.param('companyName').toLowerCase()
+    const company = COMPANIES[companyName]
     
-    const count = Array.isArray(boxes) ? boxes.filter(box => {
-      const boxName = (box.name || '').toLowerCase()
-      return boxName.includes(companyName.toLowerCase())
-    }).length : 0
+    if (!company) {
+      return c.text('COMPANY_NOT_FOUND')
+    }
+    
+    const boxes = await callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`)
+    const count = Array.isArray(boxes) ? boxes.length : 0
     
     return c.text(count.toString())
   } catch (error) {
@@ -269,20 +330,18 @@ app.get('/api/sheets/:companyName/total', async (c) => {
 // Get leads created in a specific month for a company (format: YYYY-MM)
 app.get('/api/sheets/:companyName/month/:yearMonth/count', async (c) => {
   try {
-    const companyName = c.req.param('companyName')
+    const companyName = c.req.param('companyName').toLowerCase()
     const yearMonth = c.req.param('yearMonth') // Format: YYYY-MM
-    const boxes = await callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`)
+    const company = COMPANIES[companyName]
     
+    if (!company) {
+      return c.text('COMPANY_NOT_FOUND')
+    }
+    
+    const boxes = await callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`)
     const [year, month] = yearMonth.split('-').map(Number)
     
     const count = Array.isArray(boxes) ? boxes.filter(box => {
-      // Check if box name matches company
-      const boxName = (box.name || '').toLowerCase()
-      if (!boxName.includes(companyName.toLowerCase())) {
-        return false
-      }
-      
-      // Check if created in the specified month
       const createdDate = new Date(box.creationTimestamp)
       return createdDate.getFullYear() === year && (createdDate.getMonth() + 1) === month
     }).length : 0
@@ -296,14 +355,15 @@ app.get('/api/sheets/:companyName/month/:yearMonth/count', async (c) => {
 // Get monthly lead statistics for a company (last 12 months)
 app.get('/api/sheets/:companyName/monthly-stats', async (c) => {
   try {
-    const companyName = c.req.param('companyName')
-    const boxes = await callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`)
+    const companyName = c.req.param('companyName').toLowerCase()
+    const company = COMPANIES[companyName]
     
-    // Filter boxes for this company
-    const companyBoxes = Array.isArray(boxes) ? boxes.filter(box => {
-      const boxName = (box.name || '').toLowerCase()
-      return boxName.includes(companyName.toLowerCase())
-    }) : []
+    if (!company) {
+      return c.json({ error: 'Company not found' }, 404)
+    }
+    
+    const boxes = await callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`)
+    const companyBoxes = Array.isArray(boxes) ? boxes : []
     
     // Calculate monthly stats for last 12 months
     const now = new Date()
@@ -335,7 +395,8 @@ app.get('/api/sheets/:companyName/monthly-stats', async (c) => {
     const averagePercentage = ((parseFloat(average) / 10) * 100).toFixed(1)
     
     return c.json({
-      company: companyName,
+      company: company.name,
+      companyKey: companyName,
       objective: 10,
       monthlyStats: monthlyStats,
       summary: {
@@ -1010,36 +1071,51 @@ app.get('/', (c) => {
                     <div class="bg-white rounded-lg p-6 shadow col-span-1 lg:col-span-2">
                         <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
                             <i class="fas fa-building text-indigo-500 mr-2"></i>
-                            Company-Specific Lead Tracking (10 Leads/Month Objective)
+                            Multi-Company Lead Tracking (10 Leads/Month Objective)
                         </h3>
                         <div class="bg-indigo-50 border-l-4 border-indigo-500 p-4 mb-4 rounded">
-                            <p class="text-sm text-indigo-800">
-                                <strong>Track leads per company:</strong> Replace "mabsilico" with your company name (case-insensitive). Use these formulas to track your 10-lead monthly objective.
+                            <p class="text-sm text-indigo-800 mb-2">
+                                <strong>9 Companies Tracked:</strong> MabSilico, Finance Montreal, APM Music, Ducrocq, Milvue, Seekyo Therapeutics, Altavia, Valos, DAB-Embedded
+                            </p>
+                            <p class="text-sm text-indigo-700">
+                                Each company has its own Streak pipeline. Use the company key in URLs (lowercase, hyphenated).
                             </p>
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div class="border-b pb-3">
-                                <p class="text-sm font-medium text-gray-700 mb-1">Total Leads for MabSilico</p>
+                                <p class="text-sm font-medium text-gray-700 mb-1">Total Leads - MabSilico</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
                                     =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/mabsilico/total")
                                 </code>
                             </div>
                             <div class="border-b pb-3">
-                                <p class="text-sm font-medium text-gray-700 mb-1">MabSilico Leads in January 2026</p>
+                                <p class="text-sm font-medium text-gray-700 mb-1">Total Leads - Finance Montreal</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/mabsilico/month/2026-01/count")
+                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/finance-montreal/total")
                                 </code>
                             </div>
                             <div class="border-b pb-3">
-                                <p class="text-sm font-medium text-gray-700 mb-1">Total for Any Company (e.g., "biotech")</p>
+                                <p class="text-sm font-medium text-gray-700 mb-1">Jan 2026 Leads - Ducrocq</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/biotech/total")
+                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/ducrocq/month/2026-01/count")
+                                </code>
+                            </div>
+                            <div class="border-b pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">Total Leads - Seekyo</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/seekyo/total")
+                                </code>
+                            </div>
+                            <div class="border-b pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">Dec 2025 - APM Music</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/apm-music/month/2025-12/count")
                                 </code>
                             </div>
                             <div class="pb-3">
-                                <p class="text-sm font-medium text-gray-700 mb-1">Any Company for December 2025</p>
+                                <p class="text-sm font-medium text-gray-700 mb-1">All Companies List</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/biotech/month/2025-12/count")
+                                    GET /api/companies (returns JSON with all company keys and names)
                                 </code>
                             </div>
                         </div>
