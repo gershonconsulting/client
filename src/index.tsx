@@ -12,8 +12,13 @@ app.use('/static/*', serveStatic({ root: './public' }))
 
 // Streak API configuration
 const STREAK_API_KEY = 'e77554988b424c6498d85362b0367757'
-const PIPELINE_KEY = 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgICAwLWbCgw'
 const STREAK_API_BASE = 'https://www.streak.com/api/v1'
+
+// Gershon Consulting Pipeline - Fixed configuration
+const PIPELINE_KEY = 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgICAwLWbCgw'
+const PIPELINE_NAME = 'Gershon Consulting'
+const PRIORITY_FIELD = 'Priority'
+const PRIORITY_MAPPING = { 'High': '1. High', 'Medium': '2. Medium', 'Low': '3. Low' }
 
 // Helper function to make Streak API calls
 async function callStreakAPI(endpoint: string) {
@@ -220,6 +225,7 @@ app.get('/api/sheets/freshness/:level/count', async (c) => {
 // Get analytics summary
 app.get('/api/analytics', async (c) => {
   try {
+    // Fixed to Gershon Consulting pipeline
     const [pipeline, boxes] = await Promise.all([
       callStreakAPI(`/pipelines/${PIPELINE_KEY}`),
       callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`)
@@ -247,7 +253,7 @@ app.get('/api/analytics', async (c) => {
     })) : []
     const fields = Array.isArray(pipeline.fields) ? pipeline.fields : []
     const originField = fields.find(f => f && f.name === 'Origin')
-    const priorityField = fields.find(f => f && f.name === 'Priority')
+    const priorityField = fields.find(f => f && f.name === PRIORITY_FIELD)
     const dueDateField = fields.find(f => f && f.name === 'Est Start Date')
     const countryField = fields.find(f => f && f.name === 'Country')
     const languageField = fields.find(f => f && f.name === 'Language')
@@ -429,10 +435,12 @@ app.get('/', (c) => {
         <div class="container mx-auto px-4 py-8">
             <!-- Header -->
             <div class="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-lg shadow-xl p-8 mb-8 text-white">
-                <h1 class="text-4xl font-bold mb-2">
-                    <i class="fas fa-chart-line mr-3"></i>
-                    Gershon Consulting Pipeline Report
-                </h1>
+                <div class="flex items-center justify-between mb-4">
+                    <h1 class="text-4xl font-bold">
+                        <i class="fas fa-chart-line mr-3"></i>
+                        Gershon Consulting Pipeline Report
+                    </h1>
+                </div>
                 <div class="flex items-center justify-between">
                     <p class="text-blue-100">GC Pipeline Dashboard</p>
                     <p class="text-blue-100 text-sm">
