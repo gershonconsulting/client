@@ -14,9 +14,10 @@
   - REST API for programmatic access
 
 ## URLs
-- **Development**: https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai
-- **API Base**: https://3000-il5jzglpjys72p786w735-c81df28e.sandbox.novita.ai/api
+- **Development**: https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai
+- **API Base**: https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api
 - **GitHub**: (To be deployed)
+- **Production**: (To be deployed to Cloudflare Pages)
 
 ## Currently Completed Features
 
