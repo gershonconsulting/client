@@ -222,6 +222,164 @@ app.get('/api/sheets/freshness/:level/count', async (c) => {
   }
 })
 
+// Get count by FIT level
+app.get('/api/sheets/fit/:fitLevel/count', async (c) => {
+  try {
+    const fitLevel = c.req.param('fitLevel')
+    const [pipeline, boxes] = await Promise.all([
+      callStreakAPI(`/pipelines/${PIPELINE_KEY}`),
+      callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`)
+    ])
+    
+    const fields = Array.isArray(pipeline.fields) ? pipeline.fields : []
+    const fitField = fields.find(f => f && f.name === FIT_FIELD)
+    
+    const count = Array.isArray(boxes) ? boxes.filter(box => {
+      if (!fitField || !box.fields || !box.fields[fitField.key]) {
+        return fitLevel.toLowerCase() === 'not set'
+      }
+      const fitKey = box.fields[fitField.key]
+      const items = fitField.dropdownSettings?.items
+      const fitItem = Array.isArray(items) ? items.find(i => i && i.key === fitKey) : null
+      const fit = fitItem ? fitItem.name : 'Not Set'
+      return fit.toLowerCase() === fitLevel.toLowerCase()
+    }).length : 0
+    
+    return c.text(count.toString())
+  } catch (error) {
+    return c.text('ERROR')
+  }
+})
+
+// Get count by INTEREST level
+app.get('/api/sheets/interest/:interestLevel/count', async (c) => {
+  try {
+    const interestLevel = c.req.param('interestLevel')
+    const [pipeline, boxes] = await Promise.all([
+      callStreakAPI(`/pipelines/${PIPELINE_KEY}`),
+      callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`)
+    ])
+    
+    const fields = Array.isArray(pipeline.fields) ? pipeline.fields : []
+    const interestField = fields.find(f => f && f.name === INTEREST_FIELD)
+    
+    const count = Array.isArray(boxes) ? boxes.filter(box => {
+      if (!interestField || !box.fields || !box.fields[interestField.key]) {
+        return interestLevel.toLowerCase() === 'not set'
+      }
+      const interestKey = box.fields[interestField.key]
+      const items = interestField.dropdownSettings?.items
+      const interestItem = Array.isArray(items) ? items.find(i => i && i.key === interestKey) : null
+      const interest = interestItem ? interestItem.name : 'Not Set'
+      return interest.toLowerCase() === interestLevel.toLowerCase()
+    }).length : 0
+    
+    return c.text(count.toString())
+  } catch (error) {
+    return c.text('ERROR')
+  }
+})
+
+// Get total leads for a specific company (case-insensitive)
+app.get('/api/sheets/:companyName/total', async (c) => {
+  try {
+    const companyName = c.req.param('companyName')
+    const boxes = await callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`)
+    
+    const count = Array.isArray(boxes) ? boxes.filter(box => {
+      const boxName = (box.name || '').toLowerCase()
+      return boxName.includes(companyName.toLowerCase())
+    }).length : 0
+    
+    return c.text(count.toString())
+  } catch (error) {
+    return c.text('ERROR')
+  }
+})
+
+// Get leads created in a specific month for a company (format: YYYY-MM)
+app.get('/api/sheets/:companyName/month/:yearMonth/count', async (c) => {
+  try {
+    const companyName = c.req.param('companyName')
+    const yearMonth = c.req.param('yearMonth') // Format: YYYY-MM
+    const boxes = await callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`)
+    
+    const [year, month] = yearMonth.split('-').map(Number)
+    
+    const count = Array.isArray(boxes) ? boxes.filter(box => {
+      // Check if box name matches company
+      const boxName = (box.name || '').toLowerCase()
+      if (!boxName.includes(companyName.toLowerCase())) {
+        return false
+      }
+      
+      // Check if created in the specified month
+      const createdDate = new Date(box.creationTimestamp)
+      return createdDate.getFullYear() === year && (createdDate.getMonth() + 1) === month
+    }).length : 0
+    
+    return c.text(count.toString())
+  } catch (error) {
+    return c.text('ERROR')
+  }
+})
+
+// Get monthly lead statistics for a company (last 12 months)
+app.get('/api/sheets/:companyName/monthly-stats', async (c) => {
+  try {
+    const companyName = c.req.param('companyName')
+    const boxes = await callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`)
+    
+    // Filter boxes for this company
+    const companyBoxes = Array.isArray(boxes) ? boxes.filter(box => {
+      const boxName = (box.name || '').toLowerCase()
+      return boxName.includes(companyName.toLowerCase())
+    }) : []
+    
+    // Calculate monthly stats for last 12 months
+    const now = new Date()
+    const monthlyStats = []
+    
+    for (let i = 11; i >= 0; i--) {
+      const targetDate = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const year = targetDate.getFullYear()
+      const month = targetDate.getMonth() + 1
+      
+      const count = companyBoxes.filter(box => {
+        const createdDate = new Date(box.creationTimestamp)
+        return createdDate.getFullYear() === year && (createdDate.getMonth() + 1) === month
+      }).length
+      
+      const percentage = ((count / 10) * 100).toFixed(1)
+      
+      monthlyStats.push({
+        month: `${year}-${String(month).padStart(2, '0')}`,
+        count: count,
+        objective: 10,
+        percentage: parseFloat(percentage)
+      })
+    }
+    
+    // Calculate average
+    const totalLeads = monthlyStats.reduce((sum, stat) => sum + stat.count, 0)
+    const average = (totalLeads / 12).toFixed(1)
+    const averagePercentage = ((parseFloat(average) / 10) * 100).toFixed(1)
+    
+    return c.json({
+      company: companyName,
+      objective: 10,
+      monthlyStats: monthlyStats,
+      summary: {
+        totalLeads: totalLeads,
+        average: parseFloat(average),
+        averagePercentage: parseFloat(averagePercentage)
+      }
+    })
+  } catch (error) {
+    return c.json({ error: error.message }, 500)
+  }
+})
+
 // Get analytics summary
 app.get('/api/analytics', async (c) => {
   try {
@@ -356,6 +514,38 @@ app.get('/api/analytics', async (c) => {
     // Due date percentage only for relevant stages (Proposal Sent, Nurtering, Negotiating, Closing)
     const dueDatePercentage = relevantStageBoxes > 0 ? ((boxesWithDueDate / relevantStageBoxes) * 100).toFixed(1) : 0
     
+    // Calculate monthly lead tracking (last 12 months)
+    const now = new Date()
+    const monthlyLeads = []
+    const leadObjective = 10
+    
+    for (let i = 11; i >= 0; i--) {
+      const targetDate = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const year = targetDate.getFullYear()
+      const month = targetDate.getMonth() + 1
+      
+      const count = Array.isArray(boxes) ? boxes.filter(box => {
+        const createdDate = new Date(box.creationTimestamp)
+        return createdDate.getFullYear() === year && (createdDate.getMonth() + 1) === month
+      }).length : 0
+      
+      const percentage = ((count / leadObjective) * 100).toFixed(1)
+      
+      monthlyLeads.push({
+        month: `${year}-${String(month).padStart(2, '0')}`,
+        monthName: targetDate.toLocaleString('en-US', { month: 'short', year: 'numeric' }),
+        count: count,
+        objective: leadObjective,
+        percentage: parseFloat(percentage),
+        status: count >= leadObjective ? 'achieved' : 'pending'
+      })
+    }
+    
+    // Calculate average
+    const totalMonthlyLeads = monthlyLeads.reduce((sum, m) => sum + m.count, 0)
+    const averageLeadsPerMonth = (totalMonthlyLeads / 12).toFixed(1)
+    const averagePercentage = ((parseFloat(averageLeadsPerMonth) / leadObjective) * 100).toFixed(1)
+    
     return c.json({
       totalBoxes,
       stageDistribution,
@@ -370,6 +560,10 @@ app.get('/api/analytics', async (c) => {
       relevantStageBoxes,
       boxesWithDueDate,
       dueDatePercentage: parseFloat(dueDatePercentage),
+      monthlyLeads: monthlyLeads,
+      leadObjective: leadObjective,
+      averageLeadsPerMonth: parseFloat(averageLeadsPerMonth),
+      averagePercentage: parseFloat(averagePercentage),
       recentBoxes: Array.isArray(boxes) ? boxes.filter(box => {
         // Filter for High FIT and High INTEREST
         const hasFit = fitField && box.fields && box.fields[fitField.key]
@@ -755,29 +949,57 @@ app.get('/', (c) => {
                         </div>
                     </div>
 
-                    <!-- By Priority -->
+                    <!-- By FIT -->
                     <div class="bg-white rounded-lg p-6 shadow">
                         <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                            <i class="fas fa-exclamation-circle text-red-500 mr-2"></i>
-                            By Priority
+                            <i class="fas fa-check-circle text-green-500 mr-2"></i>
+                            By FIT
                         </h3>
                         <div class="space-y-3">
                             <div class="border-b pb-3">
-                                <p class="text-sm font-medium text-gray-700 mb-1">High Priority</p>
+                                <p class="text-sm font-medium text-gray-700 mb-1">High FIT</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/priority/high/count")
+                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/fit/high/count")
                                 </code>
                             </div>
                             <div class="border-b pb-3">
-                                <p class="text-sm font-medium text-gray-700 mb-1">Medium Priority</p>
+                                <p class="text-sm font-medium text-gray-700 mb-1">Medium FIT</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/priority/medium/count")
+                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/fit/medium/count")
                                 </code>
                             </div>
                             <div class="pb-3">
-                                <p class="text-sm font-medium text-gray-700 mb-1">Low Priority</p>
+                                <p class="text-sm font-medium text-gray-700 mb-1">Low FIT</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/priority/low/count")
+                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/fit/low/count")
+                                </code>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- By INTEREST -->
+                    <div class="bg-white rounded-lg p-6 shadow">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-star text-purple-500 mr-2"></i>
+                            By INTEREST
+                        </h3>
+                        <div class="space-y-3">
+                            <div class="border-b pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">High INTEREST</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/interest/high/count")
+                                </code>
+                            </div>
+                            <div class="border-b pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">Medium INTEREST</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/interest/medium/count")
+                                </code>
+                            </div>
+                            <div class="pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">Low INTEREST</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/interest/low/count")
                                 </code>
                             </div>
                         </div>
@@ -838,6 +1060,50 @@ app.get('/', (c) => {
                             </div>
                         </div>
                     </div>
+                    
+                    <!-- Company-Specific Tracking -->
+                    <div class="bg-white rounded-lg p-6 shadow col-span-1 lg:col-span-2">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-building text-indigo-500 mr-2"></i>
+                            Company-Specific Lead Tracking (10 Leads/Month Objective)
+                        </h3>
+                        <div class="bg-indigo-50 border-l-4 border-indigo-500 p-4 mb-4 rounded">
+                            <p class="text-sm text-indigo-800">
+                                <strong>Track leads per company:</strong> Replace "mabsilico" with your company name (case-insensitive). Use these formulas to track your 10-lead monthly objective.
+                            </p>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="border-b pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">Total Leads for MabSilico</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/mabsilico/total")
+                                </code>
+                            </div>
+                            <div class="border-b pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">MabSilico Leads in January 2026</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/mabsilico/month/2026-01/count")
+                                </code>
+                            </div>
+                            <div class="border-b pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">Total for Any Company (e.g., "biotech")</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/biotech/total")
+                                </code>
+                            </div>
+                            <div class="pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-1">Any Company for December 2025</p>
+                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/biotech/month/2025-12/count")
+                                </code>
+                            </div>
+                        </div>
+                        <div class="mt-4 bg-green-50 border border-green-200 rounded-lg p-3">
+                            <p class="text-xs text-green-800">
+                                <strong>💡 Tip:</strong> To calculate % of objective: <code>=IMPORTDATA(url)/10*100</code> or use the monthly-stats endpoint for full statistics.
+                            </p>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-6">
@@ -846,7 +1112,9 @@ app.get('/', (c) => {
                         <div>
                             <h4 class="font-semibold text-yellow-900 mb-2">Advanced Tips</h4>
                             <ul class="text-sm text-yellow-800 space-y-1">
-                                <li>• The "By Stage" section shows the 4 key active stages where due dates matter</li>
+                                <li>• <strong>Company Tracking:</strong> Use /api/sheets/COMPANY_NAME/total for any company</li>
+                                <li>• <strong>Monthly Tracking:</strong> Use /api/sheets/COMPANY_NAME/month/YYYY-MM/count</li>
+                                <li>• <strong>Objective:</strong> Track progress toward 10 leads/month goal per company</li>
                                 <li>• You can also query other stages (e.g., "Contacted", "Pitched", "Scheduled", "Lead") by replacing the stage name in the URL</li>
                                 <li>• Use these formulas in your weekly reports for automatic data updates</li>
                                 <li>• Combine with Google Sheets charts for custom visualizations</li>
