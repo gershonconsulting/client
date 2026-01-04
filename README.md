@@ -1,16 +1,17 @@
-# Gershon Consulting Pipeline Report
+# MabSilico Pipeline Report
 
 ## Project Overview
-- **Name**: Gershon Consulting Pipeline Report
-- **Goal**: Create a comprehensive reporting dashboard exclusively for the Gershon Consulting Pipeline in Streak CRM
-- **Pipeline Focus**: Exclusively focused on Gershon Consulting - no multi-pipeline support
+- **Name**: MabSilico Pipeline Report
+- **Goal**: Create a comprehensive reporting dashboard exclusively for the MabSilico Pipeline in Streak CRM
+- **Pipeline Focus**: Exclusively focused on MabSilico pipeline - no multi-pipeline support
+- **Key Fields**: **FIT** and **INTEREST** - the two most important fields for tracking opportunities
 - **Auto-Refresh**: Automatically updates every Monday at 8:00 AM
 - **Features**: 
   - Real-time analytics and visualizations
-  - 3D-style bar charts with data labels for Stage and Priority
-  - Multiple view tabs (Overview, By Stage, By Priority, By Country, By Language, By Freshness)
+  - 3D-style bar charts with data labels for Stage and FIT
+  - Multiple view tabs (Overview, By Stage, By FIT, By INTEREST, By Country, By Language, By Freshness)
   - Top origins tracking
-  - Recent High Priority boxes table
+  - High FIT/INTEREST opportunities table
   - REST API for programmatic access
 
 ## URLs
@@ -24,18 +25,19 @@
 ### ✅ Dashboard
 - **Summary Cards** (3 cards): 
   - Total boxes count (1,299)
-  - High priority percentage (tracked by priority field)
+  - High FIT percentage (12.3% of boxes)
   - Boxes with due dates percentage (for active stage boxes)
 - **Multiple Views**:
   - **By Stage**: Shows number of opportunities per stage (Contacted: 323, Connected: 175, Recycled: 711, etc.)
-  - **By Priority**: Displays 4 priority groups with absolute numbers and percentages
+  - **By FIT**: Displays FIT levels (High: 160, Medium: 359, Low: 305, Not Set: 475)
+  - **By INTEREST**: Displays INTEREST levels (High: 154, Medium: 333, Low: 334, Not Set: 478)
   - **By Country**: Table view with country distribution (USA: 21, Germany: 4, France: 2, etc.)
   - **By Language**: Cards showing language distribution
   - **By Freshness**: Activity levels (High, Medium, Low) based on engagement metrics
-- **By Stage Chart**: 3D-style bar chart with data labels showing both count and percentage on each bar. Order: Proposal Sent (42, 49.4%), Nurtering (25, 29.4%), Negotiating (9, 10.6%), Closing (9, 10.6%). Values displayed directly on bars.
-- **By Priority Chart**: 3D-style bar chart with data labels showing both count and percentage on each bar. Order: Low (14, 8.1%), Medium (54, 31.2%), High (11, 6.4%), No Priority (94, 54.3%). Values displayed directly on bars.
+- **By Stage Chart**: 3D-style bar chart with data labels showing both count and percentage on each bar for main pipeline stages
+- **By FIT Chart**: 3D-style bar chart with data labels showing FIT distribution (Low: 305, Medium: 359, High: 160, Not Set: 475). Values displayed directly on bars.
 - **Top Origins List**: Shows the most common lead sources
-- **Recent High Priority Boxes Table**: Lists up to 10 High priority boxes with stage, priority, due date, and last updated columns. Filtered to show only boxes marked as High priority for focused attention on critical opportunities.
+- **High FIT/INTEREST Table**: Lists up to 10 opportunities with High FIT or High INTEREST, showing stage, FIT level, INTEREST level, and last updated. Filtered to show only the most promising opportunities.
 
 ### ✅ API Endpoints
 
@@ -85,11 +87,29 @@ Example Response:
     "Later Stage": 11,
     "Reconnect By GC": 20
   },
-  "priorityDistribution": {
-    "No Priority": 1299
+  "fitDistribution": {
+    "High": 160,
+    "Medium": 359,
+    "Low": 305,
+    "Not Set": 475
   },
-  "priorityPercentages": {
-    "No Priority": "100.0"
+  "fitPercentages": {
+    "High": "12.3",
+    "Medium": "27.6",
+    "Low": "23.5",
+    "Not Set": "36.6"
+  },
+  "interestDistribution": {
+    "High": 154,
+    "Medium": 333,
+    "Low": 334,
+    "Not Set": 478
+  },
+  "interestPercentages": {
+    "High": "11.9",
+    "Medium": "25.6",
+    "Low": "25.7",
+    "Not Set": "36.8"
   },
   "countryDistribution": {
     "Unknown": 1250,
@@ -104,13 +124,16 @@ Example Response:
 
 ## Data Architecture
 - **Data Source**: Streak CRM API v1
-- **Pipeline**: GC Pipeline (agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw)
+- **Pipeline**: MabSilico Pipeline (agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw)
 - **Pipeline URL**: https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw
 - **Authentication**: API Key authentication with Streak
 - **Data Models**:
   - **Boxes**: Individual deals/leads in the pipeline (1,299 total)
   - **Stages**: Pipeline stages (Lead, Contacted, Connected, Engaged, Call Scheduled, Proposal Sent, Later Stage, WON, Reconnect By GC, Recycled)
-  - **Fields**: Custom fields including Priority, Country, Language, etc.
+  - **Key Fields**: 
+    - **FIT**: High (160), Medium (359), Low (305), Not Set (475)
+    - **INTEREST**: High (154), Medium (333), Low (334), Not Set (478)
+  - **Other Fields**: Country, Language, Freshness, etc.
   - **Assignees**: Team members responsible for boxes
 - **Real-time**: All data fetched in real-time from Streak API
 
