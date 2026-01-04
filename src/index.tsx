@@ -1571,7 +1571,7 @@ app.get('/', (c) => {
             function renderPrintView(data) {
                 // Set company name and date
                 const companyName = COMPANIES[currentCompany]?.name || 'Company';
-                document.getElementById('print-company-name').textContent = `${companyName} - Pipeline Report`;
+                document.getElementById('print-company-name').textContent = companyName + ' - Pipeline Report';
                 document.getElementById('print-date').textContent = new Date().toLocaleDateString('en-US', { 
                     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
                 });
@@ -1588,7 +1588,7 @@ app.get('/', (c) => {
                 Object.keys(data.stageDistribution || {}).sort((a, b) => (data.stageDistribution[b] || 0) - (data.stageDistribution[a] || 0)).forEach(stage => {
                     const count = data.stageDistribution[stage] || 0;
                     const pct = ((count / totalBoxes) * 100).toFixed(1);
-                    stageHTML += `<tr><td>${stage}</td><td>${count}</td><td>${pct}%</td></tr>`;
+                    stageHTML += '<tr><td>' + stage + '</td><td>' + count + '</td><td>' + pct + '%</td></tr>';
                 });
                 stageHTML += '</tbody></table>';
                 document.getElementById('print-stage-table').innerHTML = stageHTML;
@@ -1598,7 +1598,7 @@ app.get('/', (c) => {
                 ['High', 'Medium', 'Low', 'Not Set'].forEach(level => {
                     const count = data.fitDistribution[level] || 0;
                     const pct = data.fitPercentages[level] || 0;
-                    fitHTML += `<tr><td>${level}</td><td>${count}</td><td>${pct}%</td></tr>`;
+                    fitHTML += '<tr><td>' + level + '</td><td>' + count + '</td><td>' + pct + '%</td></tr>';
                 });
                 fitHTML += '</tbody></table>';
                 document.getElementById('print-fit-table').innerHTML = fitHTML;
@@ -1608,7 +1608,7 @@ app.get('/', (c) => {
                 ['High', 'Medium', 'Low', 'Not Set'].forEach(level => {
                     const count = data.interestDistribution[level] || 0;
                     const pct = data.interestPercentages[level] || 0;
-                    interestHTML += `<tr><td>${level}</td><td>${count}</td><td>${pct}%</td></tr>`;
+                    interestHTML += '<tr><td>' + level + '</td><td>' + count + '</td><td>' + pct + '%</td></tr>';
                 });
                 interestHTML += '</tbody></table>';
                 document.getElementById('print-interest-table').innerHTML = interestHTML;
@@ -1621,7 +1621,7 @@ app.get('/', (c) => {
                 countries.forEach(country => {
                     const count = data.countryDistribution[country] || 0;
                     const pct = ((count / totalBoxes) * 100).toFixed(1);
-                    countryHTML += `<tr><td>${country}</td><td>${count}</td><td>${pct}%</td></tr>`;
+                    countryHTML += '<tr><td>' + country + '</td><td>' + count + '</td><td>' + pct + '%</td></tr>';
                 });
                 countryHTML += '</tbody></table>';
                 document.getElementById('print-country-table').innerHTML = countryHTML;
@@ -1630,7 +1630,7 @@ app.get('/', (c) => {
                 let monthlyHTML = '<table class="print-table"><thead><tr><th>Month</th><th>Leads</th><th>Objective</th><th>Achievement</th><th>Status</th></tr></thead><tbody>';
                 (data.monthlyLeads || []).forEach(month => {
                     const status = month.count >= 10 ? '✓ Achieved' : '○ Pending';
-                    monthlyHTML += `<tr><td>${month.monthName}</td><td>${month.count}</td><td>10</td><td>${month.percentage}%</td><td>${status}</td></tr>`;
+                    monthlyHTML += '<tr><td>' + month.monthName + '</td><td>' + month.count + '</td><td>10</td><td>' + month.percentage + '%</td><td>' + status + '</td></tr>';
                 });
                 monthlyHTML += '</tbody></table>';
                 document.getElementById('print-monthly-table').innerHTML = monthlyHTML;
@@ -1638,7 +1638,7 @@ app.get('/', (c) => {
                 // High value opportunities table (top 20)
                 let oppHTML = '<table class="print-table"><thead><tr><th>Name</th><th>Stage</th><th>FIT</th><th>INTEREST</th><th>Country</th></tr></thead><tbody>';
                 (data.recentBoxes || []).slice(0, 20).forEach(box => {
-                    oppHTML += `<tr><td>${box.name}</td><td>${box.stage}</td><td>${box.fit || 'N/A'}</td><td>${box.interest || 'N/A'}</td><td>${box.country || 'N/A'}</td></tr>`;
+                    oppHTML += '<tr><td>' + box.name + '</td><td>' + box.stage + '</td><td>' + (box.fit || 'N/A') + '</td><td>' + (box.interest || 'N/A') + '</td><td>' + (box.country || 'N/A') + '</td></tr>';
                 });
                 oppHTML += '</tbody></table>';
                 document.getElementById('print-opportunities-table').innerHTML = oppHTML;
