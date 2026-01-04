@@ -806,15 +806,6 @@ app.get('/', (c) => {
                             <button onclick="switchView('interest')" id="tab-interest" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
                                 <i class="fas fa-star mr-2"></i>By INTEREST
                             </button>
-                            <button onclick="switchView('country')" id="tab-country" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                                <i class="fas fa-globe mr-2"></i>By Country
-                            </button>
-                            <button onclick="switchView('language')" id="tab-language" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                                <i class="fas fa-language mr-2"></i>By Language
-                            </button>
-                            <button onclick="switchView('freshness')" id="tab-freshness" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                                <i class="fas fa-heartbeat mr-2"></i>By Freshness
-                            </button>
                             <button onclick="switchView('print')" id="tab-print" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
                                 <i class="fas fa-print mr-2"></i>Print Report
                             </button>
@@ -946,21 +937,6 @@ app.get('/', (c) => {
                 <!-- By INTEREST View -->
                 <div id="view-interest" class="view-content hidden">
                     <div id="interest-content"></div>
-                </div>
-
-                <!-- By Country View -->
-                <div id="view-country" class="view-content hidden">
-                    <div id="country-content"></div>
-                </div>
-
-                <!-- By Language View -->
-                <div id="view-language" class="view-content hidden">
-                    <div id="language-content"></div>
-                </div>
-
-                <!-- By Freshness View -->
-                <div id="view-freshness" class="view-content hidden">
-                    <div id="freshness-content"></div>
                 </div>
 
                 <!-- Print Report View -->
@@ -1198,62 +1174,6 @@ app.get('/', (c) => {
                                 <p class="text-sm font-medium text-gray-700 mb-1">Low INTEREST</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
                                     =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/interest/low/count")
-                                </code>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- By Country -->
-                    <div class="bg-white rounded-lg p-6 shadow">
-                        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                            <i class="fas fa-globe text-green-500 mr-2"></i>
-                            By Country
-                        </h3>
-                        <div class="space-y-3">
-                            <div class="border-b pb-3">
-                                <p class="text-sm font-medium text-gray-700 mb-1">France</p>
-                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/country/France/count")
-                                </code>
-                            </div>
-                            <div class="border-b pb-3">
-                                <p class="text-sm font-medium text-gray-700 mb-1">USA</p>
-                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/country/USA/count")
-                                </code>
-                            </div>
-                            <div class="pb-3">
-                                <p class="text-sm font-medium text-gray-700 mb-1">Canada</p>
-                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/country/Canada/count")
-                                </code>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- By Freshness -->
-                    <div class="bg-white rounded-lg p-6 shadow">
-                        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                            <i class="fas fa-heartbeat text-pink-500 mr-2"></i>
-                            By Freshness (Activity Level)
-                        </h3>
-                        <div class="space-y-3">
-                            <div class="border-b pb-3">
-                                <p class="text-sm font-medium text-gray-700 mb-1">High Activity (>0.5)</p>
-                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/freshness/high/count")
-                                </code>
-                            </div>
-                            <div class="border-b pb-3">
-                                <p class="text-sm font-medium text-gray-700 mb-1">Medium Activity (0.2-0.5)</p>
-                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/freshness/medium/count")
-                                </code>
-                            </div>
-                            <div class="pb-3">
-                                <p class="text-sm font-medium text-gray-700 mb-1">Low Activity (<0.2)</p>
-                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/freshness/low/count")
                                 </code>
                             </div>
                         </div>
@@ -1605,12 +1525,6 @@ app.get('/', (c) => {
                     contentDiv.innerHTML = renderFitView(data);
                 } else if (viewName === 'interest') {
                     contentDiv.innerHTML = renderInterestView(data);
-                } else if (viewName === 'country') {
-                    contentDiv.innerHTML = renderCountryView(data);
-                } else if (viewName === 'language') {
-                    contentDiv.innerHTML = renderLanguageView(data);
-                } else if (viewName === 'freshness') {
-                    contentDiv.innerHTML = renderFreshnessView(data);
                 }
             }
 
@@ -1692,117 +1606,8 @@ app.get('/', (c) => {
                 \`;
             }
 
-            function renderCountryView(data) {
-                const countries = Object.entries(data.countryDistribution).sort((a, b) => b[1] - a[1]);
-                return \`
-                    <div class="bg-white rounded-lg shadow overflow-hidden">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Country</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Boxes</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Percentage</th>
-                                </tr>
-                            </thead>
-                            <tbody class="bg-white divide-y divide-gray-200">
-                                \${countries.map(([country, count]) => {
-                                    const percentage = ((count / data.totalBoxes) * 100).toFixed(1);
-                                    return \`
-                                        <tr class="hover:bg-gray-50">
-                                            <td class="px-6 py-4 whitespace-nowrap">
-                                                <div class="flex items-center">
-                                                    <i class="fas fa-globe text-blue-500 mr-3"></i>
-                                                    <span class="text-sm font-medium text-gray-900">\${country}</span>
-                                                </div>
-                                            </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">\${count}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap">
-                                                <div class="flex items-center">
-                                                    <div class="w-16 bg-gray-200 rounded-full h-2 mr-2">
-                                                        <div class="bg-blue-600 h-2 rounded-full" style="width: \${percentage}%"></div>
-                                                    </div>
-                                                    <span class="text-sm text-gray-900">\${percentage}%</span>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    \`;
-                                }).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                \`;
-            }
 
-            function renderLanguageView(data) {
-                const languages = Object.entries(data.languageDistribution).sort((a, b) => b[1] - a[1]);
-                return \`
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        \${languages.map(([language, count]) => {
-                            const percentage = ((count / data.totalBoxes) * 100).toFixed(1);
-                            return \`
-                                <div class="bg-white rounded-lg shadow p-8 text-center">
-                                    <div class="inline-flex items-center justify-center w-16 h-16 bg-purple-100 rounded-full mb-4">
-                                        <i class="fas fa-language text-purple-600 text-2xl"></i>
-                                    </div>
-                                    <h3 class="text-xl font-semibold text-gray-800 mb-2">\${language}</h3>
-                                    <p class="text-4xl font-bold text-purple-600 mb-1">\${count}</p>
-                                    <p class="text-sm text-gray-500">\${percentage}% of total</p>
-                                </div>
-                            \`;
-                        }).join('')}
-                    </div>
-                \`;
-            }
 
-            function renderFreshnessView(data) {
-                const freshness = [
-                    { name: 'High Activity', key: 'High (>0.5)', desc: 'Very recent interactions', color: 'green', icon: 'fa-fire' },
-                    { name: 'Medium Activity', key: 'Medium (0.2-0.5)', desc: 'Moderate engagement', color: 'yellow', icon: 'fa-heartbeat' },
-                    { name: 'Low Activity', key: 'Low (<0.2)', desc: 'Needs attention', color: 'red', icon: 'fa-clock' }
-                ];
-                return \`
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                        \${freshness.map(item => {
-                            const count = data.freshnessDistribution[item.key] || 0;
-                            const percentage = ((count / data.totalBoxes) * 100).toFixed(1);
-                            return \`
-                                <div class="bg-white rounded-lg shadow p-6">
-                                    <div class="flex items-center mb-4">
-                                        <div class="bg-\${item.color}-100 rounded-full p-3 mr-4">
-                                            <i class="fas \${item.icon} text-\${item.color}-600 text-xl"></i>
-                                        </div>
-                                        <div>
-                                            <h3 class="text-lg font-semibold text-gray-800">\${item.name}</h3>
-                                            <p class="text-xs text-gray-500">\${item.desc}</p>
-                                        </div>
-                                    </div>
-                                    <div class="flex items-end justify-between">
-                                        <div>
-                                            <p class="text-3xl font-bold text-\${item.color}-600">\${count}</p>
-                                            <p class="text-sm text-gray-500">boxes</p>
-                                        </div>
-                                        <div class="text-right">
-                                            <p class="text-xl font-semibold text-gray-700">\${percentage}%</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            \`;
-                        }).join('')}
-                    </div>
-                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <div class="flex items-start">
-                            <i class="fas fa-info-circle text-blue-600 text-lg mt-1 mr-3"></i>
-                            <div>
-                                <h4 class="font-semibold text-blue-900 mb-1">About Freshness Score</h4>
-                                <p class="text-sm text-blue-800">
-                                    Freshness indicates how recently a box has been updated or interacted with. 
-                                    Higher scores mean more recent activity. Use this to identify boxes that may need follow-up.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                \`;
-            }
 
             async function loadDashboard() {
                 // Use the new fetchCompanyData function instead
@@ -1838,18 +1643,14 @@ app.get('/', (c) => {
                     objectiveText.className = 'text-3xl font-bold text-red-600 mt-1';
                 }
 
-                    // Create stage distribution chart - specific stages in order
-                    const stageOrder = ['Proposal Sent', 'Nurtering', 'Negotiating', 'Closing'];
-                    const stageLabels = [];
-                    const stageValues = [];
-                    const stageColors = ['#10B981', '#F59E0B', '#EF4444', '#8B5CF6']; // Green, Orange, Red, Purple
+                    // Create stage distribution chart - ALL stages sorted by count
+                    const stageEntries = Object.entries(data.stageDistribution || {}).sort((a, b) => b[1] - a[1]);
+                    const stageLabels = stageEntries.map(e => e[0]);
+                    const stageValues = stageEntries.map(e => e[1]);
                     
-                    stageOrder.forEach(stageName => {
-                        if (data.stageDistribution[stageName]) {
-                            stageLabels.push(stageName);
-                            stageValues.push(data.stageDistribution[stageName]);
-                        }
-                    });
+                    // Generate colors for all stages
+                    const baseColors = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4', '#EC4899', '#14B8A6'];
+                    const stageColors = stageLabels.map((_, i) => baseColors[i % baseColors.length]);
                     
                     const stageCtx = document.getElementById('stageChart').getContext('2d');
                     if (stageChart) stageChart.destroy();
