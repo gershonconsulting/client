@@ -167,37 +167,6 @@ app.get('/api/sheets/total', async (c) => {
 })
 
 // Get boxes with due dates (relevant stages only)
-app.get('/api/sheets/duedate/count', async (c) => {
-  try {
-    const [pipeline, boxes] = await Promise.all([
-      callStreakAPI(`/pipelines/${PIPELINE_KEY}`),
-      callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`)
-    ])
-    
-    const dueDateRelevantStages = ['Proposal Sent', 'Nurtering', 'Negotiating', 'Closing']
-    const stageMap = pipeline.stageOrder || []
-    const stages = Array.isArray(stageMap) ? stageMap.map(key => ({
-      key,
-      name: pipeline.stages?.[key]?.name || 'Unknown'
-    })) : []
-    const fields = Array.isArray(pipeline.fields) ? pipeline.fields : []
-    const dueDateField = fields.find(f => f && f.name === 'Est Start Date')
-    
-    const count = Array.isArray(boxes) ? boxes.filter(box => {
-      const stage = stages.find(s => s && s.key === box.stageKey)
-      const stageName = stage ? stage.name : 'Unknown'
-      return dueDateRelevantStages.includes(stageName) && 
-             dueDateField && 
-             box.fields && 
-             box.fields[dueDateField.key]
-    }).length : 0
-    
-    return c.text(count.toString())
-  } catch (error) {
-    return c.text('ERROR')
-  }
-})
-
 // Get count by freshness level
 app.get('/api/sheets/freshness/:level/count', async (c) => {
   try {
@@ -398,11 +367,7 @@ app.get('/api/analytics', async (c) => {
     const countryDistribution = {}
     const languageDistribution = {}
     const freshnessDistribution = { 'High (>0.5)': 0, 'Medium (0.2-0.5)': 0, 'Low (<0.2)': 0 }
-    let boxesWithDueDate = 0
-    let relevantStageBoxes = 0 // Boxes in stages where due date matters
-    
-    // Stages where due date is important
-    const dueDateRelevantStages = ['Proposal Sent', 'Nurtering', 'Negotiating', 'Closing']
+
     
     // Find stage and field keys
     const stageMap = pipeline.stageOrder || []
@@ -458,14 +423,6 @@ app.get('/api/analytics', async (c) => {
           interestDistribution['Not Set'] = (interestDistribution['Not Set'] || 0) + 1
         }
         
-        // Count boxes with due date (only for relevant stages: Proposal Sent, Nurtering, Negotiating, Closing)
-        if (dueDateRelevantStages.includes(stageName)) {
-          relevantStageBoxes++
-          if (dueDateField && box.fields && box.fields[dueDateField.key]) {
-            boxesWithDueDate++
-          }
-        }
-        
         // Count by country
         if (countryField && box.fields && box.fields[countryField.key]) {
           const countryKey = box.fields[countryField.key]
@@ -511,9 +468,6 @@ app.get('/api/analytics', async (c) => {
       interestPercentages[key] = totalBoxes > 0 ? ((interestDistribution[key] / totalBoxes) * 100).toFixed(1) : 0
     })
     
-    // Due date percentage only for relevant stages (Proposal Sent, Nurtering, Negotiating, Closing)
-    const dueDatePercentage = relevantStageBoxes > 0 ? ((boxesWithDueDate / relevantStageBoxes) * 100).toFixed(1) : 0
-    
     // Calculate monthly lead tracking (last 12 months)
     const now = new Date()
     const monthlyLeads = []
@@ -557,9 +511,6 @@ app.get('/api/analytics', async (c) => {
       countryDistribution,
       languageDistribution,
       freshnessDistribution,
-      relevantStageBoxes,
-      boxesWithDueDate,
-      dueDatePercentage: parseFloat(dueDatePercentage),
       monthlyLeads: monthlyLeads,
       leadObjective: leadObjective,
       averageLeadsPerMonth: parseFloat(averageLeadsPerMonth),
@@ -769,12 +720,11 @@ app.get('/', (c) => {
                     <div class="bg-white rounded-lg shadow p-6">
                         <div class="flex items-center justify-between">
                             <div>
-                                <p class="text-gray-500 text-sm font-medium">With Due Date</p>
-                                <p id="due-date-percentage" class="text-3xl font-bold text-purple-600 mt-1">0%</p>
-                                <p class="text-xs text-gray-400 mt-1">Active stages only*</p>
+                                <p class="text-gray-500 text-sm font-medium">High INTEREST</p>
+                                <p id="high-interest" class="text-3xl font-bold text-purple-600 mt-1">0%</p>
                             </div>
                             <div class="bg-purple-100 rounded-full p-3">
-                                <i class="fas fa-calendar-check text-purple-600 text-2xl"></i>
+                                <i class="fas fa-star text-purple-600 text-2xl"></i>
                             </div>
                         </div>
                     </div>
@@ -906,12 +856,7 @@ app.get('/', (c) => {
                                     =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/total")
                                 </code>
                             </div>
-                            <div class="border-b pb-3">
-                                <p class="text-sm font-medium text-gray-700 mb-1">Boxes with Due Dates</p>
-                                <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/duedate/count")
-                                </code>
-                            </div>
+
                         </div>
                     </div>
 
@@ -1429,7 +1374,7 @@ app.get('/', (c) => {
                     // Update summary cards
                     document.getElementById('total-boxes').textContent = data.totalBoxes;
                     document.getElementById('high-fit').textContent = data.fitPercentages['High'] ? data.fitPercentages['High'] + '%' : '0%';
-                    document.getElementById('due-date-percentage').textContent = data.dueDatePercentage + '%';
+                    document.getElementById('high-interest').textContent = data.interestPercentages['High'] ? data.interestPercentages['High'] + '%' : '0%';
 
                     // Create stage distribution chart - specific stages in order
                     const stageOrder = ['Proposal Sent', 'Nurtering', 'Negotiating', 'Closing'];
