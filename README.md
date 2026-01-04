@@ -26,7 +26,7 @@
 - **Summary Cards** (3 cards): 
   - Total boxes count (1,299)
   - High FIT percentage (12.3% of boxes)
-  - Boxes with due dates percentage (for active stage boxes)
+  - High INTEREST percentage (11.9% of boxes)
 - **Multiple Views**:
   - **By Stage**: Shows number of opportunities per stage (Contacted: 323, Connected: 175, Recycled: 711, etc.)
   - **By FIT**: Displays FIT levels (High: 160, Medium: 359, Low: 305, Not Set: 475)
