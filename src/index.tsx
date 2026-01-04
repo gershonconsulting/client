@@ -15,7 +15,7 @@ const STREAK_API_KEY = 'e77554988b424c6498d85362b0367757'
 const STREAK_API_BASE = 'https://www.streak.com/api/v1'
 
 // Gershon Consulting Pipeline - Fixed configuration
-const PIPELINE_KEY = 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgICAwLWbCgw'
+const PIPELINE_KEY = 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw'
 const PIPELINE_NAME = 'Gershon Consulting'
 const PRIORITY_FIELD = 'Priority'
 const PRIORITY_MAPPING = { 'High': '1. High', 'Medium': '2. Medium', 'Low': '3. Low' }

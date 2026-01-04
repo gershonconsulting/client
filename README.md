@@ -110,7 +110,8 @@ Example Response:
 
 ## Data Architecture
 - **Data Source**: Streak CRM API v1
-- **Pipeline**: GC Pipeline (agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgICAwLWbCgw)
+- **Pipeline**: GC Pipeline (agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw)
+- **Pipeline URL**: https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw
 - **Authentication**: API Key authentication with Streak
 - **Data Models**:
   - **Boxes**: Individual deals/leads in the pipeline
