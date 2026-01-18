@@ -136,10 +136,26 @@ async function fetchNetworkData(gid: string) {
     
     // Calculate metrics
     const totalInvitations = data.reduce((sum, row) => sum + row.invitations, 0)
-    const totalAccepted = data.reduce((sum, row) => sum + Math.round(row.invitations * row.acceptance / 100), 0)
-    const avgAcceptanceRate = data.length > 0 
-      ? data.reduce((sum, row) => sum + row.acceptance, 0) / data.length 
+    
+    // Calculate total accepted - the acceptance rate represents messages/invitations ratio
+    // So if acceptance is 75%, it means 75 messages were received from 100 invitations
+    // We want to calculate actual accepted connections, not messages
+    // For simplicity, we'll use the acceptance rate directly as the percentage of accepted invitations
+    const totalAccepted = data.reduce((sum, row) => {
+      // Cap acceptance at 100% for calculation purposes
+      const cappedRate = Math.min(row.acceptance, 100)
+      return sum + Math.round(row.invitations * cappedRate / 100)
+    }, 0)
+    
+    // Calculate average acceptance rate, capping individual values at 100%
+    const validRates = data.map(row => Math.min(row.acceptance, 100))
+    const avgAcceptanceRate = validRates.length > 0 
+      ? validRates.reduce((sum, rate) => sum + rate, 0) / validRates.length 
       : 0
+    
+    // Network objective is 20% acceptance rate
+    const networkObjective = 20
+    const objectiveAchievement = avgAcceptanceRate > 0 ? (avgAcceptanceRate / networkObjective) * 100 : 0
     
     // Get recent data (last 4 weeks)
     const recentData = data.slice(-4)
@@ -150,15 +166,20 @@ async function fetchNetworkData(gid: string) {
       totalInvitations,
       totalAccepted,
       avgAcceptanceRate: Math.round(avgAcceptanceRate * 10) / 10, // Round to 1 decimal
+      networkObjective,
+      objectiveAchievement: Math.round(objectiveAchievement * 10) / 10,
       thisWeek: {
         invitations: thisWeekData.invitations,
-        acceptance: thisWeekData.acceptance
+        acceptance: Math.min(thisWeekData.acceptance, 100) // Cap at 100%
       },
       lastWeek: {
         invitations: lastWeekData.invitations,
-        acceptance: lastWeekData.acceptance
+        acceptance: Math.min(lastWeekData.acceptance, 100) // Cap at 100%
       },
-      recentWeeks: recentData,
+      recentWeeks: recentData.map(week => ({
+        ...week,
+        acceptance: Math.min(week.acceptance, 100) // Cap display at 100%
+      })),
       allData: data
     }
   } catch (error) {
@@ -1766,8 +1787,8 @@ app.get('/', (c) => {
                     <!-- Network Performance Summary Cards -->
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                         <!-- Average Acceptance Rate Card (Most Important) -->
-                        <div class="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg p-6 text-white md:col-span-2">
-                            <div class="flex items-center justify-between mb-4">
+                        <div class="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg p-6 text-white">
+                            <div class="flex items-center justify-between mb-2">
                                 <div>
                                     <p class="text-green-100 text-sm font-medium mb-1">AVERAGE ACCEPTANCE RATE</p>
                                     <p class="text-5xl font-bold">\${network.avgAcceptanceRate}%</p>
@@ -1775,6 +1796,20 @@ app.get('/', (c) => {
                                 </div>
                                 <div class="bg-white bg-opacity-20 rounded-full p-4">
                                     <i class="fas fa-user-check text-4xl"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Objective Achievement Card -->
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-gray-500 text-sm font-medium">Objective Achievement</p>
+                                    <p class="text-3xl font-bold text-purple-600 mt-1">\${network.objectiveAchievement}%</p>
+                                    <p class="text-xs text-gray-500 mt-1">of \${network.networkObjective}% target</p>
+                                </div>
+                                <div class="bg-purple-100 rounded-full p-3">
+                                    <i class="fas fa-bullseye text-purple-600 text-2xl"></i>
                                 </div>
                             </div>
                         </div>
@@ -1867,7 +1902,8 @@ app.get('/', (c) => {
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
                                     \${network.recentWeeks.map(week => {
-                                        const rateColor = week.acceptance >= 50 ? 'text-green-600' : week.acceptance >= 30 ? 'text-yellow-600' : 'text-red-600';
+                                        // Color based on 20% objective: green >= 20%, yellow >= 15%, red < 15%
+                                        const rateColor = week.acceptance >= 20 ? 'text-green-600' : week.acceptance >= 15 ? 'text-yellow-600' : 'text-red-600';
                                         return \`
                                             <tr>
                                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">W\${week.week}</td>
