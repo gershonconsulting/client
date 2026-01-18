@@ -19,7 +19,8 @@ const COMPANIES = {
   'mabsilico': {
     name: 'MabSilico',
     pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw',
-    url: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw'
+    url: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw',
+    networkSheetGid: '910674612'
   },
   'finance-montreal': {
     name: 'Finance Montreal (Steve)',
@@ -74,6 +75,10 @@ const PIPELINE_NAME = COMPANIES['mabsilico'].name
 const FIT_FIELD = 'Fit'
 const INTEREST_FIELD = 'Interest'
 
+// Google Sheets configuration
+const GOOGLE_SHEET_ID = '1NzUlKfHTW6v7i-S59GjtBFlzQwTX2AaeK4gQ4fVSAsw'
+const GOOGLE_SHEET_BASE_URL = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/export?format=csv`
+
 // Helper function to make Streak API calls
 async function callStreakAPI(endpoint: string) {
   const auth = btoa(`${STREAK_API_KEY}:`)
@@ -89,6 +94,85 @@ async function callStreakAPI(endpoint: string) {
   }
   
   return response.json()
+}
+
+// Helper function to fetch and parse Network data from Google Sheets
+async function fetchNetworkData(gid: string) {
+  try {
+    const url = `${GOOGLE_SHEET_BASE_URL}&gid=${gid}`
+    const response = await fetch(url)
+    
+    if (!response.ok) {
+      throw new Error(`Google Sheets error: ${response.statusText}`)
+    }
+    
+    const csvText = await response.text()
+    const lines = csvText.split('\n').filter(line => line.trim())
+    
+    // Parse CSV (skip header)
+    const data = []
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i]
+      const cols = line.split(',')
+      
+      // Extract data: W, From, To, Invitations, Messages, Inmails, Follow ups, Acceptance, Opportunities
+      if (cols.length >= 9 && cols[3] && cols[3].trim()) {
+        const invitations = parseInt(cols[3]) || 0
+        const messages = parseInt(cols[4]) || 0
+        const acceptance = cols[7] ? cols[7].replace('%', '').trim() : '0'
+        const acceptanceRate = parseFloat(acceptance) || 0
+        
+        data.push({
+          week: cols[0],
+          from: cols[1],
+          to: cols[2],
+          invitations,
+          messages,
+          acceptance: acceptanceRate,
+          opportunities: parseInt(cols[8]) || 0
+        })
+      }
+    }
+    
+    // Calculate metrics
+    const totalInvitations = data.reduce((sum, row) => sum + row.invitations, 0)
+    const totalAccepted = data.reduce((sum, row) => sum + Math.round(row.invitations * row.acceptance / 100), 0)
+    const avgAcceptanceRate = data.length > 0 
+      ? data.reduce((sum, row) => sum + row.acceptance, 0) / data.length 
+      : 0
+    
+    // Get recent data (last 4 weeks)
+    const recentData = data.slice(-4)
+    const thisWeekData = data[data.length - 1] || { invitations: 0, acceptance: 0 }
+    const lastWeekData = data[data.length - 2] || { invitations: 0, acceptance: 0 }
+    
+    return {
+      totalInvitations,
+      totalAccepted,
+      avgAcceptanceRate: Math.round(avgAcceptanceRate * 10) / 10, // Round to 1 decimal
+      thisWeek: {
+        invitations: thisWeekData.invitations,
+        acceptance: thisWeekData.acceptance
+      },
+      lastWeek: {
+        invitations: lastWeekData.invitations,
+        acceptance: lastWeekData.acceptance
+      },
+      recentWeeks: recentData,
+      allData: data
+    }
+  } catch (error) {
+    console.error('Error fetching network data:', error)
+    return {
+      totalInvitations: 0,
+      totalAccepted: 0,
+      avgAcceptanceRate: 0,
+      thisWeek: { invitations: 0, acceptance: 0 },
+      lastWeek: { invitations: 0, acceptance: 0 },
+      recentWeeks: [],
+      allData: []
+    }
+  }
 }
 
 // API Routes
@@ -624,12 +708,19 @@ app.get('/api/analytics', async (c) => {
       }
     }
     
+    // Fetch network data if available for this company
+    let networkData = null
+    if (company.networkSheetGid) {
+      networkData = await fetchNetworkData(company.networkSheetGid)
+    }
+    
     return c.json({
       company: company.name,
       companyKey: companyKey,
       totalBoxes,
       campaignDurationMonths,
       firstLeadDate: firstLeadDate ? firstLeadDate.toISOString() : null,
+      networkData,
       stageDistribution,
       originDistribution,
       fitDistribution,
@@ -831,17 +922,14 @@ app.get('/', (c) => {
                 <div class="bg-white rounded-lg shadow mb-8">
                     <div class="border-b border-gray-200">
                         <nav class="flex -mb-px">
-                            <button onclick="switchView('overview')" id="tab-overview" class="view-tab active border-b-2 border-blue-500 py-4 px-6 text-sm font-medium text-blue-600">
-                                <i class="fas fa-chart-line mr-2"></i>Overview
+                            <button onclick="switchView('promote')" id="tab-promote" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                                <i class="fas fa-bullhorn mr-2"></i>PROMOTE
                             </button>
-                            <button onclick="switchView('stage')" id="tab-stage" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                                <i class="fas fa-layer-group mr-2"></i>By Stage
+                            <button onclick="switchView('network')" id="tab-network" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                                <i class="fas fa-users mr-2"></i>NETWORK
                             </button>
-                            <button onclick="switchView('fit')" id="tab-fit" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                                <i class="fas fa-check-circle mr-2"></i>By FIT
-                            </button>
-                            <button onclick="switchView('interest')" id="tab-interest" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                                <i class="fas fa-star mr-2"></i>By INTEREST
+                            <button onclick="switchView('engage')" id="tab-engage" class="view-tab active border-b-2 border-blue-500 py-4 px-6 text-sm font-medium text-blue-600">
+                                <i class="fas fa-handshake mr-2"></i>ENGAGE
                             </button>
                             <button onclick="switchView('print')" id="tab-print" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
                                 <i class="fas fa-print mr-2"></i>Print Report
@@ -850,7 +938,27 @@ app.get('/', (c) => {
                     </div>
                 </div>
 
-                <!-- Overview View --><div id="view-overview" class="view-content">
+                <!-- PROMOTE View (Coming Soon) -->
+                <div id="view-promote" class="view-content hidden">
+                    <div class="bg-yellow-50 border-l-4 border-yellow-500 p-8 rounded-lg">
+                        <div class="flex items-center mb-4">
+                            <i class="fas fa-bullhorn text-yellow-600 text-4xl mr-4"></i>
+                            <div>
+                                <h2 class="text-2xl font-bold text-gray-800">PROMOTE Section</h2>
+                                <p class="text-gray-600 mt-2">Marketing campaigns and promotional activities coming soon...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- NETWORK View -->
+                <div id="view-network" class="view-content hidden">
+                    <div id="network-content">
+                        <!-- Network content will be populated by JavaScript -->
+                    </div>
+                </div>
+
+                <!-- ENGAGE View (formerly Overview) --><div id="view-engage" class="view-content">
                 <!-- Campaign Performance Summary Cards -->
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                     <!-- Total Leads Card -->
@@ -959,22 +1067,7 @@ app.get('/', (c) => {
                     </div>
                 </div>
                 </div>
-                <!-- End Overview View -->
-
-                <!-- By Stage View -->
-                <div id="view-stage" class="view-content hidden">
-                    <div id="stage-content"></div>
-                </div>
-
-                <!-- By FIT View -->
-                <div id="view-fit" class="view-content hidden">
-                    <div id="fit-content"></div>
-                </div>
-                
-                <!-- By INTEREST View -->
-                <div id="view-interest" class="view-content hidden">
-                    <div id="interest-content"></div>
-                </div>
+                <!-- End ENGAGE View -->
 
                 <!-- Print Report View -->
                 <div id="view-print" class="view-content hidden">
@@ -1430,7 +1523,7 @@ app.get('/', (c) => {
                 if (currentData) {
                     if (viewName === 'print') {
                         renderPrintView(currentData);
-                    } else if (viewName !== 'overview') {
+                    } else if (viewName === 'network' || viewName === 'stage' || viewName === 'fit' || viewName === 'interest') {
                         renderView(viewName, currentData);
                     }
                 }
@@ -1569,6 +1662,8 @@ app.get('/', (c) => {
                     contentDiv.innerHTML = renderFitView(data);
                 } else if (viewName === 'interest') {
                     contentDiv.innerHTML = renderInterestView(data);
+                } else if (viewName === 'network') {
+                    contentDiv.innerHTML = renderNetworkView(data);
                 }
             }
 
@@ -1646,6 +1741,147 @@ app.get('/', (c) => {
                                 </div>
                             \`;
                         }).join('')}
+                    </div>
+                \`;
+            }
+
+            function renderNetworkView(data) {
+                const network = data.networkData;
+                
+                if (!network || !network.allData || network.allData.length === 0) {
+                    return \`
+                        <div class="bg-blue-50 border-l-4 border-blue-500 p-8 rounded-lg">
+                            <div class="flex items-center">
+                                <i class="fas fa-info-circle text-blue-600 text-4xl mr-4"></i>
+                                <div>
+                                    <h2 class="text-2xl font-bold text-gray-800">Network Data Not Available</h2>
+                                    <p class="text-gray-600 mt-2">LinkedIn networking data will appear here once available.</p>
+                                </div>
+                            </div>
+                        </div>
+                    \`;
+                }
+                
+                return \`
+                    <!-- Network Performance Summary Cards -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                        <!-- Average Acceptance Rate Card (Most Important) -->
+                        <div class="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg p-6 text-white md:col-span-2">
+                            <div class="flex items-center justify-between mb-4">
+                                <div>
+                                    <p class="text-green-100 text-sm font-medium mb-1">AVERAGE ACCEPTANCE RATE</p>
+                                    <p class="text-5xl font-bold">\${network.avgAcceptanceRate}%</p>
+                                    <p class="text-sm text-green-100 mt-2">LinkedIn connections</p>
+                                </div>
+                                <div class="bg-white bg-opacity-20 rounded-full p-4">
+                                    <i class="fas fa-user-check text-4xl"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Total Invitations Card -->
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-gray-500 text-sm font-medium">Total Invitations</p>
+                                    <p class="text-3xl font-bold text-blue-600 mt-1">\${network.totalInvitations}</p>
+                                    <p class="text-xs text-gray-500 mt-1">sent</p>
+                                </div>
+                                <div class="bg-blue-100 rounded-full p-3">
+                                    <i class="fas fa-paper-plane text-blue-600 text-2xl"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Total Accepted Card -->
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-gray-500 text-sm font-medium">Accepted</p>
+                                    <p class="text-3xl font-bold text-green-600 mt-1">\${network.totalAccepted}</p>
+                                    <p class="text-xs text-gray-500 mt-1">connections</p>
+                                </div>
+                                <div class="bg-green-100 rounded-full p-3">
+                                    <i class="fas fa-user-plus text-green-600 text-2xl"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Weekly Comparison -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <!-- This Week Card -->
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-calendar-day text-blue-600 mr-2"></i>
+                                This Week
+                            </h3>
+                            <div class="space-y-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-600">Invitations Sent:</span>
+                                    <span class="text-2xl font-bold text-blue-600">\${network.thisWeek.invitations}</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-600">Acceptance Rate:</span>
+                                    <span class="text-2xl font-bold text-green-600">\${network.thisWeek.acceptance}%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Last Week Card -->
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-calendar-week text-indigo-600 mr-2"></i>
+                                Last Week
+                            </h3>
+                            <div class="space-y-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-600">Invitations Sent:</span>
+                                    <span class="text-2xl font-bold text-blue-600">\${network.lastWeek.invitations}</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-600">Acceptance Rate:</span>
+                                    <span class="text-2xl font-bold text-green-600">\${network.lastWeek.acceptance}%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Weeks Performance -->
+                    <div class="bg-white rounded-lg shadow p-6 mb-8">
+                        <h3 class="text-xl font-semibold text-gray-800 mb-4">
+                            <i class="fas fa-chart-line mr-2 text-purple-600"></i>
+                            Recent Weeks Performance
+                        </h3>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Week</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invitations</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Messages</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acceptance Rate</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Opportunities</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    \${network.recentWeeks.map(week => {
+                                        const rateColor = week.acceptance >= 50 ? 'text-green-600' : week.acceptance >= 30 ? 'text-yellow-600' : 'text-red-600';
+                                        return \`
+                                            <tr>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">W\${week.week}</td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">\${week.from} - \${week.to}</td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">\${week.invitations}</td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">\${week.messages}</td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold \${rateColor}">\${week.acceptance}%</td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">\${week.opportunities}</td>
+                                            </tr>
+                                        \`;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 \`;
             }
