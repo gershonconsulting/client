@@ -494,6 +494,44 @@ app.get('/api/sheets/:companyName/week/count', async (c) => {
   }
 })
 
+// Get campaign duration in months for a company
+app.get('/api/sheets/:companyName/duration/total', async (c) => {
+  try {
+    const companyName = c.req.param('companyName').toLowerCase()
+    const company = COMPANIES[companyName]
+    
+    if (!company) {
+      return c.text('0')
+    }
+    
+    const boxes = await callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`)
+    
+    if (!Array.isArray(boxes) || boxes.length === 0) {
+      return c.text('0')
+    }
+    
+    // Find the earliest creation timestamp
+    const timestamps = boxes.map(box => box.creationTimestamp).filter(t => t)
+    
+    if (timestamps.length === 0) {
+      return c.text('0')
+    }
+    
+    const earliestTimestamp = Math.min(...timestamps)
+    const firstLeadDate = new Date(earliestTimestamp)
+    const now = new Date()
+    
+    // Calculate months between first lead and now
+    const yearsDiff = now.getFullYear() - firstLeadDate.getFullYear()
+    const monthsDiff = now.getMonth() - firstLeadDate.getMonth()
+    const campaignDurationMonths = (yearsDiff * 12) + monthsDiff + 1 // +1 to include current month
+    
+    return c.text(campaignDurationMonths.toString())
+  } catch (error) {
+    return c.text('0')
+  }
+})
+
 // Get monthly lead statistics for a company (last 12 months)
 app.get('/api/sheets/:companyName/monthly-stats', async (c) => {
   try {
@@ -1356,7 +1394,14 @@ app.get('/', (c) => {
                         </div>
                         
                         <h4 class="text-md font-semibold text-gray-800 mb-3">Time-Based Tracking Formulas:</h4>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                            <div class="border-b pb-3">
+                                <p class="text-sm font-medium text-gray-700 mb-2">📅 Campaign Duration</p>
+                                <code id="sheets-duration-formula" class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
+                                    =IMPORTDATA("https://gershonscore.com/api/sheets/mabsilico/duration/total")
+                                </code>
+                                <p class="text-xs text-gray-500 mt-1">Returns months</p>
+                            </div>
                             <div class="border-b pb-3">
                                 <p class="text-sm font-medium text-gray-700 mb-2">🔥 Past Week</p>
                                 <code id="sheets-week-formula" class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
@@ -1381,6 +1426,7 @@ app.get('/', (c) => {
                             <h4 class="text-sm font-semibold text-blue-900 mb-2">📋 Formula Patterns:</h4>
                             <div class="space-y-2 text-xs text-blue-800">
                                 <p>• <strong>Total Leads:</strong> <code class="bg-white px-2 py-1 rounded">/api/sheets/<span id="pattern-company-1">COMPANY</span>/total</code></p>
+                                <p>• <strong>Campaign Duration:</strong> <code class="bg-white px-2 py-1 rounded">/api/sheets/<span id="pattern-company-4">COMPANY</span>/duration/total</code> (months)</p>
                                 <p>• <strong>Weekly Leads:</strong> <code class="bg-white px-2 py-1 rounded">/api/sheets/<span id="pattern-company-2">COMPANY</span>/week/count</code></p>
                                 <p>• <strong>Monthly Leads:</strong> <code class="bg-white px-2 py-1 rounded">/api/sheets/<span id="pattern-company-3">COMPANY</span>/month/YYYY-MM/count</code></p>
                                 <p>• <strong>Achievement %:</strong> <code class="bg-white px-2 py-1 rounded">=IMPORTDATA(url)/10*100</code></p>
@@ -2174,10 +2220,14 @@ app.get('/', (c) => {
                 document.getElementById('pattern-company-1').textContent = currentCompany;
                 document.getElementById('pattern-company-2').textContent = currentCompany;
                 document.getElementById('pattern-company-3').textContent = currentCompany;
+                document.getElementById('pattern-company-4').textContent = currentCompany;
                 
                 // Update formulas
                 document.getElementById('sheets-total-formula').textContent = 
                     '=IMPORTDATA("' + baseUrl + '/api/sheets/' + currentCompany + '/total")';
+                
+                document.getElementById('sheets-duration-formula').textContent = 
+                    '=IMPORTDATA("' + baseUrl + '/api/sheets/' + currentCompany + '/duration/total")';
                 
                 document.getElementById('sheets-week-formula').textContent = 
                     '=IMPORTDATA("' + baseUrl + '/api/sheets/' + currentCompany + '/week/count")';
