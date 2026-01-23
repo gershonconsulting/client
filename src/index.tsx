@@ -891,6 +891,7 @@ app.get('/', (c) => {
                             <select id="company-selector" onchange="switchCompany(this.value)" class="bg-white text-gray-800 rounded-lg px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-300 shadow-md">
                                 <option value="mabsilico">MabSilico</option>
                                 <option value="finance-montreal">Finance Montreal (Steve)</option>
+                                <option value="finance-montreal-noza">Finance Montreal (Noza)</option>
                                 <option value="apm-music">APM Music</option>
                                 <option value="ducrocq">Ducrocq</option>
                                 <option value="milvue">Milvue</option>
@@ -1431,6 +1432,10 @@ app.get('/', (c) => {
                 'finance-montreal': {
                     name: 'Finance Montreal (Steve)',
                     pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgI7YkpykCQw'
+                },
+                'finance-montreal-noza': {
+                    name: 'Finance Montreal (Noza)',
+                    pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgKWVvvDkCgw'
                 },
                 'apm-music': {
                     name: 'APM Music',
