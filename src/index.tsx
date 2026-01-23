@@ -1234,7 +1234,7 @@ app.get('/', (c) => {
                             <div class="border-b pb-3">
                                 <p class="text-sm font-medium text-gray-700 mb-1">Total Boxes</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/total")
+                                    =IMPORTDATA("https://gershonscore.com/api/sheets/total")
                                 </code>
                             </div>
 
@@ -1251,25 +1251,25 @@ app.get('/', (c) => {
                             <div class="border-b pb-3">
                                 <p class="text-sm font-medium text-gray-700 mb-1">Closing</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/stage/Closing/count")
+                                    =IMPORTDATA("https://gershonscore.com/api/sheets/stage/Closing/count")
                                 </code>
                             </div>
                             <div class="border-b pb-3">
                                 <p class="text-sm font-medium text-gray-700 mb-1">Negotiating</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/stage/Negotiating/count")
+                                    =IMPORTDATA("https://gershonscore.com/api/sheets/stage/Negotiating/count")
                                 </code>
                             </div>
                             <div class="border-b pb-3">
                                 <p class="text-sm font-medium text-gray-700 mb-1">Nurtering</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/stage/Nurtering/count")
+                                    =IMPORTDATA("https://gershonscore.com/api/sheets/stage/Nurtering/count")
                                 </code>
                             </div>
                             <div class="pb-3">
                                 <p class="text-sm font-medium text-gray-700 mb-1">Proposal Sent</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/stage/Proposal Sent/count")
+                                    =IMPORTDATA("https://gershonscore.com/api/sheets/stage/Proposal Sent/count")
                                 </code>
                             </div>
                         </div>
@@ -1285,19 +1285,19 @@ app.get('/', (c) => {
                             <div class="border-b pb-3">
                                 <p class="text-sm font-medium text-gray-700 mb-1">High FIT</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/fit/high/count")
+                                    =IMPORTDATA("https://gershonscore.com/api/sheets/fit/high/count")
                                 </code>
                             </div>
                             <div class="border-b pb-3">
                                 <p class="text-sm font-medium text-gray-700 mb-1">Medium FIT</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/fit/medium/count")
+                                    =IMPORTDATA("https://gershonscore.com/api/sheets/fit/medium/count")
                                 </code>
                             </div>
                             <div class="pb-3">
                                 <p class="text-sm font-medium text-gray-700 mb-1">Low FIT</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/fit/low/count")
+                                    =IMPORTDATA("https://gershonscore.com/api/sheets/fit/low/count")
                                 </code>
                             </div>
                         </div>
@@ -1313,19 +1313,19 @@ app.get('/', (c) => {
                             <div class="border-b pb-3">
                                 <p class="text-sm font-medium text-gray-700 mb-1">High INTEREST</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/interest/high/count")
+                                    =IMPORTDATA("https://gershonscore.com/api/sheets/interest/high/count")
                                 </code>
                             </div>
                             <div class="border-b pb-3">
                                 <p class="text-sm font-medium text-gray-700 mb-1">Medium INTEREST</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/interest/medium/count")
+                                    =IMPORTDATA("https://gershonscore.com/api/sheets/interest/medium/count")
                                 </code>
                             </div>
                             <div class="pb-3">
                                 <p class="text-sm font-medium text-gray-700 mb-1">Low INTEREST</p>
                                 <code class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/interest/low/count")
+                                    =IMPORTDATA("https://gershonscore.com/api/sheets/interest/low/count")
                                 </code>
                             </div>
                         </div>
@@ -1351,7 +1351,7 @@ app.get('/', (c) => {
                         <div class="border-b pb-4 mb-4">
                             <p class="text-sm font-medium text-gray-700 mb-2">Get total number of leads for <span id="sheets-total-company"></span></p>
                             <code id="sheets-total-formula" class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/mabsilico/total")
+                                =IMPORTDATA("https://gershonscore.com/api/sheets/mabsilico/total")
                             </code>
                         </div>
                         
@@ -1360,19 +1360,19 @@ app.get('/', (c) => {
                             <div class="border-b pb-3">
                                 <p class="text-sm font-medium text-gray-700 mb-2">🔥 Past Week</p>
                                 <code id="sheets-week-formula" class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/mabsilico/week/count")
+                                    =IMPORTDATA("https://gershonscore.com/api/sheets/mabsilico/week/count")
                                 </code>
                             </div>
                             <div class="border-b pb-3">
                                 <p class="text-sm font-medium text-gray-700 mb-2">January 2026</p>
                                 <code id="sheets-jan-formula" class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/mabsilico/month/2026-01/count")
+                                    =IMPORTDATA("https://gershonscore.com/api/sheets/mabsilico/month/2026-01/count")
                                 </code>
                             </div>
                             <div class="pb-3">
                                 <p class="text-sm font-medium text-gray-700 mb-2">December 2025</p>
                                 <code id="sheets-dec-formula" class="bg-gray-100 px-3 py-2 rounded text-xs block font-mono text-gray-800 overflow-x-auto">
-                                    =IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/mabsilico/month/2025-12/count")
+                                    =IMPORTDATA("https://gershonscore.com/api/sheets/mabsilico/month/2025-12/count")
                                 </code>
                             </div>
                         </div>
