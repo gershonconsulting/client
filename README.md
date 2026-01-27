@@ -1,60 +1,72 @@
-# Gershon Consulting - Multi-Company Pipeline Report
+# Gershon CRM - Client Dashboard
 
 ## Project Overview
-- **Name**: Gershon Consulting Multi-Company Pipeline Report
-- **Goal**: Comprehensive dashboard tracking 9 company pipelines in Streak CRM with real-time analytics and Google Sheets integration
-- **Key Feature**: Each company has its own dedicated Streak pipeline with individual tracking and 10 leads/month objective
+- **Name**: Gershon CRM Client Dashboard
+- **Domain**: https://client.gershoncrm.com
+- **Goal**: Multi-company pipeline tracking with three sections: PROMOTE, NETWORK (LinkedIn), and ENGAGE (Streak CRM)
+- **Companies**: 10 tracked companies with individual pipelines and 10 leads/month objective
 
-## 📊 Tracked Companies (9)
+## 🌐 Subdomain Architecture
 
-| Company | Key | Total Leads | Avg/Month | Achievement |
-|---------|-----|-------------|-----------|-------------|
-| MabSilico | `mabsilico` | 1,299 | 15.9 | 159% ✅ |
-| Finance Montreal (Steve) | `finance-montreal` | 475 | 12.0 | 120% ✅ |
-| Ducrocq | `ducrocq` | 745 | 20.9 | 209% ✅ |
-| Seekyo Therapeutics | `seekyo` | 335 | 19.8 | 198% ✅ |
-| Altavia | `altavia` | 53 | 4.4 | 44% |
-| Valos | `valos` | 109 | 9.1 | 91% |
-| APM Music | `apm-music` | 9 | 0.8 | 8% |
-| Milvue | `milvue` | 23 | 1.9 | 19% |
-| DAB-Embedded | `dab-embedded` | 7 | 0.6 | 6% |
+This is part of a multi-app ecosystem on gershoncrm.com:
+
+- **client.gershoncrm.com** - THIS APP: Client pipeline tracking and analytics
+- **finance.gershoncrm.com** - Future: Financial analytics dashboard
+- **Main domain** can host other services
+
+## 📊 Tracked Companies (10)
+
+| Company | Key | Total Leads | Duration | Achievement |
+|---------|-----|-------------|----------|-------------|
+| MabSilico | `mabsilico` | 1,299 | 58 months | 159% ✅ |
+| Finance Montreal (Steve) | `finance-montreal` | 475 | - | 120% ✅ |
+| Finance Montreal (Noza) | `finance-montreal-noza` | 161 | 18 months | - |
+| Ducrocq | `ducrocq` | 745 | 39 months | 209% ✅ |
+| Seekyo Therapeutics | `seekyo` | 335 | - | 198% ✅ |
+| Altavia | `altavia` | 53 | - | 44% |
+| Valos | `valos` | 109 | - | 91% |
+| APM Music | `apm-music` | 9 | 4 months | 8% |
+| Milvue | `milvue` | 23 | - | 19% |
+| DAB-Embedded | `dab-embedded` | 7 | - | 6% |
 
 **Objective**: 10 leads per month per company
 
 ## 🌐 URLs
-- **Live Dashboard**: https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai
-- **API Base**: https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api
-- **GitHub**: (To be deployed)
+- **Production**: https://client.gershoncrm.com
+- **Sandbox**: https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai
 
 ## ✅ Features
 
-### Dashboard Features
-- **Summary Cards** (3 cards): 
-  - Total boxes count
-  - High FIT percentage
-  - High INTEREST percentage
-- **Multiple Views**:
-  - **By Stage**: Shows number of opportunities per stage
-  - **By FIT**: Displays FIT levels (High, Medium, Low, Not Set)
-  - **By INTEREST**: Displays INTEREST levels (High, Medium, Low, Not Set)
-  - **By Country**: Table view with country distribution
-  - **By Language**: Cards showing language distribution
-  - **By Freshness**: Activity-based segmentation (High >0.5, Medium 0.2-0.5, Low <0.2)
-- **High Value Opportunities**: Shows boxes with High FIT or High INTEREST
-- **Monthly Lead Tracking**: 10 leads/month objective with 12-month history and achievement percentages
+### Three Main Sections
+1. **PROMOTE** - Marketing campaigns and promotional activities (coming soon)
+2. **NETWORK** - LinkedIn networking metrics with Google Sheets integration
+   - Average acceptance rate tracking
+   - 20% objective achievement
+   - Weekly trends and comparisons
+3. **ENGAGE** - Streak CRM pipeline data
+   - Campaign performance summary
+   - Stage distribution
+   - FIT/INTEREST analysis
+   - High-value opportunities
 
-### Multi-Company Tracking
-- **Individual Pipeline Support**: Each company has its own Streak pipeline
-- **Google Sheets Integration**: IMPORTDATA formulas for each company
-- **Company-Specific Endpoints**: Total leads, monthly leads, and full statistics per company
-- **Real-time Analytics**: Live data from Streak API for all 9 companies
+### Network Section (LinkedIn Data)
+- **Average Acceptance Rate**: Calculated from Google Sheets data
+- **Objective Tracking**: 20% acceptance rate target
+- **Weekly Metrics**: This week vs last week comparison
+- **Recent Performance**: Last 4 weeks with color-coded rates
+
+### Dashboard Features
+- **Company Selector**: Switch between 10 companies
+- **Real-time Analytics**: Live data from Streak API
+- **Google Sheets Integration**: IMPORTDATA formulas for all metrics
+- **Print Report**: One-click PDF export
 
 ## 🔌 API Endpoints
 
 ### Company Management
 ```bash
 GET /api/companies
-# Returns list of all tracked companies with keys and names
+# Returns list of all 10 tracked companies
 ```
 
 ### Company-Specific Endpoints
@@ -63,61 +75,80 @@ GET /api/companies
 ```bash
 GET /api/sheets/{companyKey}/total
 # Example: /api/sheets/mabsilico/total
-# Returns: Total number of leads for the company
+# Returns: Total number of leads
+```
+
+#### Campaign Duration
+```bash
+GET /api/sheets/{companyKey}/duration/total
+# Example: /api/sheets/mabsilico/duration/total
+# Returns: Campaign duration in months
+```
+
+#### Weekly Leads
+```bash
+GET /api/sheets/{companyKey}/week/count
+# Example: /api/sheets/apm-music/week/count
+# Returns: Leads created in past 7 days
 ```
 
 #### Monthly Leads
 ```bash
 GET /api/sheets/{companyKey}/month/{YYYY-MM}/count
 # Example: /api/sheets/finance-montreal/month/2026-01/count
-# Returns: Number of leads created in specified month
+# Returns: Leads created in specified month
 ```
 
-#### Monthly Statistics
+#### Full Analytics
 ```bash
-GET /api/sheets/{companyKey}/monthly-stats
-# Example: /api/sheets/ducrocq/monthly-stats
-# Returns: Full 12-month statistics with objective tracking
+GET /api/analytics?company={companyKey}
+# Example: /api/analytics?company=ducrocq
+# Returns: Complete analytics including networkData
 ```
 
-### MabSilico Pipeline Endpoints (Default)
+### By Stage/FIT/INTEREST
 ```bash
-GET /api/pipeline          # Full pipeline configuration
-GET /api/boxes            # All boxes with details
-GET /api/boxes/:boxKey    # Single box details
-GET /api/analytics        # Complete analytics for MabSilico
+GET /api/sheets/stage/:stageName/count
+GET /api/sheets/fit/:level/count          # high/medium/low
+GET /api/sheets/interest/:level/count     # high/medium/low
 ```
 
-### Google Sheets Endpoints (MabSilico)
-```bash
-GET /api/sheets/total                    # Total boxes
-GET /api/sheets/stage/:stageName/count   # By stage
-GET /api/sheets/fit/:level/count        # By FIT (high/medium/low/not-set)
-GET /api/sheets/interest/:level/count   # By INTEREST (high/medium/low/not-set)
-GET /api/sheets/country/:country/count  # By country
-GET /api/sheets/freshness/:level/count  # By freshness (high/medium/low)
+## 📈 Google Sheets Integration
+
+### Total Leads (All Companies)
+```
+=IMPORTDATA("https://client.gershoncrm.com/api/sheets/mabsilico/total")
+=IMPORTDATA("https://client.gershoncrm.com/api/sheets/finance-montreal/total")
+=IMPORTDATA("https://client.gershoncrm.com/api/sheets/finance-montreal-noza/total")
+=IMPORTDATA("https://client.gershoncrm.com/api/sheets/apm-music/total")
+=IMPORTDATA("https://client.gershoncrm.com/api/sheets/ducrocq/total")
+=IMPORTDATA("https://client.gershoncrm.com/api/sheets/milvue/total")
+=IMPORTDATA("https://client.gershoncrm.com/api/sheets/seekyo/total")
+=IMPORTDATA("https://client.gershoncrm.com/api/sheets/altavia/total")
+=IMPORTDATA("https://client.gershoncrm.com/api/sheets/valos/total")
+=IMPORTDATA("https://client.gershoncrm.com/api/sheets/dab-embedded/total")
 ```
 
-## 📈 Google Sheets Integration Examples
-
-### For MabSilico
+### Campaign Duration
 ```
-=IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/mabsilico/total")
-```
-
-### For Finance Montreal
-```
-=IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/finance-montreal/total")
+=IMPORTDATA("https://client.gershoncrm.com/api/sheets/mabsilico/duration/total")
+=IMPORTDATA("https://client.gershoncrm.com/api/sheets/ducrocq/duration/total")
 ```
 
-### Monthly Leads (any company)
+### Weekly Leads
 ```
-=IMPORTDATA("https://3000-i6yiehgl3sjwb740jdrfw-b9b802c4.sandbox.novita.ai/api/sheets/ducrocq/month/2026-01/count")
+=IMPORTDATA("https://client.gershoncrm.com/api/sheets/mabsilico/week/count")
+=IMPORTDATA("https://client.gershoncrm.com/api/sheets/apm-music/week/count")
+```
+
+### Monthly Leads
+```
+=IMPORTDATA("https://client.gershoncrm.com/api/sheets/ducrocq/month/2026-01/count")
 ```
 
 ### Calculate Achievement %
 ```
-=IMPORTDATA("https://.../api/sheets/seekyo/total")/10*100
+=IMPORTDATA("https://client.gershoncrm.com/api/sheets/seekyo/total")/10*100
 ```
 
 ## 🗂️ Data Architecture
@@ -125,95 +156,99 @@ GET /api/sheets/freshness/:level/count  # By freshness (high/medium/low)
 ### Per-Company Configuration
 Each company has:
 - **Pipeline Key**: Unique Streak pipeline identifier
-- **Pipeline URL**: Direct link to Streak pipeline
-- **Independent Data**: Separate boxes, stages, and fields
-- **Individual Tracking**: Own 10 leads/month objective
+- **Network Sheet GID**: Google Sheets tab for LinkedIn data (MabSilico only currently)
+- **Independent Data**: Separate tracking and objectives
+- **Individual Formulas**: Auto-generated per company
 
-### Tracked Fields (MabSilico)
+### NETWORK Data (from Google Sheets)
+- **Source**: CSV export from Google Sheets
+- **Metrics**: Invitations sent, messages, acceptance rate, opportunities
+- **Calculation**: Average acceptance rate, objective achievement (20% target)
+- **Updates**: Real-time when dashboard loads
+
+### ENGAGE Data (from Streak API)
 - **FIT**: Dropdown (High, Medium, Low, Not Set)
 - **INTEREST**: Dropdown (High, Medium, Low, Not Set)
-- **Stage**: Pipeline stages
-- **Origin**: Lead source
-- **Country**: Geographic location
-- **Language**: Communication language
+- **Stage**: All pipeline stages
+- **Campaign Duration**: Auto-calculated from first lead date
 
 ## 🚀 Deployment
 
-### Local Development
+### Build & Deploy
 ```bash
 cd /home/user/webapp
 npm install
 npm run build
-pm2 start ecosystem.config.cjs
-```
 
-### Testing Endpoints
-```bash
-# List all companies
-curl http://localhost:3000/api/companies
-
-# Get total leads for a company
-curl http://localhost:3000/api/sheets/mabsilico/total
-
-# Get monthly stats
-curl http://localhost:3000/api/sheets/finance-montreal/monthly-stats
-```
-
-### Production Deployment
-```bash
 # Deploy to Cloudflare Pages
-npm run deploy
+# Set custom domain: client.gershoncrm.com
+```
 
-# Or deploy with project name
-npm run deploy:prod
+### Wrangler Configuration
+```jsonc
+{
+  "name": "gershoncrm-client",
+  "compatibility_date": "2026-01-01",
+  "pages_build_output_dir": "./dist"
+}
+```
+
+### DNS Setup (for Hosted Deploy)
+Add CNAME record:
+```
+client.gershoncrm.com → your-cloudflare-pages.pages.dev
 ```
 
 ## 💡 Usage Guide
 
-### For Dashboard Users
-1. Open the dashboard URL
-2. View overall statistics for MabSilico (default view)
-3. Use tabs to switch between different views (Stage, FIT, INTEREST, etc.)
-4. Track high-value opportunities in the bottom table
+### Dashboard Users
+1. Open https://client.gershoncrm.com
+2. Select company from dropdown (top right)
+3. Choose section:
+   - **PROMOTE**: Coming soon
+   - **NETWORK**: LinkedIn networking stats
+   - **ENGAGE**: Streak CRM pipeline data
+4. View Google Sheets integration formulas (scroll down)
 
-### For Google Sheets Users
-1. Copy any IMPORTDATA formula from the dashboard's "Google Sheets Integration" section
-2. Paste into a Google Sheets cell
-3. Data will automatically refresh when you reopen or refresh the sheet
-4. Use company keys in URLs: `mabsilico`, `finance-montreal`, `ducrocq`, etc.
+### Google Sheets Users
+1. Navigate to "Google Sheets Integration" section
+2. Copy IMPORTDATA formulas for your company
+3. Paste into Google Sheets
+4. Data refreshes automatically
 
-### For Developers
-1. Use `/api/companies` to get list of all companies
-2. Use `/api/sheets/{companyKey}/total` for quick counts
-3. Use `/api/sheets/{companyKey}/monthly-stats` for comprehensive data
-4. All endpoints return text (for IMPORTDATA) or JSON format
+### Multi-App Setup
+For other subdomains (e.g., finance.gershoncrm.com):
+1. Create new app/project
+2. Set up separate deployment
+3. Configure DNS CNAME for subdomain
+4. Deploy to Cloudflare Pages with subdomain
 
 ## 📋 Company Keys Reference
 
-Use these keys in API URLs (lowercase, hyphenated):
-
-- `mabsilico` → MabSilico
-- `finance-montreal` → Finance Montreal (Steve)
-- `apm-music` → APM Music
-- `ducrocq` → Ducrocq
-- `milvue` → Milvue
-- `seekyo` → Seekyo Therapeutics
-- `altavia` → Altavia
-- `valos` → Valos
-- `dab-embedded` → DAB-Embedded
+| Key | Company Name |
+|-----|--------------|
+| `mabsilico` | MabSilico |
+| `finance-montreal` | Finance Montreal (Steve) |
+| `finance-montreal-noza` | Finance Montreal (Noza) |
+| `apm-music` | APM Music |
+| `ducrocq` | Ducrocq |
+| `milvue` | Milvue |
+| `seekyo` | Seekyo Therapeutics |
+| `altavia` | Altavia |
+| `valos` | Valos |
+| `dab-embedded` | DAB-Embedded |
 
 ## 🎯 Project Structure
 ```
 webapp/
 ├── src/
-│   └── index.tsx          # Main application with multi-company support
+│   └── index.tsx          # Main app with 3 sections
 ├── public/
-│   └── static/
-│       └── style.css      # Custom styles
+│   └── static/            # Static assets
 ├── dist/                  # Built application
-├── ecosystem.config.cjs   # PM2 configuration
-├── wrangler.jsonc        # Cloudflare configuration
-├── package.json          # Dependencies and scripts
+├── ecosystem.config.cjs   # PM2 config (dev only)
+├── wrangler.jsonc        # Cloudflare config
+├── package.json          # Dependencies
 └── README.md            # This file
 ```
 
@@ -221,38 +256,40 @@ webapp/
 - **Backend**: Hono (Cloudflare Workers)
 - **Runtime**: Cloudflare Pages
 - **Frontend**: Vanilla JavaScript + Tailwind CSS
-- **Charts**: Chart.js with datalabels plugin
-- **API**: Streak CRM REST API v1
-- **Deployment**: Cloudflare Pages
+- **Charts**: Chart.js with datalabels
+- **APIs**: 
+  - Streak CRM REST API v1
+  - Google Sheets CSV export
+- **Deployment**: Cloudflare Pages with custom subdomain
 
-## 📊 Performance Insights
+## 📊 Network Metrics
 
-### Top Performers (>150% objective)
-1. **Ducrocq**: 209% (20.9 leads/month)
-2. **Seekyo**: 198% (19.8 leads/month)
-3. **MabSilico**: 159% (15.9 leads/month)
-
-### Need Attention (<50% objective)
-- **APM Music**: 8% (0.8 leads/month)
-- **DAB-Embedded**: 6% (0.6 leads/month)
-- **Milvue**: 19% (1.9 leads/month)
-- **Altavia**: 44% (4.4 leads/month)
+### MabSilico Example
+- **Average Acceptance Rate**: 42.5%
+- **Objective**: 20%
+- **Achievement**: 212.7% ✅ EXCEEDING
+- **Total Invitations**: ~3,969
+- **This Week**: 100% acceptance
 
 ## 🎯 Next Steps
-1. ✅ Multi-company tracking implemented
-2. ✅ Individual pipeline support for 9 companies
-3. ✅ Google Sheets integration per company
-4. 📋 Add company comparison charts
-5. 📋 Create consolidated dashboard view
-6. 📋 Add company performance trends
-7. 📋 Implement automated alerts for underperforming companies
-8. 📋 Deploy to production Cloudflare Pages
-9. 📋 Set up automated reports
+- ✅ 10 companies tracked
+- ✅ Three-section dashboard (PROMOTE/NETWORK/ENGAGE)
+- ✅ Google Sheets integration
+- ✅ Campaign duration endpoint
+- ✅ Subdomain ready (client.gershoncrm.com)
+- 📋 Add NETWORK data for other companies
+- 📋 Implement PROMOTE section
+- 📋 Deploy to production
+- 📋 Set up finance.gershoncrm.com subdomain
 
-## 📞 Support
-For questions or issues, contact the development team.
+## 📞 Deployment Notes
+
+**Current Status**: Ready for production deployment
+**Domain**: client.gershoncrm.com
+**Git Commit**: 99fc771
+**Build Size**: 126.13 kB
 
 ---
-**Last Updated**: 2026-01-04  
-**Status**: ✅ Active - All 9 companies tracked  
-**API Key**: Configured (e77554988b424c6498d85362b0367757)
+**Last Updated**: 2026-01-23  
+**Status**: ✅ Production Ready  
+**Subdomain**: client.gershoncrm.com
