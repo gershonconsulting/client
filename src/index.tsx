@@ -20,7 +20,12 @@ const COMPANIES = {
     name: 'MabSilico',
     pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw',
     url: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw',
-    networkSheetGid: '910674612'
+    networkSheetGid: '910674612',
+    sources: {
+      promote: '',
+      network: 'https://docs.google.com/spreadsheets/d/1NzUlKfHTW6v7i-S59GjtBFlzQwTX2AaeK4gQ4fVSAsw/edit?gid=910674612#gid=910674612',
+      engage: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw'
+    }
   },
   'finance-montreal': {
     name: 'Finance Montreal (Steve)',
@@ -994,6 +999,9 @@ app.get('/', (c) => {
                             <button onclick="switchView('print')" id="tab-print" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
                                 <i class="fas fa-print mr-2"></i>Print Report
                             </button>
+                            <button onclick="switchView('settings')" id="tab-settings" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                                <i class="fas fa-cog mr-2"></i>Settings
+                            </button>
                         </nav>
                     </div>
                 </div>
@@ -1231,6 +1239,89 @@ app.get('/', (c) => {
                     </div>
                 </div>
 
+            </div>
+
+            <!-- Settings View -->
+            <div id="view-settings" class="view-content hidden">
+                <div class="bg-white rounded-lg shadow p-8">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                        <i class="fas fa-cog text-blue-600 mr-3"></i>
+                        <span id="settings-company-name">Company</span> Settings
+                    </h2>
+                    
+                    <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
+                        <p class="text-sm text-blue-800">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            <strong>Data Sources:</strong> View the source URLs for PROMOTE, NETWORK, and ENGAGE sections.
+                        </p>
+                    </div>
+
+                    <!-- PROMOTE Source -->
+                    <div class="mb-6 p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                            <i class="fas fa-bullhorn text-yellow-600 mr-2"></i>
+                            PROMOTE Data Source
+                        </h3>
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium text-gray-700">Source URL:</label>
+                            <div id="source-promote" class="bg-white border border-gray-300 rounded px-4 py-3 text-sm text-gray-600 font-mono break-all">
+                                Not configured yet
+                            </div>
+                            <p class="text-xs text-gray-500 mt-2">
+                                <i class="fas fa-calendar-alt mr-1"></i>
+                                Marketing campaigns and promotional activities data source
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- NETWORK Source -->
+                    <div class="mb-6 p-6 bg-blue-50 border border-blue-200 rounded-lg">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                            <i class="fas fa-users text-blue-600 mr-2"></i>
+                            NETWORK Data Source
+                        </h3>
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium text-gray-700">Source URL:</label>
+                            <div id="source-network" class="bg-white border border-gray-300 rounded px-4 py-3 text-sm font-mono break-all">
+                                <a href="#" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline">
+                                    Loading...
+                                </a>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-2">
+                                <i class="fas fa-table mr-1"></i>
+                                LinkedIn networking data from Google Sheets
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- ENGAGE Source -->
+                    <div class="mb-6 p-6 bg-green-50 border border-green-200 rounded-lg">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                            <i class="fas fa-handshake text-green-600 mr-2"></i>
+                            ENGAGE Data Source
+                        </h3>
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium text-gray-700">Source URL:</label>
+                            <div id="source-engage" class="bg-white border border-gray-300 rounded px-4 py-3 text-sm font-mono break-all">
+                                <a href="#" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline">
+                                    Loading...
+                                </a>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-2">
+                                <i class="fas fa-database mr-1"></i>
+                                Streak CRM pipeline data
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mt-6">
+                        <p class="text-sm text-gray-700">
+                            <i class="fas fa-shield-alt text-green-600 mr-2"></i>
+                            <strong>Note:</strong> These URLs are read-only and configured in the application settings. 
+                            To update these sources, please contact your system administrator.
+                        </p>
+                    </div>
+                </div>
             </div>
 
             <!-- Google Sheets Integration Section -->
@@ -1473,7 +1564,12 @@ app.get('/', (c) => {
             const COMPANIES = {
                 'mabsilico': {
                     name: 'MabSilico',
-                    pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw'
+                    pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw',
+                    sources: {
+                        promote: '',
+                        network: 'https://docs.google.com/spreadsheets/d/1NzUlKfHTW6v7i-S59GjtBFlzQwTX2AaeK4gQ4fVSAsw/edit?gid=910674612#gid=910674612',
+                        engage: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw'
+                    }
                 },
                 'finance-montreal': {
                     name: 'Finance Montreal (Steve)',
@@ -1525,6 +1621,9 @@ app.get('/', (c) => {
                 
                 // Update Google Sheets formulas for this company
                 updateSheetsFormulas();
+                
+                // Update Settings view
+                updateSettingsView();
                 
                 // Fetch new company data
                 fetchCompanyData(companyKey);
@@ -2239,8 +2338,41 @@ app.get('/', (c) => {
                     '=IMPORTDATA("' + baseUrl + '/api/sheets/' + currentCompany + '/month/2025-12/count")';
             }
 
+            function updateSettingsView() {
+                const company = COMPANIES[currentCompany];
+                const sources = company.sources || { promote: '', network: '', engage: '' };
+                
+                // Update company name in settings header
+                document.getElementById('settings-company-name').textContent = company.name;
+                
+                // Update PROMOTE source
+                const promoteEl = document.getElementById('source-promote');
+                if (sources.promote) {
+                    promoteEl.innerHTML = \`<a href="\${sources.promote}" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline">\${sources.promote}</a>\`;
+                } else {
+                    promoteEl.innerHTML = '<span class="text-gray-400">Not configured yet</span>';
+                }
+                
+                // Update NETWORK source
+                const networkEl = document.getElementById('source-network');
+                if (sources.network) {
+                    networkEl.innerHTML = \`<a href="\${sources.network}" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline">\${sources.network}</a>\`;
+                } else {
+                    networkEl.innerHTML = '<span class="text-gray-400">Not configured yet</span>';
+                }
+                
+                // Update ENGAGE source
+                const engageEl = document.getElementById('source-engage');
+                if (sources.engage) {
+                    engageEl.innerHTML = \`<a href="\${sources.engage}" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline">\${sources.engage}</a>\`;
+                } else {
+                    engageEl.innerHTML = '<span class="text-gray-400">Not configured yet</span>';
+                }
+            }
+
             // Load dashboard on page load and setup auto-refresh
             updateSheetsFormulas(); // Initialize Google Sheets formulas
+            updateSettingsView(); // Initialize Settings view
             loadDashboard();
             setupAutoRefresh();
         </script>
