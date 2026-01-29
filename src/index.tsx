@@ -1314,11 +1314,164 @@ app.get('/', (c) => {
                         </div>
                     </div>
 
+                    <!-- Add New Company Section -->
+                    <div class="mt-10 pt-8 border-t-2 border-gray-200">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                            <i class="fas fa-plus-circle text-green-600 mr-3"></i>
+                            Add New Company
+                        </h2>
+                        
+                        <div class="bg-gradient-to-r from-green-50 to-blue-50 border-l-4 border-green-500 p-4 mb-6">
+                            <p class="text-sm text-gray-800">
+                                <i class="fas fa-info-circle mr-2"></i>
+                                <strong>Quick Setup:</strong> Add a new company by providing its details below. The company will be immediately available in the dashboard.
+                            </p>
+                        </div>
+
+                        <form id="add-company-form" class="space-y-6" onsubmit="return false;">
+                            <!-- Company Name -->
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    <i class="fas fa-building text-blue-600 mr-2"></i>
+                                    Company Name *
+                                </label>
+                                <input 
+                                    type="text" 
+                                    id="new-company-name" 
+                                    placeholder="e.g., Acme Corporation"
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    required
+                                />
+                                <p class="text-xs text-gray-500 mt-1">Display name for the company</p>
+                            </div>
+
+                            <!-- Company Key -->
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    <i class="fas fa-key text-purple-600 mr-2"></i>
+                                    Company Key *
+                                </label>
+                                <input 
+                                    type="text" 
+                                    id="new-company-key" 
+                                    placeholder="e.g., acme-corp"
+                                    pattern="[a-z0-9-]+"
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono"
+                                    required
+                                />
+                                <p class="text-xs text-gray-500 mt-1">Lowercase letters, numbers, and hyphens only (e.g., acme-corp)</p>
+                            </div>
+
+                            <!-- Streak Pipeline Key -->
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    <i class="fas fa-database text-green-600 mr-2"></i>
+                                    Streak Pipeline Key *
+                                </label>
+                                <textarea 
+                                    id="new-pipeline-key" 
+                                    rows="3"
+                                    placeholder="e.g., agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F..."
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                                    required
+                                ></textarea>
+                                <p class="text-xs text-gray-500 mt-1">The unique pipeline identifier from Streak CRM</p>
+                            </div>
+
+                            <!-- ENGAGE URL (Streak Pipeline URL) -->
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    <i class="fas fa-handshake text-green-600 mr-2"></i>
+                                    ENGAGE URL (Streak Pipeline URL) *
+                                </label>
+                                <input 
+                                    type="url" 
+                                    id="new-engage-url" 
+                                    placeholder="https://www.streak.com/a/pipelines/..."
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                                    required
+                                />
+                                <p class="text-xs text-gray-500 mt-1">Full Streak pipeline URL for CRM data</p>
+                            </div>
+
+                            <!-- NETWORK URL (Optional) -->
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    <i class="fas fa-users text-blue-600 mr-2"></i>
+                                    NETWORK URL (Google Sheets URL)
+                                    <span class="text-gray-400 text-xs ml-2">(Optional)</span>
+                                </label>
+                                <input 
+                                    type="url" 
+                                    id="new-network-url" 
+                                    placeholder="https://docs.google.com/spreadsheets/d/..."
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                                />
+                                <p class="text-xs text-gray-500 mt-1">Google Sheets URL for LinkedIn networking data</p>
+                            </div>
+
+                            <!-- Network Sheet GID (Optional) -->
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    <i class="fas fa-table text-blue-600 mr-2"></i>
+                                    Network Sheet GID
+                                    <span class="text-gray-400 text-xs ml-2">(Optional)</span>
+                                </label>
+                                <input 
+                                    type="text" 
+                                    id="new-network-gid" 
+                                    placeholder="e.g., 608600451"
+                                    pattern="[0-9]*"
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono"
+                                />
+                                <p class="text-xs text-gray-500 mt-1">The gid parameter from your Google Sheets URL (numbers only)</p>
+                            </div>
+
+                            <!-- PROMOTE URL (Optional) -->
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    <i class="fas fa-bullhorn text-yellow-600 mr-2"></i>
+                                    PROMOTE URL
+                                    <span class="text-gray-400 text-xs ml-2">(Optional)</span>
+                                </label>
+                                <input 
+                                    type="url" 
+                                    id="new-promote-url" 
+                                    placeholder="https://..."
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                                />
+                                <p class="text-xs text-gray-500 mt-1">URL for marketing campaigns and promotional activities</p>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="flex items-center space-x-4 pt-4">
+                                <button 
+                                    type="button"
+                                    onclick="addNewCompany()"
+                                    class="flex-1 bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-green-600 hover:to-green-700 transition-all shadow-lg flex items-center justify-center"
+                                >
+                                    <i class="fas fa-plus-circle mr-2"></i>
+                                    Add Company
+                                </button>
+                                <button 
+                                    type="button"
+                                    onclick="resetAddCompanyForm()"
+                                    class="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-all flex items-center"
+                                >
+                                    <i class="fas fa-undo mr-2"></i>
+                                    Reset
+                                </button>
+                            </div>
+
+                            <!-- Success/Error Messages -->
+                            <div id="add-company-message" class="hidden mt-4"></div>
+                        </form>
+                    </div>
+
                     <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mt-6">
                         <p class="text-sm text-gray-700">
                             <i class="fas fa-shield-alt text-green-600 mr-2"></i>
-                            <strong>Note:</strong> These URLs are read-only and configured in the application settings. 
-                            To update these sources, please contact your system administrator.
+                            <strong>Note:</strong> New companies are added to the current session only. For persistent storage, please configure in the application settings.
                         </p>
                     </div>
                 </div>
@@ -2367,6 +2520,133 @@ app.get('/', (c) => {
                     engageEl.innerHTML = \`<a href="\${sources.engage}" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline">\${sources.engage}</a>\`;
                 } else {
                     engageEl.innerHTML = '<span class="text-gray-400">Not configured yet</span>';
+                }
+            }
+
+            // Add New Company Function
+            function addNewCompany() {
+                // Get form values
+                const name = document.getElementById('new-company-name').value.trim();
+                const key = document.getElementById('new-company-key').value.trim();
+                const pipelineKey = document.getElementById('new-pipeline-key').value.trim();
+                const engageUrl = document.getElementById('new-engage-url').value.trim();
+                const networkUrl = document.getElementById('new-network-url').value.trim();
+                const networkGid = document.getElementById('new-network-gid').value.trim();
+                const promoteUrl = document.getElementById('new-promote-url').value.trim();
+
+                // Validate required fields
+                if (!name || !key || !pipelineKey || !engageUrl) {
+                    showMessage('error', 'Please fill in all required fields (marked with *)');
+                    return;
+                }
+
+                // Validate key format (lowercase, numbers, hyphens only)
+                if (!/^[a-z0-9-]+$/.test(key)) {
+                    showMessage('error', 'Company Key must contain only lowercase letters, numbers, and hyphens');
+                    return;
+                }
+
+                // Check if key already exists
+                if (COMPANIES[key]) {
+                    showMessage('error', \`Company key "\${key}" already exists. Please use a different key.\`);
+                    return;
+                }
+
+                // Create new company object
+                const newCompany = {
+                    name: name,
+                    pipelineKey: pipelineKey,
+                    url: engageUrl,
+                    sources: {
+                        promote: promoteUrl || '',
+                        network: networkUrl || '',
+                        engage: engageUrl
+                    }
+                };
+
+                // Add networkSheetGid if provided
+                if (networkGid) {
+                    newCompany.networkSheetGid = networkGid;
+                }
+
+                // Add company to COMPANIES object
+                COMPANIES[key] = newCompany;
+
+                // Add to dropdown
+                const selector = document.getElementById('company-selector');
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = name;
+                selector.appendChild(option);
+
+                // Switch to the new company
+                currentCompany = key;
+                selector.value = key;
+
+                // Update UI
+                updateSheetsFormulas();
+                updateSettingsView();
+                loadDashboard();
+
+                // Show success message
+                showMessage('success', \`Company "\${name}" has been added successfully! Switched to this company.\`);
+
+                // Reset form
+                resetAddCompanyForm();
+
+                // Scroll to top
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+
+            // Reset Add Company Form
+            function resetAddCompanyForm() {
+                document.getElementById('new-company-name').value = '';
+                document.getElementById('new-company-key').value = '';
+                document.getElementById('new-pipeline-key').value = '';
+                document.getElementById('new-engage-url').value = '';
+                document.getElementById('new-network-url').value = '';
+                document.getElementById('new-network-gid').value = '';
+                document.getElementById('new-promote-url').value = '';
+                
+                // Hide message
+                const messageEl = document.getElementById('add-company-message');
+                messageEl.classList.add('hidden');
+            }
+
+            // Show Message Function
+            function showMessage(type, message) {
+                const messageEl = document.getElementById('add-company-message');
+                messageEl.classList.remove('hidden');
+                
+                if (type === 'success') {
+                    messageEl.className = 'bg-green-50 border-l-4 border-green-500 p-4 mt-4';
+                    messageEl.innerHTML = \`
+                        <div class="flex items-center">
+                            <i class="fas fa-check-circle text-green-600 text-xl mr-3"></i>
+                            <div>
+                                <p class="text-sm font-semibold text-green-800">Success!</p>
+                                <p class="text-sm text-green-700 mt-1">\${message}</p>
+                            </div>
+                        </div>
+                    \`;
+                } else {
+                    messageEl.className = 'bg-red-50 border-l-4 border-red-500 p-4 mt-4';
+                    messageEl.innerHTML = \`
+                        <div class="flex items-center">
+                            <i class="fas fa-exclamation-circle text-red-600 text-xl mr-3"></i>
+                            <div>
+                                <p class="text-sm font-semibold text-red-800">Error</p>
+                                <p class="text-sm text-red-700 mt-1">\${message}</p>
+                            </div>
+                        </div>
+                    \`;
+                }
+
+                // Auto-hide success messages after 5 seconds
+                if (type === 'success') {
+                    setTimeout(() => {
+                        messageEl.classList.add('hidden');
+                    }, 5000);
                 }
             }
 
