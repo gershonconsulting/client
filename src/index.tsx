@@ -1252,67 +1252,109 @@ app.get('/', (c) => {
                     <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
                         <p class="text-sm text-blue-800">
                             <i class="fas fa-info-circle mr-2"></i>
-                            <strong>Data Sources:</strong> View the source URLs for PROMOTE, NETWORK, and ENGAGE sections.
+                            <strong>Data Sources:</strong> Edit the source URLs for PROMOTE, NETWORK, and ENGAGE sections.
                         </p>
                     </div>
 
-                    <!-- PROMOTE Source -->
-                    <div class="mb-6 p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
-                        <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-                            <i class="fas fa-bullhorn text-yellow-600 mr-2"></i>
-                            PROMOTE Data Source
-                        </h3>
-                        <div class="space-y-2">
-                            <label class="text-sm font-medium text-gray-700">Source URL:</label>
-                            <div id="source-promote" class="bg-white border border-gray-300 rounded px-4 py-3 text-sm text-gray-600 font-mono break-all">
-                                Not configured yet
+                    <form id="edit-sources-form" class="space-y-6" onsubmit="return false;">
+                        <!-- PROMOTE Source -->
+                        <div class="p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                                <i class="fas fa-bullhorn text-yellow-600 mr-2"></i>
+                                PROMOTE Data Source
+                            </h3>
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium text-gray-700">Source URL:</label>
+                                <input 
+                                    type="url" 
+                                    id="edit-promote-url" 
+                                    placeholder="https://..."
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 font-mono text-sm"
+                                />
+                                <p class="text-xs text-gray-500 mt-2">
+                                    <i class="fas fa-calendar-alt mr-1"></i>
+                                    Marketing campaigns and promotional activities data source
+                                </p>
                             </div>
-                            <p class="text-xs text-gray-500 mt-2">
-                                <i class="fas fa-calendar-alt mr-1"></i>
-                                Marketing campaigns and promotional activities data source
-                            </p>
                         </div>
-                    </div>
 
-                    <!-- NETWORK Source -->
-                    <div class="mb-6 p-6 bg-blue-50 border border-blue-200 rounded-lg">
-                        <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-                            <i class="fas fa-users text-blue-600 mr-2"></i>
-                            NETWORK Data Source
-                        </h3>
-                        <div class="space-y-2">
-                            <label class="text-sm font-medium text-gray-700">Source URL:</label>
-                            <div id="source-network" class="bg-white border border-gray-300 rounded px-4 py-3 text-sm font-mono break-all">
-                                <a href="#" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline">
-                                    Loading...
-                                </a>
+                        <!-- NETWORK Source -->
+                        <div class="p-6 bg-blue-50 border border-blue-200 rounded-lg">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                                <i class="fas fa-users text-blue-600 mr-2"></i>
+                                NETWORK Data Source
+                            </h3>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="text-sm font-medium text-gray-700">Google Sheets URL:</label>
+                                    <input 
+                                        type="url" 
+                                        id="edit-network-url" 
+                                        placeholder="https://docs.google.com/spreadsheets/d/..."
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                                    />
+                                </div>
+                                <div>
+                                    <label class="text-sm font-medium text-gray-700">Sheet GID (optional):</label>
+                                    <input 
+                                        type="text" 
+                                        id="edit-network-gid" 
+                                        placeholder="e.g., 608600451"
+                                        pattern="[0-9]*"
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                                    />
+                                </div>
+                                <p class="text-xs text-gray-500">
+                                    <i class="fas fa-table mr-1"></i>
+                                    LinkedIn networking data from Google Sheets
+                                </p>
                             </div>
-                            <p class="text-xs text-gray-500 mt-2">
-                                <i class="fas fa-table mr-1"></i>
-                                LinkedIn networking data from Google Sheets
-                            </p>
                         </div>
-                    </div>
 
-                    <!-- ENGAGE Source -->
-                    <div class="mb-6 p-6 bg-green-50 border border-green-200 rounded-lg">
-                        <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-                            <i class="fas fa-handshake text-green-600 mr-2"></i>
-                            ENGAGE Data Source
-                        </h3>
-                        <div class="space-y-2">
-                            <label class="text-sm font-medium text-gray-700">Source URL:</label>
-                            <div id="source-engage" class="bg-white border border-gray-300 rounded px-4 py-3 text-sm font-mono break-all">
-                                <a href="#" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline">
-                                    Loading...
-                                </a>
+                        <!-- ENGAGE Source -->
+                        <div class="p-6 bg-green-50 border border-green-200 rounded-lg">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                                <i class="fas fa-handshake text-green-600 mr-2"></i>
+                                ENGAGE Data Source
+                            </h3>
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium text-gray-700">Streak Pipeline URL:</label>
+                                <input 
+                                    type="url" 
+                                    id="edit-engage-url" 
+                                    placeholder="https://www.streak.com/a/pipelines/..."
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 font-mono text-sm"
+                                />
+                                <p class="text-xs text-gray-500 mt-2">
+                                    <i class="fas fa-database mr-1"></i>
+                                    Streak CRM pipeline data
+                                </p>
                             </div>
-                            <p class="text-xs text-gray-500 mt-2">
-                                <i class="fas fa-database mr-1"></i>
-                                Streak CRM pipeline data
-                            </p>
                         </div>
-                    </div>
+
+                        <!-- Save Button -->
+                        <div class="flex items-center space-x-4 pt-4">
+                            <button 
+                                type="button"
+                                onclick="saveSourceURLs()"
+                                class="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-blue-600 hover:to-blue-700 transition-all shadow-lg flex items-center justify-center"
+                            >
+                                <i class="fas fa-save mr-2"></i>
+                                Save Changes
+                            </button>
+                            <button 
+                                type="button"
+                                onclick="updateSettingsView()"
+                                class="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-all flex items-center"
+                            >
+                                <i class="fas fa-undo mr-2"></i>
+                                Reset
+                            </button>
+                        </div>
+
+                        <!-- Success/Error Messages -->
+                        <div id="edit-sources-message" class="hidden mt-4"></div>
+                    </form>
 
                     <!-- Add New Company Section -->
                     <div class="mt-10 pt-8 border-t-2 border-gray-200">
@@ -2498,28 +2540,117 @@ app.get('/', (c) => {
                 // Update company name in settings header
                 document.getElementById('settings-company-name').textContent = company.name;
                 
-                // Update PROMOTE source
-                const promoteEl = document.getElementById('source-promote');
-                if (sources.promote) {
-                    promoteEl.innerHTML = \`<a href="\${sources.promote}" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline">\${sources.promote}</a>\`;
-                } else {
-                    promoteEl.innerHTML = '<span class="text-gray-400">Not configured yet</span>';
+                // Populate input fields with current values
+                document.getElementById('edit-promote-url').value = sources.promote || '';
+                document.getElementById('edit-network-url').value = sources.network || '';
+                document.getElementById('edit-network-gid').value = company.networkSheetGid || '';
+                document.getElementById('edit-engage-url').value = sources.engage || company.url || '';
+                
+                // Hide any previous messages
+                const messageEl = document.getElementById('edit-sources-message');
+                if (messageEl) {
+                    messageEl.classList.add('hidden');
+                }
+            }
+
+            // Save Source URLs Function
+            function saveSourceURLs() {
+                const company = COMPANIES[currentCompany];
+                
+                // Get values from input fields
+                const promoteUrl = document.getElementById('edit-promote-url').value.trim();
+                const networkUrl = document.getElementById('edit-network-url').value.trim();
+                const networkGid = document.getElementById('edit-network-gid').value.trim();
+                const engageUrl = document.getElementById('edit-engage-url').value.trim();
+
+                // Validate URLs if provided
+                if (promoteUrl && !isValidURL(promoteUrl)) {
+                    showEditMessage('error', 'PROMOTE URL is not valid. Please enter a valid URL or leave it empty.');
+                    return;
+                }
+                if (networkUrl && !isValidURL(networkUrl)) {
+                    showEditMessage('error', 'NETWORK URL is not valid. Please enter a valid URL or leave it empty.');
+                    return;
+                }
+                if (engageUrl && !isValidURL(engageUrl)) {
+                    showEditMessage('error', 'ENGAGE URL is not valid. Please enter a valid URL.');
+                    return;
+                }
+                if (networkGid && !/^[0-9]*$/.test(networkGid)) {
+                    showEditMessage('error', 'Network Sheet GID must contain only numbers.');
+                    return;
+                }
+
+                // Update company sources
+                if (!company.sources) {
+                    company.sources = {};
                 }
                 
-                // Update NETWORK source
-                const networkEl = document.getElementById('source-network');
-                if (sources.network) {
-                    networkEl.innerHTML = \`<a href="\${sources.network}" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline">\${sources.network}</a>\`;
+                company.sources.promote = promoteUrl;
+                company.sources.network = networkUrl;
+                company.sources.engage = engageUrl || company.url;
+                
+                // Update network GID if provided
+                if (networkGid) {
+                    company.networkSheetGid = networkGid;
                 } else {
-                    networkEl.innerHTML = '<span class="text-gray-400">Not configured yet</span>';
+                    delete company.networkSheetGid;
                 }
                 
-                // Update ENGAGE source
-                const engageEl = document.getElementById('source-engage');
-                if (sources.engage) {
-                    engageEl.innerHTML = \`<a href="\${sources.engage}" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline">\${sources.engage}</a>\`;
+                // Also update the main URL to match engage URL if provided
+                if (engageUrl) {
+                    company.url = engageUrl;
+                }
+
+                // Show success message
+                showEditMessage('success', \`Source URLs for \${company.name} have been saved successfully! The changes are active for this session.\`);
+
+                // Reload dashboard to reflect changes
+                loadDashboard();
+            }
+
+            // Validate URL
+            function isValidURL(string) {
+                try {
+                    new URL(string);
+                    return true;
+                } catch (_) {
+                    return false;
+                }
+            }
+
+            // Show Edit Message Function
+            function showEditMessage(type, message) {
+                const messageEl = document.getElementById('edit-sources-message');
+                messageEl.classList.remove('hidden');
+                
+                if (type === 'success') {
+                    messageEl.className = 'bg-green-50 border-l-4 border-green-500 p-4 mt-4';
+                    messageEl.innerHTML = \`
+                        <div class="flex items-center">
+                            <i class="fas fa-check-circle text-green-600 text-xl mr-3"></i>
+                            <div>
+                                <p class="text-sm font-semibold text-green-800">Success!</p>
+                                <p class="text-sm text-green-700 mt-1">\${message}</p>
+                            </div>
+                        </div>
+                    \`;
+                    
+                    // Auto-hide after 5 seconds
+                    setTimeout(() => {
+                        messageEl.classList.add('hidden');
+                    }, 5000);
                 } else {
-                    engageEl.innerHTML = '<span class="text-gray-400">Not configured yet</span>';
+                    messageEl.className = 'bg-red-50 border-l-4 border-red-500 p-4 mt-4';
+                    messageEl.innerHTML = \`
+                        <div class="flex items-center">
+                            <i class="fas fa-exclamation-circle text-red-600 text-xl mr-3"></i>
+                            <div>
+                                <p class="text-sm font-semibold text-red-800">Error</p>
+                                <p class="text-sm text-red-700 mt-1">\${message}</p>
+                            </div>
+                        </div>
+                    \`;
                 }
             }
 
