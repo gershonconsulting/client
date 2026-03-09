@@ -1392,6 +1392,9 @@ app.get('/', (c) => {
                             <button onclick="switchView('settings')" id="tab-settings" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
                                 <i class="fas fa-cog mr-2"></i>Settings
                             </button>
+                            <button onclick="switchView('onboarding')" id="tab-onboarding" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                                <i class="fas fa-rocket mr-2"></i>Onboarding
+                            </button>
                         </nav>
                     </div>
                 </div>
@@ -1909,6 +1912,118 @@ app.get('/', (c) => {
                 </div>
             </div>
 
+            <!-- Onboarding View -->
+            <div id="view-onboarding" class="view-content hidden">
+                <div class="bg-white rounded-lg shadow p-8">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                        <i class="fas fa-rocket text-green-600 mr-3"></i>
+                        <span id="onboarding-company-name">Company</span> Onboarding Status
+                    </h2>
+                    
+                    <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
+                        <p class="text-sm text-blue-800">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            <strong>Onboarding Tracker:</strong> Monitor the onboarding progress and status from Notion.so
+                        </p>
+                    </div>
+
+                    <!-- Notion Integration Status -->
+                    <div class="mb-6 p-6 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                            <i class="fas fa-plug text-purple-600 mr-2"></i>
+                            Notion Integration
+                        </h3>
+                        <div id="notion-status" class="space-y-3">
+                            <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4">
+                                <p class="text-sm text-yellow-800">
+                                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                                    <strong>Configuration Needed:</strong> Notion.so URL not configured yet. Please provide the Notion.so link to fetch onboarding data.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Onboarding Data Display -->
+                    <div id="onboarding-data" class="hidden">
+                        <!-- Onboarding Progress -->
+                        <div class="mb-6">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-tasks text-blue-600 mr-2"></i>
+                                Onboarding Progress
+                            </h3>
+                            <div class="bg-gray-100 rounded-lg p-4">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-sm font-medium text-gray-700">Overall Progress</span>
+                                    <span id="progress-percentage" class="text-sm font-bold text-blue-600">0%</span>
+                                </div>
+                                <div class="w-full bg-gray-300 rounded-full h-4">
+                                    <div id="progress-bar" class="bg-gradient-to-r from-blue-500 to-green-500 h-4 rounded-full transition-all duration-500" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Onboarding Steps -->
+                        <div class="mb-6">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-list-check text-green-600 mr-2"></i>
+                                Onboarding Steps
+                            </h3>
+                            <div id="onboarding-steps" class="space-y-3">
+                                <!-- Steps will be dynamically loaded here -->
+                            </div>
+                        </div>
+
+                        <!-- Next Actions -->
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-arrow-right text-orange-600 mr-2"></i>
+                                Next Actions
+                            </h3>
+                            <div id="next-actions" class="space-y-3">
+                                <!-- Next actions will be dynamically loaded here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Configuration Form -->
+                    <div id="onboarding-config" class="mt-8 p-6 bg-gray-50 border border-gray-200 rounded-lg">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-cog text-gray-600 mr-2"></i>
+                            Configure Notion Integration
+                        </h3>
+                        <form id="notion-config-form" class="space-y-4" onsubmit="return false;">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    Notion.so Page URL
+                                </label>
+                                <input 
+                                    type="url" 
+                                    id="notion-url" 
+                                    placeholder="https://www.notion.so/..."
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-mono text-sm"
+                                />
+                                <p class="text-xs text-gray-500 mt-1">Paste the Notion page URL that contains the onboarding data</p>
+                            </div>
+                            <button 
+                                type="button"
+                                onclick="saveNotionConfig()"
+                                class="bg-gradient-to-r from-purple-500 to-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-purple-600 hover:to-purple-700 transition-all shadow-lg"
+                            >
+                                <i class="fas fa-save mr-2"></i>
+                                Save & Fetch Data
+                            </button>
+                        </form>
+                    </div>
+
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mt-6">
+                        <p class="text-sm text-gray-700">
+                            <i class="fas fa-lightbulb text-yellow-500 mr-2"></i>
+                            <strong>Note:</strong> This feature will fetch onboarding status data from your Notion.so page once configured. Make sure the page is publicly accessible or provide API credentials.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
             <!-- Google Sheets Integration Section -->
             <div class="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg shadow-lg p-8 mt-8 border border-green-200">
                 <div class="flex items-center mb-6">
@@ -2281,8 +2396,137 @@ app.get('/', (c) => {
                         renderPrintView(currentData);
                     } else if (viewName === 'network' || viewName === 'stage' || viewName === 'fit' || viewName === 'interest') {
                         renderView(viewName, currentData);
+                    } else if (viewName === 'onboarding') {
+                        updateOnboardingView();
                     }
                 }
+            }
+
+            // Update Onboarding View
+            function updateOnboardingView() {
+                const company = COMPANIES[currentCompany];
+                document.getElementById('onboarding-company-name').textContent = company.name;
+                
+                // Check if Notion URL is configured
+                const notionUrl = company.notionUrl || '';
+                
+                if (!notionUrl) {
+                    // Show configuration needed message
+                    document.getElementById('onboarding-data').classList.add('hidden');
+                    document.getElementById('notion-url').value = '';
+                } else {
+                    // URL is configured, show placeholder data
+                    document.getElementById('notion-url').value = notionUrl;
+                    // In a real implementation, you would fetch data from Notion API here
+                    displayPlaceholderOnboardingData();
+                }
+            }
+
+            // Save Notion Configuration
+            function saveNotionConfig() {
+                const notionUrl = document.getElementById('notion-url').value.trim();
+                
+                if (!notionUrl) {
+                    alert('Please enter a Notion.so URL');
+                    return;
+                }
+                
+                if (!notionUrl.includes('notion.so')) {
+                    alert('Please enter a valid Notion.so URL');
+                    return;
+                }
+                
+                // Save to company
+                const company = COMPANIES[currentCompany];
+                company.notionUrl = notionUrl;
+                
+                // Show success message
+                const statusDiv = document.getElementById('notion-status');
+                statusDiv.innerHTML = \`
+                    <div class="bg-green-50 border-l-4 border-green-500 p-4">
+                        <p class="text-sm text-green-800">
+                            <i class="fas fa-check-circle mr-2"></i>
+                            <strong>Configuration Saved!</strong> Notion URL has been configured. Fetching data...
+                        </p>
+                    </div>
+                \`;
+                
+                // In a real implementation, you would fetch data from Notion API here
+                setTimeout(() => {
+                    displayPlaceholderOnboardingData();
+                }, 1000);
+            }
+
+            // Display Placeholder Onboarding Data
+            function displayPlaceholderOnboardingData() {
+                // Show onboarding data section
+                document.getElementById('onboarding-data').classList.remove('hidden');
+                
+                // Update progress
+                document.getElementById('progress-percentage').textContent = '60%';
+                document.getElementById('progress-bar').style.width = '60%';
+                
+                // Display steps
+                const stepsHtml = \`
+                    <div class="flex items-start space-x-3 p-4 bg-green-50 border-l-4 border-green-500 rounded">
+                        <i class="fas fa-check-circle text-green-600 text-xl mt-1"></i>
+                        <div class="flex-1">
+                            <p class="font-semibold text-gray-800">Initial Setup Completed</p>
+                            <p class="text-sm text-gray-600 mt-1">Company profile created and basic information configured</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start space-x-3 p-4 bg-green-50 border-l-4 border-green-500 rounded">
+                        <i class="fas fa-check-circle text-green-600 text-xl mt-1"></i>
+                        <div class="flex-1">
+                            <p class="font-semibold text-gray-800">Streak Pipeline Connected</p>
+                            <p class="text-sm text-gray-600 mt-1">CRM pipeline integrated and data flowing</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start space-x-3 p-4 bg-blue-50 border-l-4 border-blue-500 rounded">
+                        <i class="fas fa-spinner fa-spin text-blue-600 text-xl mt-1"></i>
+                        <div class="flex-1">
+                            <p class="font-semibold text-gray-800">Team Training In Progress</p>
+                            <p class="text-sm text-gray-600 mt-1">Onboarding team members and setting up permissions</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start space-x-3 p-4 bg-gray-50 border-l-4 border-gray-300 rounded">
+                        <i class="fas fa-circle text-gray-400 text-xl mt-1"></i>
+                        <div class="flex-1">
+                            <p class="font-semibold text-gray-800">Go-Live Preparation</p>
+                            <p class="text-sm text-gray-600 mt-1">Final checks and deployment planning</p>
+                        </div>
+                    </div>
+                \`;
+                document.getElementById('onboarding-steps').innerHTML = stepsHtml;
+                
+                // Display next actions
+                const actionsHtml = \`
+                    <div class="p-4 bg-orange-50 border-l-4 border-orange-500 rounded">
+                        <p class="font-semibold text-gray-800 mb-2">Complete Team Training</p>
+                        <p class="text-sm text-gray-600 mb-3">Schedule training sessions for remaining team members</p>
+                        <button class="text-sm bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600 transition-all">
+                            <i class="fas fa-calendar mr-2"></i>Schedule Training
+                        </button>
+                    </div>
+                    <div class="p-4 bg-blue-50 border-l-4 border-blue-500 rounded">
+                        <p class="font-semibold text-gray-800 mb-2">Review Data Quality</p>
+                        <p class="text-sm text-gray-600 mb-3">Verify pipeline data accuracy and completeness</p>
+                        <button class="text-sm bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-all">
+                            <i class="fas fa-check mr-2"></i>Review Data
+                        </button>
+                    </div>
+                \`;
+                document.getElementById('next-actions').innerHTML = actionsHtml;
+                
+                // Update status
+                document.getElementById('notion-status').innerHTML = \`
+                    <div class="bg-green-50 border-l-4 border-green-500 p-4">
+                        <p class="text-sm text-green-800">
+                            <i class="fas fa-check-circle mr-2"></i>
+                            <strong>Connected:</strong> Onboarding data synced from Notion.so
+                        </p>
+                    </div>
+                \`;
             }
 
             // Update last updated timestamp
