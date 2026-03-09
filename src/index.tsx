@@ -888,6 +888,392 @@ app.get('/api/analytics', async (c) => {
   }
 })
 
+// Admin Panel Route
+app.get('/admin', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Admin Panel - Gershon CRM</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <style>
+            body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        </style>
+    </head>
+    <body class="bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen">
+        <!-- Header -->
+        <div class="bg-white shadow-lg border-b-4 border-blue-600">
+            <div class="max-w-7xl mx-auto px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-4">
+                        <div class="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-lg">
+                            <i class="fas fa-shield-alt mr-2"></i>
+                            <span class="font-bold">ADMIN PANEL</span>
+                        </div>
+                        <h1 class="text-2xl font-bold text-gray-800">Company Management</h1>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <span class="text-sm text-gray-600">Version <strong>1.0.0</strong></span>
+                        <a href="/" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-all">
+                            <i class="fas fa-arrow-left mr-2"></i>
+                            Back to Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="max-w-7xl mx-auto px-6 py-8">
+            <!-- Stats Overview -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="bg-white rounded-lg shadow-lg p-6 border-l-4 border-blue-500">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600 font-medium">Total Companies</p>
+                            <p id="total-companies" class="text-3xl font-bold text-gray-800 mt-1">-</p>
+                        </div>
+                        <div class="bg-blue-100 p-4 rounded-lg">
+                            <i class="fas fa-building text-blue-600 text-2xl"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow-lg p-6 border-l-4 border-green-500">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600 font-medium">Configured</p>
+                            <p id="configured-companies" class="text-3xl font-bold text-gray-800 mt-1">-</p>
+                        </div>
+                        <div class="bg-green-100 p-4 rounded-lg">
+                            <i class="fas fa-check-circle text-green-600 text-2xl"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow-lg p-6 border-l-4 border-yellow-500">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600 font-medium">Needs Setup</p>
+                            <p id="needs-setup-companies" class="text-3xl font-bold text-gray-800 mt-1">-</p>
+                        </div>
+                        <div class="bg-yellow-100 p-4 rounded-lg">
+                            <i class="fas fa-exclamation-triangle text-yellow-600 text-2xl"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add New Company Form -->
+            <div class="bg-white rounded-lg shadow-lg p-8 mb-8">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                    <i class="fas fa-plus-circle text-green-600 mr-3"></i>
+                    Add New Company
+                </h2>
+                
+                <form id="add-company-form" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Company Name -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            Company Name <span class="text-red-500">*</span>
+                        </label>
+                        <input 
+                            type="text" 
+                            id="company-name" 
+                            placeholder="e.g., Acme Corporation"
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            required
+                        />
+                    </div>
+
+                    <!-- Company Key -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            Company Key <span class="text-red-500">*</span>
+                        </label>
+                        <input 
+                            type="text" 
+                            id="company-key" 
+                            placeholder="e.g., acme-corp"
+                            pattern="[a-z0-9-]+"
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono"
+                            required
+                        />
+                        <p class="text-xs text-gray-500 mt-1">Lowercase letters, numbers, and hyphens only</p>
+                    </div>
+
+                    <!-- Streak Pipeline Key -->
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            Streak Pipeline Key <span class="text-red-500">*</span>
+                        </label>
+                        <textarea 
+                            id="pipeline-key" 
+                            rows="2"
+                            placeholder="e.g., agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlh..."
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                            required
+                        ></textarea>
+                    </div>
+
+                    <!-- ENGAGE URL -->
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            ENGAGE URL (Streak Pipeline) <span class="text-red-500">*</span>
+                        </label>
+                        <input 
+                            type="url" 
+                            id="engage-url" 
+                            placeholder="https://www.streak.com/a/pipelines/..."
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 font-mono text-sm"
+                            required
+                        />
+                    </div>
+
+                    <!-- NETWORK URL -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            NETWORK URL (Google Sheets)
+                        </label>
+                        <input 
+                            type="url" 
+                            id="network-url" 
+                            placeholder="https://docs.google.com/spreadsheets/..."
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                        />
+                    </div>
+
+                    <!-- Network GID -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            Network Sheet GID
+                        </label>
+                        <input 
+                            type="text" 
+                            id="network-gid" 
+                            placeholder="e.g., 608600451"
+                            pattern="[0-9]*"
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono"
+                        />
+                    </div>
+
+                    <!-- PROMOTE URL -->
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            PROMOTE URL
+                        </label>
+                        <input 
+                            type="url" 
+                            id="promote-url" 
+                            placeholder="https://..."
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 font-mono text-sm"
+                        />
+                    </div>
+
+                    <!-- Buttons -->
+                    <div class="md:col-span-2 flex space-x-4">
+                        <button 
+                            type="submit"
+                            class="flex-1 bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-green-600 hover:to-green-700 transition-all shadow-lg"
+                        >
+                            <i class="fas fa-plus-circle mr-2"></i>
+                            Add Company
+                        </button>
+                        <button 
+                            type="reset"
+                            class="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-all"
+                        >
+                            <i class="fas fa-undo mr-2"></i>
+                            Reset
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Message Display -->
+                <div id="form-message" class="hidden mt-6"></div>
+            </div>
+
+            <!-- Companies List -->
+            <div class="bg-white rounded-lg shadow-lg p-8">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                    <i class="fas fa-list text-blue-600 mr-3"></i>
+                    All Companies
+                </h2>
+                
+                <div id="companies-list" class="space-y-4">
+                    <!-- Companies will be loaded here -->
+                    <p class="text-gray-500 text-center py-8">Loading companies...</p>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            // Load companies on page load
+            let companies = {};
+
+            async function loadCompanies() {
+                try {
+                    const response = await fetch('/api/companies');
+                    const data = await response.json();
+                    companies = {};
+                    
+                    // Convert array to object
+                    data.companies.forEach(company => {
+                        companies[company.key] = company;
+                    });
+
+                    // Update stats
+                    document.getElementById('total-companies').textContent = data.count;
+                    
+                    let configured = 0;
+                    let needsSetup = 0;
+                    
+                    data.companies.forEach(company => {
+                        if (company.url || (company.sources && (company.sources.promote || company.sources.network || company.sources.engage))) {
+                            configured++;
+                        } else {
+                            needsSetup++;
+                        }
+                    });
+                    
+                    document.getElementById('configured-companies').textContent = configured;
+                    document.getElementById('needs-setup-companies').textContent = needsSetup;
+
+                    // Display companies
+                    displayCompanies(data.companies);
+                } catch (error) {
+                    console.error('Error loading companies:', error);
+                    showMessage('error', 'Failed to load companies: ' + error.message);
+                }
+            }
+
+            function displayCompanies(companiesList) {
+                const container = document.getElementById('companies-list');
+                if (companiesList.length === 0) {
+                    container.innerHTML = '<p class="text-gray-500 text-center py-8">No companies found</p>';
+                    return;
+                }
+
+                container.innerHTML = companiesList.map(company => \`
+                    <div class="border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-all">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <h3 class="text-lg font-bold text-gray-800 mb-2">
+                                    <i class="fas fa-building text-blue-600 mr-2"></i>
+                                    \${company.name}
+                                </h3>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                                    <div>
+                                        <span class="text-gray-600 font-medium">Key:</span>
+                                        <code class="ml-2 bg-gray-100 px-2 py-1 rounded text-xs">\${company.key}</code>
+                                    </div>
+                                    <div>
+                                        <span class="text-gray-600 font-medium">Pipeline:</span>
+                                        <span class="ml-2 text-xs text-gray-500">\${company.url ? '✓ Configured' : '⚠ Not set'}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <a href="/?company=\${company.key}" class="ml-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all text-sm">
+                                <i class="fas fa-external-link-alt mr-1"></i>
+                                View
+                            </a>
+                        </div>
+                    </div>
+                \`).join('');
+            }
+
+            // Handle form submission
+            document.getElementById('add-company-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+
+                const name = document.getElementById('company-name').value.trim();
+                const key = document.getElementById('company-key').value.trim();
+                const pipelineKey = document.getElementById('pipeline-key').value.trim();
+                const engageUrl = document.getElementById('engage-url').value.trim();
+                const networkUrl = document.getElementById('network-url').value.trim();
+                const networkGid = document.getElementById('network-gid').value.trim();
+                const promoteUrl = document.getElementById('promote-url').value.trim();
+
+                // Validate
+                if (!/^[a-z0-9-]+$/.test(key)) {
+                    showMessage('error', 'Company Key must contain only lowercase letters, numbers, and hyphens');
+                    return;
+                }
+
+                if (companies[key]) {
+                    showMessage('error', \`Company key "\${key}" already exists\`);
+                    return;
+                }
+
+                // Success
+                showMessage('success', \`Company "\${name}" added successfully! Note: This is session-only. To persist, add to source code.\`);
+                
+                // Add to local list
+                const newCompany = {
+                    key,
+                    name,
+                    url: engageUrl,
+                    sources: {
+                        promote: promoteUrl || '',
+                        network: networkUrl || '',
+                        engage: engageUrl
+                    }
+                };
+                if (networkGid) {
+                    newCompany.networkSheetGid = networkGid;
+                }
+                companies[key] = newCompany;
+
+                // Reload display
+                loadCompanies();
+
+                // Reset form
+                e.target.reset();
+
+                // Scroll to message
+                document.getElementById('form-message').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            });
+
+            function showMessage(type, message) {
+                const messageEl = document.getElementById('form-message');
+                messageEl.classList.remove('hidden');
+                
+                if (type === 'success') {
+                    messageEl.className = 'bg-green-50 border-l-4 border-green-500 p-4 mt-6';
+                    messageEl.innerHTML = \`
+                        <div class="flex items-center">
+                            <i class="fas fa-check-circle text-green-600 text-xl mr-3"></i>
+                            <div>
+                                <p class="text-sm font-semibold text-green-800">Success!</p>
+                                <p class="text-sm text-green-700 mt-1">\${message}</p>
+                            </div>
+                        </div>
+                    \`;
+                    setTimeout(() => messageEl.classList.add('hidden'), 5000);
+                } else {
+                    messageEl.className = 'bg-red-50 border-l-4 border-red-500 p-4 mt-6';
+                    messageEl.innerHTML = \`
+                        <div class="flex items-center">
+                            <i class="fas fa-exclamation-circle text-red-600 text-xl mr-3"></i>
+                            <div>
+                                <p class="text-sm font-semibold text-red-800">Error</p>
+                                <p class="text-sm text-red-700 mt-1">\${message}</p>
+                            </div>
+                        </div>
+                    \`;
+                }
+            }
+
+            // Load on page load
+            loadCompanies();
+        </script>
+    </body>
+    </html>
+  `)
+})
+
 // Default route - Dashboard HTML
 app.get('/', (c) => {
   return c.html(`
@@ -925,6 +1311,7 @@ app.get('/', (c) => {
                         <h1 class="text-4xl font-bold mb-3">
                             <i class="fas fa-chart-line mr-3"></i>
                             Gershon CRM - Client Dashboard
+                            <span class="text-sm font-normal text-blue-200 ml-3">v1.0.0</span>
                         </h1>
                         <!-- Company Selector -->
                         <div class="flex items-center space-x-3">
@@ -946,6 +1333,9 @@ app.get('/', (c) => {
                             <button onclick="refreshDashboard()" class="bg-blue-500 hover:bg-blue-400 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors shadow-md">
                                 <i class="fas fa-sync-alt mr-2"></i>Refresh
                             </button>
+                            <a href="/admin" class="bg-purple-500 hover:bg-purple-400 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors shadow-md">
+                                <i class="fas fa-shield-alt mr-2"></i>Admin Panel
+                            </a>
                         </div>
                     </div>
                     <div class="text-right">
