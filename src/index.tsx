@@ -1156,32 +1156,106 @@ app.get('/admin', (c) => {
                     return;
                 }
 
-                container.innerHTML = companiesList.map(company => \`
+                container.innerHTML = companiesList.map(company => {
+                    const sources = company.sources || {};
+                    return \`
                     <div class="border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-all">
-                        <div class="flex items-start justify-between">
+                        <div class="flex items-start justify-between mb-4">
                             <div class="flex-1">
-                                <h3 class="text-lg font-bold text-gray-800 mb-2">
+                                <h3 class="text-lg font-bold text-gray-800 mb-3">
                                     <i class="fas fa-building text-blue-600 mr-2"></i>
                                     \${company.name}
                                 </h3>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                                    <div>
-                                        <span class="text-gray-600 font-medium">Key:</span>
-                                        <code class="ml-2 bg-gray-100 px-2 py-1 rounded text-xs">\${company.key}</code>
+                                
+                                <!-- Company Key -->
+                                <div class="mb-3">
+                                    <span class="text-gray-600 font-medium text-sm">Key:</span>
+                                    <code class="ml-2 bg-gray-100 px-2 py-1 rounded text-xs font-mono">\${company.key}</code>
+                                </div>
+                                
+                                <!-- Data Sources -->
+                                <div class="space-y-2 mt-4">
+                                    <h4 class="text-sm font-semibold text-gray-700 mb-2">Data Sources:</h4>
+                                    
+                                    <!-- PROMOTE -->
+                                    <div class="flex items-start space-x-2 text-sm">
+                                        <i class="fas fa-bullhorn text-yellow-600 mt-0.5"></i>
+                                        <div class="flex-1">
+                                            <span class="font-medium text-gray-700">PROMOTE:</span>
+                                            \${sources.promote ? 
+                                                \`<a href="\${sources.promote}" target="_blank" class="text-blue-600 hover:underline text-xs ml-2 break-all">\${sources.promote.substring(0, 50)}...</a>\` : 
+                                                '<span class="text-gray-400 text-xs ml-2">Not configured</span>'
+                                            }
+                                        </div>
                                     </div>
-                                    <div>
-                                        <span class="text-gray-600 font-medium">Pipeline:</span>
-                                        <span class="ml-2 text-xs text-gray-500">\${company.url ? '✓ Configured' : '⚠ Not set'}</span>
+                                    
+                                    <!-- NETWORK -->
+                                    <div class="flex items-start space-x-2 text-sm">
+                                        <i class="fas fa-users text-blue-600 mt-0.5"></i>
+                                        <div class="flex-1">
+                                            <span class="font-medium text-gray-700">NETWORK:</span>
+                                            \${sources.network ? 
+                                                \`<a href="\${sources.network}" target="_blank" class="text-blue-600 hover:underline text-xs ml-2 break-all">\${sources.network.substring(0, 50)}...</a>\` : 
+                                                '<span class="text-gray-400 text-xs ml-2">Not configured</span>'
+                                            }
+                                            \${company.networkSheetGid ? \`<span class="text-gray-500 text-xs ml-2">(GID: \${company.networkSheetGid})</span>\` : ''}
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- ENGAGE -->
+                                    <div class="flex items-start space-x-2 text-sm">
+                                        <i class="fas fa-handshake text-green-600 mt-0.5"></i>
+                                        <div class="flex-1">
+                                            <span class="font-medium text-gray-700">ENGAGE:</span>
+                                            \${sources.engage || company.url ? 
+                                                \`<a href="\${sources.engage || company.url}" target="_blank" class="text-blue-600 hover:underline text-xs ml-2 break-all">\${(sources.engage || company.url).substring(0, 50)}...</a>\` : 
+                                                '<span class="text-gray-400 text-xs ml-2">Not configured</span>'
+                                            }
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Pipeline Key -->
+                                    <div class="flex items-start space-x-2 text-sm">
+                                        <i class="fas fa-key text-purple-600 mt-0.5"></i>
+                                        <div class="flex-1">
+                                            <span class="font-medium text-gray-700">Pipeline Key:</span>
+                                            <code class="text-xs ml-2 bg-gray-100 px-2 py-1 rounded break-all">\${company.pipelineKey || 'Not set'}</code>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                            <a href="/?company=\${company.key}" class="ml-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all text-sm">
-                                <i class="fas fa-external-link-alt mr-1"></i>
-                                View
-                            </a>
+                            
+                            <!-- Action Buttons -->
+                            <div class="ml-6 flex flex-col space-y-2">
+                                <a href="/?company=\${company.key}" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all text-sm text-center whitespace-nowrap">
+                                    <i class="fas fa-external-link-alt mr-1"></i>
+                                    View Dashboard
+                                </a>
+                                <button onclick="deleteCompany('\${company.key}', '\${company.name}')" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all text-sm whitespace-nowrap">
+                                    <i class="fas fa-trash-alt mr-1"></i>
+                                    Delete
+                                </button>
+                            </div>
                         </div>
                     </div>
-                \`).join('');
+                \`;
+                }).join('');
+            }
+
+            // Delete Company Function
+            function deleteCompany(companyKey, companyName) {
+                if (!confirm(\`Are you sure you want to delete "\${companyName}"?\\n\\nThis action cannot be undone and will only affect this session.\`)) {
+                    return;
+                }
+                
+                // Remove from companies object
+                delete companies[companyKey];
+                
+                // Show success message
+                showMessage('success', \`Company "\${companyName}" has been deleted successfully! Note: This is session-only. Refresh the page to restore.\`);
+                
+                // Reload companies list
+                loadCompanies();
             }
 
             // Handle form submission
