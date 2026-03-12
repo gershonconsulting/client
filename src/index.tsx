@@ -2,7 +2,12 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/cloudflare-workers'
 
-const app = new Hono()
+// Type definitions for Cloudflare bindings
+type Bindings = {
+  DB: D1Database
+}
+
+const app = new Hono<{ Bindings: Bindings }>()
 
 // Enable CORS for frontend-backend communication
 app.use('/api/*', cors())
@@ -83,6 +88,35 @@ const INTEREST_FIELD = 'Interest'
 // Google Sheets configuration
 const GOOGLE_SHEET_ID = '1NzUlKfHTW6v7i-S59GjtBFlzQwTX2AaeK4gQ4fVSAsw'
 const GOOGLE_SHEET_BASE_URL = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/export?format=csv`
+
+// Helper function to get company from D1 or fallback to COMPANIES object
+async function getCompany(db: D1Database | undefined, companyKey: string) {
+  // Try D1 first if available
+  if (db) {
+    try {
+      const company = await db.prepare('SELECT * FROM companies WHERE key = ?').bind(companyKey).first()
+      if (company) {
+        return {
+          key: company.key as string,
+          name: company.name as string,
+          pipelineKey: company.pipeline_key as string,
+          url: company.url as string,
+          networkSheetGid: company.network_sheet_gid as string | null,
+          sources: {
+            promote: company.promote_url as string | null || '',
+            network: company.network_url as string | null || '',
+            engage: company.engage_url as string | null || ''
+          }
+        }
+      }
+    } catch (error) {
+      console.error('D1 query error, falling back to COMPANIES object:', error)
+    }
+  }
+  
+  // Fallback to COMPANIES object
+  return COMPANIES[companyKey]
+}
 
 // Helper function to make Streak API calls
 async function callStreakAPI(endpoint: string) {
@@ -414,20 +448,103 @@ app.get('/api/sheets/interest/:interestLevel/count', async (c) => {
 })
 
 // List all available companies
+// Get all companies from D1 database
 app.get('/api/companies', async (c) => {
-  const companiesList = Object.keys(COMPANIES).map(key => ({
-    key: key,
-    name: COMPANIES[key].name,
-    url: COMPANIES[key].url
-  }))
-  return c.json({ companies: companiesList, count: companiesList.length })
+  try {
+    const { results } = await c.env.DB.prepare(
+      'SELECT key, name, url, pipeline_key, promote_url, network_url, network_sheet_gid, engage_url, notion_url FROM companies ORDER BY name'
+    ).all()
+    
+    return c.json({ companies: results, count: results.length })
+  } catch (error) {
+    console.error('Error fetching companies:', error)
+    return c.json({ error: 'Failed to fetch companies', companies: [], count: 0 }, 500)
+  }
+})
+
+// Add new company to D1 database
+app.post('/api/companies', async (c) => {
+  try {
+    const body = await c.req.json()
+    const { key, name, pipeline_key, url, promote_url, network_url, network_sheet_gid, engage_url, notion_url } = body
+    
+    // Validate required fields
+    if (!key || !name || !pipeline_key || !url) {
+      return c.json({ error: 'Missing required fields: key, name, pipeline_key, url' }, 400)
+    }
+    
+    // Check if company already exists
+    const existing = await c.env.DB.prepare('SELECT key FROM companies WHERE key = ?').bind(key).first()
+    if (existing) {
+      return c.json({ error: 'Company with this key already exists' }, 409)
+    }
+    
+    // Insert new company
+    await c.env.DB.prepare(
+      `INSERT INTO companies (key, name, pipeline_key, url, promote_url, network_url, network_sheet_gid, engage_url, notion_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(key, name, pipeline_key, url, promote_url || null, network_url || null, network_sheet_gid || null, engage_url || null, notion_url || null).run()
+    
+    return c.json({ success: true, message: 'Company added successfully', key })
+  } catch (error) {
+    console.error('Error adding company:', error)
+    return c.json({ error: 'Failed to add company' }, 500)
+  }
+})
+
+// Delete company from D1 database
+app.delete('/api/companies/:key', async (c) => {
+  try {
+    const key = c.req.param('key')
+    
+    // Check if company exists
+    const existing = await c.env.DB.prepare('SELECT key FROM companies WHERE key = ?').bind(key).first()
+    if (!existing) {
+      return c.json({ error: 'Company not found' }, 404)
+    }
+    
+    // Delete company
+    await c.env.DB.prepare('DELETE FROM companies WHERE key = ?').bind(key).run()
+    
+    return c.json({ success: true, message: 'Company deleted successfully' })
+  } catch (error) {
+    console.error('Error deleting company:', error)
+    return c.json({ error: 'Failed to delete company' }, 500)
+  }
+})
+
+// Update company in D1 database
+app.put('/api/companies/:key', async (c) => {
+  try {
+    const key = c.req.param('key')
+    const body = await c.req.json()
+    const { name, pipeline_key, url, promote_url, network_url, network_sheet_gid, engage_url, notion_url } = body
+    
+    // Check if company exists
+    const existing = await c.env.DB.prepare('SELECT key FROM companies WHERE key = ?').bind(key).first()
+    if (!existing) {
+      return c.json({ error: 'Company not found' }, 404)
+    }
+    
+    // Update company
+    await c.env.DB.prepare(
+      `UPDATE companies 
+       SET name = ?, pipeline_key = ?, url = ?, promote_url = ?, network_url = ?, network_sheet_gid = ?, engage_url = ?, notion_url = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE key = ?`
+    ).bind(name, pipeline_key, url, promote_url || null, network_url || null, network_sheet_gid || null, engage_url || null, notion_url || null, key).run()
+    
+    return c.json({ success: true, message: 'Company updated successfully' })
+  } catch (error) {
+    console.error('Error updating company:', error)
+    return c.json({ error: 'Failed to update company' }, 500)
+  }
 })
 
 // Get total leads for a specific company (case-insensitive)
 app.get('/api/sheets/:companyName/total', async (c) => {
   try {
     const companyName = c.req.param('companyName').toLowerCase()
-    const company = COMPANIES[companyName]
+    const company = await getCompany(c.env.DB, companyName)
     
     if (!company) {
       return c.text('COMPANY_NOT_FOUND')
@@ -447,7 +564,7 @@ app.get('/api/sheets/:companyName/month/:yearMonth/count', async (c) => {
   try {
     const companyName = c.req.param('companyName').toLowerCase()
     const yearMonth = c.req.param('yearMonth') // Format: YYYY-MM
-    const company = COMPANIES[companyName]
+    const company = await getCompany(c.env.DB, companyName)
     
     if (!company) {
       return c.text('COMPANY_NOT_FOUND')
@@ -471,7 +588,7 @@ app.get('/api/sheets/:companyName/month/:yearMonth/count', async (c) => {
 app.get('/api/sheets/:companyName/week/count', async (c) => {
   try {
     const companyName = c.req.param('companyName').toLowerCase()
-    const company = COMPANIES[companyName]
+    const company = await getCompany(c.env.DB, companyName)
     
     if (!company) {
       return c.text('ERROR')
@@ -503,7 +620,7 @@ app.get('/api/sheets/:companyName/week/count', async (c) => {
 app.get('/api/sheets/:companyName/duration/total', async (c) => {
   try {
     const companyName = c.req.param('companyName').toLowerCase()
-    const company = COMPANIES[companyName]
+    const company = await getCompany(c.env.DB, companyName)
     
     if (!company) {
       return c.text('0')
@@ -541,7 +658,7 @@ app.get('/api/sheets/:companyName/duration/total', async (c) => {
 app.get('/api/sheets/:companyName/monthly-stats', async (c) => {
   try {
     const companyName = c.req.param('companyName').toLowerCase()
-    const company = COMPANIES[companyName]
+    const company = await getCompany(c.env.DB, companyName)
     
     if (!company) {
       return c.json({ error: 'Company not found' }, 404)
@@ -599,7 +716,7 @@ app.get('/api/sheets/:companyName/monthly-stats', async (c) => {
 app.get('/api/sheets/:companyName/due', async (c) => {
   try {
     const companyName = c.req.param('companyName').toLowerCase().replace(/ /g, '-')
-    const company = COMPANIES[companyName]
+    const company = await getCompany(c.env.DB, companyName)
     
     if (!company) {
       return c.text('COMPANY_NOT_FOUND')
@@ -649,7 +766,7 @@ app.get('/api/sheets/:companyName/due', async (c) => {
 app.get('/api/sheets/:companyName/overdue', async (c) => {
   try {
     const companyName = c.req.param('companyName').toLowerCase().replace(/ /g, '-')
-    const company = COMPANIES[companyName]
+    const company = await getCompany(c.env.DB, companyName)
     
     if (!company) {
       return c.text('COMPANY_NOT_FOUND')
@@ -699,7 +816,7 @@ app.get('/api/analytics', async (c) => {
   try {
     // Get company from query parameter or default to MabSilico
     const companyKey = c.req.query('company') || 'mabsilico'
-    const company = COMPANIES[companyKey]
+    const company = await getCompany(c.env.DB, companyKey)
     
     if (!company) {
       return c.json({ error: 'Invalid company key' }, 400)
@@ -2432,9 +2549,63 @@ app.get('/', (c) => {
             let stageChart, fitChart;
             let currentData = null;
             let currentCompany = 'mabsilico'; // Default company
+            let COMPANIES = {}; // Will be loaded from API
 
-            // Company configuration
-            const COMPANIES = {
+            // Load companies from API on page load
+            async function loadCompanies() {
+                try {
+                    const response = await fetch('/api/companies');
+                    const data = await response.json();
+                    
+                    // Transform API response into COMPANIES object format
+                    COMPANIES = {};
+                    data.companies.forEach(company => {
+                        COMPANIES[company.key] = {
+                            name: company.name,
+                            pipelineKey: company.pipeline_key,
+                            url: company.url,
+                            networkSheetGid: company.network_sheet_gid,
+                            notionUrl: company.notion_url,
+                            sources: {
+                                promote: company.promote_url || '',
+                                network: company.network_url || '',
+                                engage: company.engage_url || ''
+                            }
+                        };
+                    });
+                    
+                    // Update company selector
+                    updateCompanySelector();
+                    
+                    // Load default company data
+                    if (COMPANIES[currentCompany]) {
+                        fetchCompanyData(currentCompany);
+                    }
+                } catch (error) {
+                    console.error('Error loading companies:', error);
+                    alert('Failed to load companies. Please refresh the page.');
+                }
+            }
+
+            // Update company selector dropdown with companies from API
+            function updateCompanySelector() {
+                const selector = document.getElementById('company-selector');
+                if (!selector) return;
+                
+                selector.innerHTML = '';
+                Object.keys(COMPANIES).forEach(key => {
+                    const option = document.createElement('option');
+                    option.value = key;
+                    option.textContent = COMPANIES[key].name;
+                    if (key === currentCompany) {
+                        option.selected = true;
+                    }
+                    selector.appendChild(option);
+                });
+            }
+
+            // Company configuration (fallback - will be replaced by API data)
+            const COMPANIES_FALLBACK = {
                 'mabsilico': {
                     name: 'MabSilico',
                     pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw',
@@ -2510,7 +2681,7 @@ app.get('/', (c) => {
             // Fetch data for a specific company
             async function fetchCompanyData(companyKey) {
                 try {
-                    const company = COMPANIES[companyKey];
+                    const company = await getCompany(c.env.DB, companyKey);
                     const response = await fetch(\`/api/analytics?company=\${companyKey}\`);
                     
                     if (!response.ok) {
@@ -2596,7 +2767,7 @@ app.get('/', (c) => {
             }
 
             // Save Notion Configuration
-            function saveNotionConfig() {
+            async function saveNotionConfig() {
                 const notionUrl = document.getElementById('notion-url').value.trim();
                 
                 if (!notionUrl) {
@@ -2609,25 +2780,52 @@ app.get('/', (c) => {
                     return;
                 }
                 
-                // Save to company
-                const company = COMPANIES[currentCompany];
-                company.notionUrl = notionUrl;
-                
-                // Show success message
-                const statusDiv = document.getElementById('notion-status');
-                statusDiv.innerHTML = \`
-                    <div class="bg-green-50 border-l-4 border-green-500 p-4">
-                        <p class="text-sm text-green-800">
-                            <i class="fas fa-check-circle mr-2"></i>
-                            <strong>Configuration Saved!</strong> Notion URL has been configured. Fetching data...
-                        </p>
-                    </div>
-                \`;
-                
-                // In a real implementation, you would fetch data from Notion API here
-                setTimeout(() => {
-                    displayPlaceholderOnboardingData();
-                }, 1000);
+                // Save to database via API
+                try {
+                    const company = COMPANIES[currentCompany];
+                    const response = await fetch(\`/api/companies/\${currentCompany}\`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            name: company.name,
+                            pipeline_key: company.pipelineKey,
+                            url: company.url,
+                            promote_url: company.sources?.promote || null,
+                            network_url: company.sources?.network || null,
+                            network_sheet_gid: company.networkSheetGid || null,
+                            engage_url: company.sources?.engage || null,
+                            notion_url: notionUrl
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Failed to save Notion URL');
+                    }
+
+                    // Update local object
+                    company.notionUrl = notionUrl;
+                    
+                    // Show success message
+                    const statusDiv = document.getElementById('notion-status');
+                    statusDiv.innerHTML = \`
+                        <div class="bg-green-50 border-l-4 border-green-500 p-4">
+                            <p class="text-sm text-green-800">
+                                <i class="fas fa-check-circle mr-2"></i>
+                                <strong>Configuration Saved!</strong> Notion URL has been saved to database. Fetching data...
+                            </p>
+                        </div>
+                    \`;
+                    
+                    // In a real implementation, you would fetch data from Notion API here
+                    setTimeout(() => {
+                        displayPlaceholderOnboardingData();
+                    }, 1000);
+                } catch (error) {
+                    console.error('Error saving Notion URL:', error);
+                    alert('Failed to save Notion URL. Please try again.');
+                }
             }
 
             // Display Placeholder Onboarding Data
@@ -3361,7 +3559,7 @@ app.get('/', (c) => {
             }
 
             // Save Source URLs Function
-            function saveSourceURLs() {
+            async function saveSourceURLs() {
                 const company = COMPANIES[currentCompany];
                 
                 // Get values from input fields
@@ -3388,32 +3586,59 @@ app.get('/', (c) => {
                     return;
                 }
 
-                // Update company sources
-                if (!company.sources) {
-                    company.sources = {};
-                }
-                
-                company.sources.promote = promoteUrl;
-                company.sources.network = networkUrl;
-                company.sources.engage = engageUrl || company.url;
-                
-                // Update network GID if provided
-                if (networkGid) {
-                    company.networkSheetGid = networkGid;
-                } else {
-                    delete company.networkSheetGid;
-                }
-                
-                // Also update the main URL to match engage URL if provided
-                if (engageUrl) {
-                    company.url = engageUrl;
-                }
+                // Save to database via API
+                try {
+                    const response = await fetch(\`/api/companies/\${currentCompany}\`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            name: company.name,
+                            pipeline_key: company.pipelineKey,
+                            url: engageUrl || company.url,
+                            promote_url: promoteUrl || null,
+                            network_url: networkUrl || null,
+                            network_sheet_gid: networkGid || null,
+                            engage_url: engageUrl || company.url,
+                            notion_url: company.notionUrl || null
+                        })
+                    });
 
-                // Show success message
-                showEditMessage('success', \`Source URLs for \${company.name} have been saved successfully! The changes are active for this session.\`);
+                    if (!response.ok) {
+                        throw new Error('Failed to save company data');
+                    }
 
-                // Reload dashboard to reflect changes
-                loadDashboard();
+                    // Update local COMPANIES object
+                    if (!company.sources) {
+                        company.sources = {};
+                    }
+                    
+                    company.sources.promote = promoteUrl;
+                    company.sources.network = networkUrl;
+                    company.sources.engage = engageUrl || company.url;
+                    
+                    // Update network GID if provided
+                    if (networkGid) {
+                        company.networkSheetGid = networkGid;
+                    } else {
+                        delete company.networkSheetGid;
+                    }
+                    
+                    // Also update the main URL to match engage URL if provided
+                    if (engageUrl) {
+                        company.url = engageUrl;
+                    }
+
+                    // Show success message
+                    showEditMessage('success', \`Source URLs for \${company.name} have been saved successfully to the database!\`);
+
+                    // Reload dashboard to reflect changes
+                    loadDashboard();
+                } catch (error) {
+                    console.error('Error saving company data:', error);
+                    showEditMessage('error', 'Failed to save company data. Please try again.');
+                }
             }
 
             // Validate URL
@@ -3591,7 +3816,7 @@ app.get('/', (c) => {
             // Load dashboard on page load and setup auto-refresh
             updateSheetsFormulas(); // Initialize Google Sheets formulas
             updateSettingsView(); // Initialize Settings view
-            loadDashboard();
+            loadCompanies(); // Load companies from D1 database (will call loadDashboard internally)
             setupAutoRefresh();
         </script>
     </body>
