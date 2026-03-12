@@ -595,6 +595,105 @@ app.get('/api/sheets/:companyName/monthly-stats', async (c) => {
   }
 })
 
+// Get count of items with pending/overdue dates for a company
+app.get('/api/sheets/:companyName/due', async (c) => {
+  try {
+    const companyName = c.req.param('companyName').toLowerCase().replace(/ /g, '-')
+    const company = COMPANIES[companyName]
+    
+    if (!company) {
+      return c.text('COMPANY_NOT_FOUND')
+    }
+    
+    const [pipeline, boxes] = await Promise.all([
+      callStreakAPI(`/pipelines/${company.pipelineKey}`),
+      callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`)
+    ])
+    
+    if (!Array.isArray(boxes)) {
+      return c.text('0')
+    }
+    
+    // Find the due date field (could be 'Est Start Date', 'Due Date', etc.)
+    const fields = Array.isArray(pipeline.fields) ? pipeline.fields : []
+    const dueDateField = fields.find(f => 
+      f && (f.name === 'Est Start Date' || f.name === 'Due Date' || f.name === 'Start Date')
+    )
+    
+    if (!dueDateField) {
+      return c.text('0')
+    }
+    
+    // Count boxes with due dates (pending or overdue)
+    const now = Date.now()
+    let dueCount = 0
+    
+    boxes.forEach(box => {
+      if (box.fields && box.fields[dueDateField.key]) {
+        const dueDate = box.fields[dueDateField.key]
+        // If there's a due date set, count it as pending
+        if (dueDate) {
+          dueCount++
+        }
+      }
+    })
+    
+    return c.text(dueCount.toString())
+  } catch (error) {
+    console.error('Error fetching due items:', error)
+    return c.text('ERROR')
+  }
+})
+
+// Get count of overdue items for a company
+app.get('/api/sheets/:companyName/overdue', async (c) => {
+  try {
+    const companyName = c.req.param('companyName').toLowerCase().replace(/ /g, '-')
+    const company = COMPANIES[companyName]
+    
+    if (!company) {
+      return c.text('COMPANY_NOT_FOUND')
+    }
+    
+    const [pipeline, boxes] = await Promise.all([
+      callStreakAPI(`/pipelines/${company.pipelineKey}`),
+      callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`)
+    ])
+    
+    if (!Array.isArray(boxes)) {
+      return c.text('0')
+    }
+    
+    // Find the due date field
+    const fields = Array.isArray(pipeline.fields) ? pipeline.fields : []
+    const dueDateField = fields.find(f => 
+      f && (f.name === 'Est Start Date' || f.name === 'Due Date' || f.name === 'Start Date')
+    )
+    
+    if (!dueDateField) {
+      return c.text('0')
+    }
+    
+    // Count boxes with overdue dates (past due)
+    const now = Date.now()
+    let overdueCount = 0
+    
+    boxes.forEach(box => {
+      if (box.fields && box.fields[dueDateField.key]) {
+        const dueDate = box.fields[dueDateField.key]
+        if (dueDate && dueDate < now) {
+          overdueCount++
+        }
+      }
+    })
+    
+    return c.text(overdueCount.toString())
+  } catch (error) {
+    console.error('Error fetching overdue items:', error)
+    return c.text('ERROR')
+  }
+})
+
 // Get analytics summary
 app.get('/api/analytics', async (c) => {
   try {
