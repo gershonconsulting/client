@@ -3846,3 +3846,18 @@ app.get('/', (c) => {
 })
 
 export default app
+
+// Node.js server entry point for Genspark Hosted Deploy
+import { serve } from '@hono/node-server'
+
+const port = parseInt(process.env.PORT || '3000')
+console.log(`🚀 Gershon CRM Dashboard v1.0.0 starting on port ${port}`)
+
+serve({
+  fetch: app.fetch,
+  port
+})
+
+console.log(`✅ Server running at http://localhost:${port}`)
+console.log(`📊 Dashboard: http://localhost:${port}`)
+console.log(`⚙️  Admin Panel: http://localhost:${port}/admin`)
