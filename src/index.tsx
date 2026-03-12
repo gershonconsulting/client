@@ -1459,19 +1459,31 @@ app.get('/admin', (c) => {
             }
 
             // Delete Company Function
-            function deleteCompany(companyKey, companyName) {
-                if (!confirm(\`Are you sure you want to delete "\${companyName}"?\\n\\nThis action cannot be undone and will only affect this session.\`)) {
+            async function deleteCompany(companyKey, companyName) {
+                if (!confirm(\`Are you sure you want to delete "\${companyName}"?\\n\\nThis action cannot be undone and will permanently remove the company from the database.\`)) {
                     return;
                 }
                 
-                // Remove from companies object
-                delete companies[companyKey];
-                
-                // Show success message
-                showMessage('success', \`Company "\${companyName}" has been deleted successfully! Note: This is session-only. Refresh the page to restore.\`);
-                
-                // Reload companies list
-                loadCompanies();
+                try {
+                    const response = await fetch(\`/api/companies/\${companyKey}\`, {
+                        method: 'DELETE'
+                    });
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Failed to delete company');
+                    }
+                    
+                    // Show success message
+                    showMessage('success', \`Company "\${companyName}" has been permanently deleted from the database!\`);
+                    
+                    // Reload companies list from database
+                    loadCompanies();
+                } catch (error) {
+                    console.error('Error deleting company:', error);
+                    showMessage('error', error.message || 'Failed to delete company. Please try again.');
+                }
             }
 
             // Handle form submission
@@ -1492,38 +1504,47 @@ app.get('/admin', (c) => {
                     return;
                 }
 
-                if (companies[key]) {
-                    showMessage('error', \`Company key "\${key}" already exists\`);
-                    return;
-                }
+                // Save to database via API
+                try {
+                    const response = await fetch('/api/companies', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            key,
+                            name,
+                            pipeline_key: pipelineKey,
+                            url: engageUrl,
+                            promote_url: promoteUrl || null,
+                            network_url: networkUrl || null,
+                            network_sheet_gid: networkGid || null,
+                            engage_url: engageUrl || null,
+                            notion_url: null
+                        })
+                    });
 
-                // Success
-                showMessage('success', \`Company "\${name}" added successfully! Note: This is session-only. To persist, add to source code.\`);
-                
-                // Add to local list
-                const newCompany = {
-                    key,
-                    name,
-                    url: engageUrl,
-                    sources: {
-                        promote: promoteUrl || '',
-                        network: networkUrl || '',
-                        engage: engageUrl
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Failed to add company');
                     }
-                };
-                if (networkGid) {
-                    newCompany.networkSheetGid = networkGid;
+
+                    // Success
+                    showMessage('success', \`Company "\${name}" added successfully and saved to database!\`);
+                    
+                    // Reload company list from database
+                    loadCompanies();
+
+                    // Reset form
+                    e.target.reset();
+
+                    // Scroll to message
+                    document.getElementById('form-message').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                } catch (error) {
+                    console.error('Error adding company:', error);
+                    showMessage('error', error.message || 'Failed to add company. Please try again.');
                 }
-                companies[key] = newCompany;
-
-                // Reload display
-                loadCompanies();
-
-                // Reset form
-                e.target.reset();
-
-                // Scroll to message
-                document.getElementById('form-message').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             });
 
             function showMessage(type, message) {
