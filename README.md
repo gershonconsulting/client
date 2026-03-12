@@ -1,10 +1,12 @@
-# Gershon CRM - Client Dashboard
+# Gershon CRM - Client Dashboard v1.0.0
 
 ## Project Overview
 - **Name**: Gershon CRM Client Dashboard
+- **Version**: 1.0.0
 - **Domain**: https://client.gershoncrm.com
 - **Goal**: Multi-company pipeline tracking with three sections: PROMOTE, NETWORK (LinkedIn), and ENGAGE (Streak CRM)
-- **Companies**: 10 tracked companies with individual pipelines and 10 leads/month objective
+- **Companies**: 10+ tracked companies with individual pipelines and 10 leads/month objective
+- **Database**: Cloudflare D1 (SQLite) for persistent multi-user company management
 
 ## 🌐 Subdomain Architecture
 
@@ -56,17 +58,93 @@ This is part of a multi-app ecosystem on gershoncrm.com:
 - **Recent Performance**: Last 4 weeks with color-coded rates
 
 ### Dashboard Features
-- **Company Selector**: Switch between 10 companies
+- **Company Selector**: Switch between 10+ companies
 - **Real-time Analytics**: Live data from Streak API
 - **Google Sheets Integration**: IMPORTDATA formulas for all metrics
 - **Print Report**: One-click PDF export
+- **Admin Panel**: Add/edit/delete companies with persistent database storage
+- **Settings Tab**: Configure source URLs (PROMOTE/NETWORK/ENGAGE) per company
+- **Onboarding Tab**: Track Notion.so integration status per company
+
+## 💾 Database Architecture
+
+### Cloudflare D1 Database
+- **Name**: `gershoncrm-companies`
+- **Type**: SQLite (globally distributed edge database)
+- **Purpose**: Persistent multi-user company management
+- **Location**: Local dev (`/.wrangler/state/v3/d1/`), Production (Cloudflare D1)
+
+### Companies Table Schema
+```sql
+CREATE TABLE companies (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  key TEXT UNIQUE NOT NULL,              -- Company identifier (lowercase)
+  name TEXT NOT NULL,                     -- Display name
+  pipeline_key TEXT NOT NULL,             -- Streak pipeline identifier
+  url TEXT NOT NULL,                      -- Main Streak URL
+  promote_url TEXT,                       -- PROMOTE section URL
+  network_url TEXT,                       -- NETWORK section Google Sheets URL
+  network_sheet_gid TEXT,                 -- Google Sheets tab GID
+  engage_url TEXT,                        -- ENGAGE section Streak URL
+  notion_url TEXT,                        -- Notion onboarding page URL
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### D1 Development Commands
+```bash
+# Local development
+npm run db:migrate:local    # Apply migrations to local D1
+npm run db:seed             # Seed database with initial companies
+npm run db:reset            # Reset local database
+npm run db:console:local    # Execute SQL on local D1
+
+# Production
+npm run db:migrate:prod     # Apply migrations to production D1
+npm run db:console:prod     # Execute SQL on production D1
+```
 
 ## 🔌 API Endpoints
 
-### Company Management
+### Company Management (D1 Database)
 ```bash
+# Get all companies
 GET /api/companies
-# Returns list of all 10 tracked companies
+# Returns: { companies: [...], count: 10 }
+
+# Add new company
+POST /api/companies
+Content-Type: application/json
+{
+  "key": "company-key",
+  "name": "Company Name",
+  "pipeline_key": "streak-pipeline-key",
+  "url": "https://www.streak.com/...",
+  "promote_url": "https://...",         // optional
+  "network_url": "https://docs.google.com/...",  // optional
+  "network_sheet_gid": "123456",        // optional
+  "engage_url": "https://www.streak.com/...",    // optional
+  "notion_url": "https://notion.so/..."  // optional
+}
+
+# Update company
+PUT /api/companies/:key
+Content-Type: application/json
+{
+  "name": "Updated Name",
+  "pipeline_key": "...",
+  "url": "...",
+  "promote_url": "...",
+  "network_url": "...",
+  "network_sheet_gid": "...",
+  "engage_url": "...",
+  "notion_url": "..."
+}
+
+# Delete company
+DELETE /api/companies/:key
+# Returns: { success: true, message: "Company deleted successfully" }
 ```
 
 ### Company-Specific Endpoints
@@ -153,12 +231,15 @@ GET /api/sheets/interest/:level/count     # high/medium/low
 
 ## 🗂️ Data Architecture
 
-### Per-Company Configuration
+### Per-Company Configuration (from D1 Database)
 Each company has:
 - **Pipeline Key**: Unique Streak pipeline identifier
-- **Network Sheet GID**: Google Sheets tab for LinkedIn data (MabSilico only currently)
+- **Network Sheet GID**: Google Sheets tab for LinkedIn data
+- **Source URLs**: PROMOTE, NETWORK, ENGAGE section URLs
+- **Notion URL**: Onboarding tracking page
 - **Independent Data**: Separate tracking and objectives
 - **Individual Formulas**: Auto-generated per company
+- **Multi-User Support**: All users see the same companies from D1 database
 
 ### NETWORK Data (from Google Sheets)
 - **Source**: CSV export from Google Sheets
@@ -174,14 +255,37 @@ Each company has:
 
 ## 🚀 Deployment
 
-### Build & Deploy
+### Local Development with D1
 ```bash
 cd /home/user/webapp
+
+# First time setup - create and seed D1 database
+npm run db:migrate:local    # Create tables
+npm run db:seed             # Load initial 10 companies
+
+# Install dependencies and build
 npm install
 npm run build
 
-# Deploy to Cloudflare Pages
-# Set custom domain: client.gershoncrm.com
+# Start dev server with D1
+npm run dev:sandbox
+# OR use PM2 for background process
+pm2 start ecosystem.config.cjs
+```
+
+### Build & Deploy to Production
+```bash
+cd /home/user/webapp
+
+# Apply migrations to production D1 (first time only)
+npm run db:migrate:prod
+
+# Build and deploy
+npm run build
+npm run deploy:prod
+
+# Set custom domain in Cloudflare Dashboard:
+# client.gershoncrm.com → your-cloudflare-pages.pages.dev
 ```
 
 ### Wrangler Configuration
@@ -189,7 +293,15 @@ npm run build
 {
   "name": "gershoncrm-client",
   "compatibility_date": "2026-01-01",
-  "pages_build_output_dir": "./dist"
+  "pages_build_output_dir": "./dist",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "gershoncrm-companies",
+      "database_id": "your-production-database-id"
+    }
+  ]
 }
 ```
 
@@ -201,16 +313,33 @@ client.gershoncrm.com → your-cloudflare-pages.pages.dev
 
 ## 💡 Usage Guide
 
-### Dashboard Users
+### For Dashboard Users
 1. Open https://client.gershoncrm.com
 2. Select company from dropdown (top right)
 3. Choose section:
-   - **PROMOTE**: Coming soon
+   - **PROMOTE**: Marketing campaigns (coming soon)
    - **NETWORK**: LinkedIn networking stats
    - **ENGAGE**: Streak CRM pipeline data
+   - **Settings**: Configure source URLs
+   - **Onboarding**: Track Notion onboarding status
 4. View Google Sheets integration formulas (scroll down)
 
-### Google Sheets Users
+### For Administrators
+1. Navigate to https://client.gershoncrm.com/admin
+2. **Add New Company**:
+   - Enter company name, key, and Streak pipeline key
+   - Optionally configure PROMOTE, NETWORK, ENGAGE URLs
+   - Changes save to D1 database immediately
+   - All users will see the new company
+3. **Delete Company**:
+   - Click "Delete" button on company card
+   - Confirm deletion
+   - Company removed from database for all users
+4. **View Company Data Sources**:
+   - Each company card shows configured URLs
+   - PROMOTE (yellow), NETWORK (blue), ENGAGE (green)
+
+### For Google Sheets Users
 1. Navigate to "Google Sheets Integration" section
 2. Copy IMPORTDATA formulas for your company
 3. Paste into Google Sheets
@@ -242,12 +371,15 @@ For other subdomains (e.g., finance.gershoncrm.com):
 ```
 webapp/
 ├── src/
-│   └── index.tsx          # Main app with 3 sections
+│   └── index.tsx          # Main app with 3 sections + Admin Panel
 ├── public/
 │   └── static/            # Static assets
+├── migrations/            # D1 database migrations
+│   └── 0001_create_companies.sql
 ├── dist/                  # Built application
+├── seed.sql              # Initial company data
 ├── ecosystem.config.cjs   # PM2 config (dev only)
-├── wrangler.jsonc        # Cloudflare config
+├── wrangler.jsonc        # Cloudflare config with D1 binding
 ├── package.json          # Dependencies
 └── README.md            # This file
 ```
@@ -255,12 +387,14 @@ webapp/
 ## 🔧 Tech Stack
 - **Backend**: Hono (Cloudflare Workers)
 - **Runtime**: Cloudflare Pages
+- **Database**: Cloudflare D1 (SQLite)
 - **Frontend**: Vanilla JavaScript + Tailwind CSS
 - **Charts**: Chart.js with datalabels
 - **APIs**: 
   - Streak CRM REST API v1
   - Google Sheets CSV export
 - **Deployment**: Cloudflare Pages with custom subdomain
+- **Development**: PM2 for process management
 
 ## 📊 Network Metrics
 
@@ -272,24 +406,31 @@ webapp/
 - **This Week**: 100% acceptance
 
 ## 🎯 Next Steps
-- ✅ 10 companies tracked
+- ✅ 10 companies tracked with D1 database
 - ✅ Three-section dashboard (PROMOTE/NETWORK/ENGAGE)
 - ✅ Google Sheets integration
 - ✅ Campaign duration endpoint
 - ✅ Subdomain ready (client.gershoncrm.com)
+- ✅ Admin Panel with add/edit/delete functionality
+- ✅ Settings tab for source URL configuration
+- ✅ Onboarding tab for Notion integration
+- ✅ Multi-user persistent storage with D1
 - 📋 Add NETWORK data for other companies
 - 📋 Implement PROMOTE section
-- 📋 Deploy to production
+- 📋 Deploy to production with D1 database
 - 📋 Set up finance.gershoncrm.com subdomain
 
 ## 📞 Deployment Notes
 
-**Current Status**: Ready for production deployment
+**Current Status**: Production ready with D1 database integration
+**Version**: v1.0.0
 **Domain**: client.gershoncrm.com
-**Git Commit**: 99fc771
-**Build Size**: 126.13 kB
+**Database**: Cloudflare D1 (gershoncrm-companies)
+**Git Commit**: 90fdd3f
+**Build Size**: 204.99 kB
+**Backup**: https://www.genspark.ai/api/files/s/99sV05Zj
 
 ---
-**Last Updated**: 2026-01-23  
-**Status**: ✅ Production Ready  
+**Last Updated**: 2026-03-12  
+**Status**: ✅ Production Ready with D1 Database  
 **Subdomain**: client.gershoncrm.com
