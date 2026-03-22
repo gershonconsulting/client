@@ -3,14 +3,15 @@
 ## Repository
 - **GitHub**: https://github.com/gershonconsulting/client
 - **Branch**: main
-- **Latest Commit**: 78b9302
+- **Latest Commit**: 30e6e02
 
 ## Deployment Configuration
 
 ### Build Command
 ```bash
-npm install && npm run build
+npm install
 ```
+**Note**: Build is already completed. The `dist/` folder contains pre-built files.
 
 ### Start Command
 ```bash
@@ -82,10 +83,11 @@ Changes to companies will persist only for the current session.
 ### Dependencies
 ```json
 {
-  "@hono/node-server": "^1.14.3",
+  "@hono/node-server": "^1.19.11",
   "hono": "^4.11.3"
 }
 ```
+**No build dependencies required** - all files are pre-built.
 
 ## Deployment Checklist
 
