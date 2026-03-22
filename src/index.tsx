@@ -2,7 +2,11 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/cloudflare-workers'
 
-const app = new Hono()
+type Bindings = {
+  COMPANIES_KV: KVNamespace
+}
+
+const app = new Hono<{ Bindings: Bindings }>()
 
 // Enable CORS for frontend-backend communication
 app.use('/api/*', cors())
@@ -414,13 +418,75 @@ app.get('/api/sheets/interest/:interestLevel/count', async (c) => {
 })
 
 // List all available companies
+// Helper: load all companies (hardcoded defaults + KV overrides)
+async function getAllCompanies(kv: KVNamespace) {
+  const merged: Record<string, any> = {}
+
+  // Start with hardcoded defaults
+  for (const key of Object.keys(COMPANIES)) {
+    const c = COMPANIES[key]
+    merged[key] = { key, name: c.name, pipelineKey: c.pipelineKey, url: c.url || '', networkSheetGid: c.networkSheetGid || '', sources: c.sources || {} }
+  }
+
+  // Overlay with KV entries (new companies or overrides)
+  const kvList = await kv.list({ prefix: 'company:' })
+  for (const item of kvList.keys) {
+    const raw = await kv.get(item.name)
+    if (raw) {
+      const company = JSON.parse(raw)
+      merged[company.key] = company
+    }
+  }
+
+  return Object.values(merged)
+}
+
 app.get('/api/companies', async (c) => {
-  const companiesList = Object.keys(COMPANIES).map(key => ({
-    key: key,
-    name: COMPANIES[key].name,
-    url: COMPANIES[key].url
-  }))
+  const companiesList = await getAllCompanies(c.env.COMPANIES_KV)
   return c.json({ companies: companiesList, count: companiesList.length })
+})
+
+app.post('/api/companies', async (c) => {
+  try {
+    const body = await c.req.json()
+    const { key, name, pipelineKey, engageUrl, networkUrl, networkGid, promoteUrl } = body
+
+    if (!key || !name || !pipelineKey || !engageUrl) {
+      return c.json({ error: 'key, name, pipelineKey and engageUrl are required' }, 400)
+    }
+    if (!/^[a-z0-9-]+$/.test(key)) {
+      return c.json({ error: 'key must be lowercase letters, numbers and hyphens only' }, 400)
+    }
+
+    const company = {
+      key,
+      name,
+      pipelineKey,
+      url: engageUrl,
+      networkSheetGid: networkGid || '',
+      sources: {
+        promote: promoteUrl || '',
+        network: networkUrl || '',
+        engage: engageUrl
+      }
+    }
+
+    await c.env.COMPANIES_KV.put(`company:${key}`, JSON.stringify(company))
+    return c.json({ success: true, company })
+  } catch (err) {
+    return c.json({ error: 'Failed to save company' }, 500)
+  }
+})
+
+app.delete('/api/companies/:key', async (c) => {
+  try {
+    const key = c.req.param('key')
+    // Only allow deleting KV-stored companies (not hardcoded defaults)
+    await c.env.COMPANIES_KV.delete(`company:${key}`)
+    return c.json({ success: true })
+  } catch (err) {
+    return c.json({ error: 'Failed to delete company' }, 500)
+  }
 })
 
 // Get total leads for a specific company (case-insensitive)
@@ -1243,18 +1309,21 @@ app.get('/admin', (c) => {
             }
 
             // Delete Company Function
-            function deleteCompany(companyKey, companyName) {
-                if (!confirm(\`Are you sure you want to delete "\${companyName}"?\\n\\nThis action cannot be undone and will only affect this session.\`)) {
+            async function deleteCompany(companyKey, companyName) {
+                if (!confirm(\`Are you sure you want to delete "\${companyName}"?\\n\\nThis will permanently remove this company.\`)) {
                     return;
                 }
-                
-                // Remove from companies object
-                delete companies[companyKey];
-                
-                // Show success message
-                showMessage('success', \`Company "\${companyName}" has been deleted successfully! Note: This is session-only. Refresh the page to restore.\`);
-                
-                // Reload companies list
+                try {
+                    const response = await fetch(\`/api/companies/\${companyKey}\`, { method: 'DELETE' });
+                    const data = await response.json();
+                    if (data.success) {
+                        showMessage('success', \`Company "\${companyName}" deleted successfully.\`);
+                    } else {
+                        showMessage('error', data.error || 'Failed to delete company');
+                    }
+                } catch (err) {
+                    showMessage('error', 'Network error: ' + err.message);
+                }
                 loadCompanies();
             }
 
@@ -1276,38 +1345,24 @@ app.get('/admin', (c) => {
                     return;
                 }
 
-                if (companies[key]) {
-                    showMessage('error', \`Company key "\${key}" already exists\`);
-                    return;
-                }
-
-                // Success
-                showMessage('success', \`Company "\${name}" added successfully! Note: This is session-only. To persist, add to source code.\`);
-                
-                // Add to local list
-                const newCompany = {
-                    key,
-                    name,
-                    url: engageUrl,
-                    sources: {
-                        promote: promoteUrl || '',
-                        network: networkUrl || '',
-                        engage: engageUrl
+                try {
+                    const response = await fetch('/api/companies', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ key, name, pipelineKey, engageUrl, networkUrl, networkGid, promoteUrl })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        showMessage('success', \`Company "\${name}" added successfully!\`);
+                        loadCompanies();
+                        e.target.reset();
+                        document.getElementById('form-message').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    } else {
+                        showMessage('error', data.error || 'Failed to add company');
                     }
-                };
-                if (networkGid) {
-                    newCompany.networkSheetGid = networkGid;
+                } catch (err) {
+                    showMessage('error', 'Network error: ' + err.message);
                 }
-                companies[key] = newCompany;
-
-                // Reload display
-                loadCompanies();
-
-                // Reset form
-                e.target.reset();
-
-                // Scroll to message
-                document.getElementById('form-message').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             });
 
             function showMessage(type, message) {

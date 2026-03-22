@@ -5,20 +5,11 @@
   "pages_build_output_dir": "./dist",
   "compatibility_flags": [
     "nodejs_compat"
-  ]
-  // D1 Database Configuration (to be added after creating database in Cloudflare Dashboard)
-  // Steps:
-  // 1. Go to Cloudflare Dashboard → Workers & Pages → D1
-  // 2. Create database: "gershoncrm-companies"
-  // 3. Copy the database_id
-  // 4. Uncomment and update the section below:
-  /*
-  ,"d1_databases": [
+  ],
+  "kv_namespaces": [
     {
-      "binding": "DB",
-      "database_name": "gershoncrm-companies",
-      "database_id": "your-production-database-id-here"
+      "binding": "COMPANIES_KV",
+      "id": "99d8d5c662ca467cb60ab93e8e2b02f3"
     }
   ]
-  */
 }
