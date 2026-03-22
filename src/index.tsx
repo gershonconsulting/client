@@ -3863,4 +3863,56 @@ app.get('/', (c) => {
   `)
 })
 
+// Test endpoint to verify Streak API
+app.get('/api/test-streak', async (c) => {
+  try {
+    const company = await getCompany(undefined, 'mabsilico')
+    if (!company) {
+      return c.json({ error: 'Company not found' }, 404)
+    }
+    
+    const pipelineKey = company.pipelineKey
+    
+    // Test basic API call
+    const response = await fetch(`${STREAK_API_BASE}/pipelines/${pipelineKey}`, {
+      headers: {
+        'Authorization': `Basic ${btoa(`${STREAK_API_KEY}:`)}`,
+        'Content-Type': 'application/json'
+      }
+    })
+    
+    const status = response.status
+    const statusText = response.statusText
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      return c.json({ 
+        error: 'Streak API failed',
+        status,
+        statusText,
+        errorText,
+        pipelineKey,
+        apiBase: STREAK_API_BASE,
+        endpoint: `/pipelines/${pipelineKey}`
+      }, 500)
+    }
+    
+    const data = await response.json()
+    
+    return c.json({
+      success: true,
+      status,
+      company: company.name,
+      pipelineKey,
+      pipelineName: data.name || 'Unknown',
+      stageCount: data.stageOrder ? data.stageOrder.length : 0
+    })
+  } catch (error) {
+    return c.json({ 
+      error: error.message,
+      stack: error.stack 
+    }, 500)
+  }
+})
+
 export default app
