@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node dist/index.js",
+    "dev": "node server.js",
     "build": "vite build",
-    "start": "node dist/index.js",
+    "start": "node server.js",
     "clean-port": "fuser -k 3000/tcp 2>/dev/null || true",
     "test": "curl http://localhost:3000"
   },
