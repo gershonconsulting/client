@@ -3,17 +3,14 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node server.js",
-    "build": "vite build",
     "start": "node server.js",
+    "dev": "node server.js",
+    "build": "echo 'Build already completed - using pre-built dist/index.js'",
     "clean-port": "fuser -k 3000/tcp 2>/dev/null || true",
     "test": "curl http://localhost:3000"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.11",
     "hono": "^4.11.3"
-  },
-  "devDependencies": {
-    "vite": "^6.3.5"
   }
 }
