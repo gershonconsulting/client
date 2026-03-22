@@ -449,25 +449,25 @@ app.get('/api/companies', async (c) => {
 app.post('/api/companies', async (c) => {
   try {
     const body = await c.req.json()
-    const { key, name, pipelineKey, engageUrl, networkUrl, networkGid, promoteUrl } = body
+    const { name, pipelineKey, networkUrl, promoteUrl, notionUrl } = body
 
-    if (!key || !name || !pipelineKey || !engageUrl) {
-      return c.json({ error: 'key, name, pipelineKey and engageUrl are required' }, 400)
+    if (!name || !pipelineKey) {
+      return c.json({ error: 'name and pipelineKey are required' }, 400)
     }
-    if (!/^[a-z0-9-]+$/.test(key)) {
-      return c.json({ error: 'key must be lowercase letters, numbers and hyphens only' }, 400)
-    }
+
+    // Auto-generate key from name
+    const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
     const company = {
       key,
       name,
       pipelineKey,
-      url: engageUrl,
-      networkSheetGid: networkGid || '',
+      url: `https://www.streak.com/a/pipelines/${pipelineKey}`,
       sources: {
         promote: promoteUrl || '',
         network: networkUrl || '',
-        engage: engageUrl
+        engage: `https://www.streak.com/a/pipelines/${pipelineKey}`,
+        notion: notionUrl || ''
       }
     }
 
@@ -1041,100 +1041,73 @@ app.get('/admin', (c) => {
                 
                 <form id="add-company-form" class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <!-- Company Name -->
-                    <div>
+                    <div class="md:col-span-2">
                         <label class="block text-sm font-semibold text-gray-700 mb-2">
                             Company Name <span class="text-red-500">*</span>
                         </label>
-                        <input 
-                            type="text" 
-                            id="company-name" 
+                        <input
+                            type="text"
+                            id="company-name"
                             placeholder="e.g., Acme Corporation"
                             class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             required
                         />
                     </div>
 
-                    <!-- Company Key -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            Company Key <span class="text-red-500">*</span>
-                        </label>
-                        <input 
-                            type="text" 
-                            id="company-key" 
-                            placeholder="e.g., acme-corp"
-                            pattern="[a-z0-9-]+"
-                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono"
-                            required
-                        />
-                        <p class="text-xs text-gray-500 mt-1">Lowercase letters, numbers, and hyphens only</p>
-                    </div>
-
-                    <!-- Streak Pipeline Key -->
+                    <!-- Streak Pipeline Key (ENGAGE) -->
                     <div class="md:col-span-2">
                         <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            Streak Pipeline Key <span class="text-red-500">*</span>
+                            <i class="fas fa-handshake text-green-600 mr-1"></i>
+                            ENGAGE — Streak API Key <span class="text-red-500">*</span>
                         </label>
-                        <textarea 
-                            id="pipeline-key" 
+                        <textarea
+                            id="pipeline-key"
                             rows="2"
                             placeholder="e.g., agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlh..."
-                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 font-mono text-sm"
                             required
                         ></textarea>
                     </div>
 
-                    <!-- ENGAGE URL -->
+                    <!-- NETWORK URL -->
                     <div class="md:col-span-2">
                         <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            ENGAGE URL (Streak Pipeline) <span class="text-red-500">*</span>
+                            <i class="fas fa-users text-blue-600 mr-1"></i>
+                            NETWORK — Google Sheets Link
                         </label>
-                        <input 
-                            type="url" 
-                            id="engage-url" 
-                            placeholder="https://www.streak.com/a/pipelines/..."
-                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 font-mono text-sm"
-                            required
-                        />
-                    </div>
-
-                    <!-- NETWORK URL -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            NETWORK URL (Google Sheets)
-                        </label>
-                        <input 
-                            type="url" 
-                            id="network-url" 
+                        <input
+                            type="url"
+                            id="network-url"
                             placeholder="https://docs.google.com/spreadsheets/..."
                             class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
                         />
                     </div>
 
-                    <!-- Network GID -->
+                    <!-- PROMOTE URL -->
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            Network Sheet GID
+                            <i class="fas fa-bullhorn text-yellow-600 mr-1"></i>
+                            PROMOTE URL
                         </label>
-                        <input 
-                            type="text" 
-                            id="network-gid" 
-                            placeholder="e.g., 608600451"
-                            pattern="[0-9]*"
-                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono"
+                        <input
+                            type="url"
+                            id="promote-url"
+                            placeholder="https://..."
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 font-mono text-sm"
                         />
                     </div>
 
-                    <!-- PROMOTE URL -->
-                    <div class="md:col-span-2">
+                    <!-- Notion OnBoarding -->
+                    <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            PROMOTE URL
+                            <i class="fas fa-book text-purple-600 mr-1"></i>
+                            OnBoarding — Notion Link
                         </label>
-                        <input 
-                            type="url" 
-                            id="promote-url" 
-                            placeholder="https://..."
-                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 font-mono text-sm"
+                        <input
+                            type="url"
+                            id="notion-url"
+                            placeholder="https://notion.so/..."
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-mono text-sm"
                         />
                     </div>
 
@@ -1332,24 +1305,16 @@ app.get('/admin', (c) => {
                 e.preventDefault();
 
                 const name = document.getElementById('company-name').value.trim();
-                const key = document.getElementById('company-key').value.trim();
                 const pipelineKey = document.getElementById('pipeline-key').value.trim();
-                const engageUrl = document.getElementById('engage-url').value.trim();
                 const networkUrl = document.getElementById('network-url').value.trim();
-                const networkGid = document.getElementById('network-gid').value.trim();
                 const promoteUrl = document.getElementById('promote-url').value.trim();
-
-                // Validate
-                if (!/^[a-z0-9-]+$/.test(key)) {
-                    showMessage('error', 'Company Key must contain only lowercase letters, numbers, and hyphens');
-                    return;
-                }
+                const notionUrl = document.getElementById('notion-url').value.trim();
 
                 try {
                     const response = await fetch('/api/companies', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ key, name, pipelineKey, engageUrl, networkUrl, networkGid, promoteUrl })
+                        body: JSON.stringify({ name, pipelineKey, networkUrl, promoteUrl, notionUrl })
                     });
                     const data = await response.json();
                     if (data.success) {
