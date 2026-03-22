@@ -916,7 +916,7 @@ app.get('/admin', (c) => {
                         <h1 class="text-2xl font-bold text-gray-800">Company Management</h1>
                     </div>
                     <div class="flex items-center space-x-4">
-                        <span class="text-sm text-gray-600">Version <strong>1.0.0</strong></span>
+                        <span class="text-sm text-gray-600">Version <strong>${__APP_VERSION__}</strong></span>
                         <a href="/" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-all">
                             <i class="fas fa-arrow-left mr-2"></i>
                             Back to Dashboard
@@ -1385,7 +1385,7 @@ app.get('/', (c) => {
                         <h1 class="text-4xl font-bold mb-3">
                             <i class="fas fa-chart-line mr-3"></i>
                             Gershon CRM - Client Dashboard
-                            <span class="text-sm font-normal text-blue-200 ml-3">v1.0.2</span>
+                            <span class="text-sm font-normal text-blue-200 ml-3">v${__APP_VERSION__}</span>
                         </h1>
                         <!-- Company Selector -->
                         <div class="flex items-center space-x-3">
