@@ -1,16 +1,10 @@
 import { defineConfig } from 'vite'
+import pages from '@hono/vite-cloudflare-pages'
 
 export default defineConfig({
+  plugins: [pages()],
   build: {
-    lib: {
-      entry: 'src/index.tsx',
-      formats: ['es'],
-      fileName: 'index'
-    },
-    rollupOptions: {
-      external: ['hono', '@hono/node-server']
-    },
-    ssr: true,
-    outDir: 'dist'
+    outDir: 'dist',
+    minify: true
   }
 })
