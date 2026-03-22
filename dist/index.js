@@ -1,157 +1,110 @@
-import { Hono } from 'hono'
-import { cors } from 'hono/cors'
-
-const app = new Hono()
-
-// Enable CORS for frontend-backend communication
-app.use('/api/*', cors())
-
-// Streak API configuration
-const STREAK_API_KEY = 'e77554988b424c6498d85362b0367757'
-const STREAK_API_BASE = 'https://www.streak.com/api/v1'
-
-// Multi-Company Pipeline Configuration
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { serveStatic } from "@hono/node-server/serve-static";
+import { serve } from "@hono/node-server";
+const app = new Hono();
+app.use("/api/*", cors());
+app.use("/static/*", serveStatic({ root: "./public" }));
+const STREAK_API_KEY = "e77554988b424c6498d85362b0367757";
+const STREAK_API_BASE = "https://www.streak.com/api/v1";
 const COMPANIES = {
-  'mabsilico': {
-    name: 'MabSilico',
-    pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw',
-    url: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw',
-    networkSheetGid: '910674612',
+  "mabsilico": {
+    name: "MabSilico",
+    pipelineKey: "agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw",
+    url: "https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw",
+    networkSheetGid: "910674612",
     sources: {
-      promote: '',
-      network: 'https://docs.google.com/spreadsheets/d/1NzUlKfHTW6v7i-S59GjtBFlzQwTX2AaeK4gQ4fVSAsw/edit?gid=910674612#gid=910674612',
-      engage: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw'
+      promote: "",
+      network: "https://docs.google.com/spreadsheets/d/1NzUlKfHTW6v7i-S59GjtBFlzQwTX2AaeK4gQ4fVSAsw/edit?gid=910674612#gid=910674612",
+      engage: "https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw"
     }
   },
-  'finance-montreal': {
-    name: 'Finance Montreal (Steve)',
-    pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgI7YkpykCQw',
-    url: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgI7YkpykCQw'
+  "finance-montreal": {
+    name: "Finance Montreal (Steve)",
+    pipelineKey: "agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgI7YkpykCQw",
+    url: "https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgI7YkpykCQw"
   },
-  'apm-music': {
-    name: 'APM Music',
-    pipelineKey: 'agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgIClnNb8gwsM',
-    url: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgIClnNb8gwsM'
+  "apm-music": {
+    name: "APM Music",
+    pipelineKey: "agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgIClnNb8gwsM",
+    url: "https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgIClnNb8gwsM"
   },
-  'ducrocq': {
-    name: 'Ducrocq',
-    pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgNaSl4OGCww',
-    url: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgNaSl4OGCww'
+  "ducrocq": {
+    name: "Ducrocq",
+    pipelineKey: "agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgNaSl4OGCww",
+    url: "https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgNaSl4OGCww"
   },
-  'milvue': {
-    name: 'Milvue',
-    pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgMX-7baZCgw',
-    url: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgMX-7baZCgw'
+  "milvue": {
+    name: "Milvue",
+    pipelineKey: "agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgMX-7baZCgw",
+    url: "https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgMX-7baZCgw"
   },
-  'seekyo': {
-    name: 'Seekyo Therapeutics',
-    pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgLnYo_uUCww',
-    url: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgLnYo_uUCww'
+  "seekyo": {
+    name: "Seekyo Therapeutics",
+    pipelineKey: "agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgLnYo_uUCww",
+    url: "https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgLnYo_uUCww"
   },
-  'altavia': {
-    name: 'Altavia',
-    pipelineKey: 'agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgICFz_elmwgM',
-    url: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgICFz_elmwgM'
+  "altavia": {
+    name: "Altavia",
+    pipelineKey: "agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgICFz_elmwgM",
+    url: "https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgICFz_elmwgM"
   },
-  'valos': {
-    name: 'Valos',
-    pipelineKey: 'agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgICF5ei7lgkM',
-    url: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgICF5ei7lgkM'
+  "valos": {
+    name: "Valos",
+    pipelineKey: "agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgICF5ei7lgkM",
+    url: "https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgICF5ei7lgkM"
   },
-  'dab-embedded': {
-    name: 'DAB-Embedded',
-    pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgKWyqIboCww',
-    url: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgKWyqIboCww'
+  "dab-embedded": {
+    name: "DAB-Embedded",
+    pipelineKey: "agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgKWyqIboCww",
+    url: "https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgKWyqIboCww"
   },
-  'finance-montreal-noza': {
-    name: 'Finance Montreal (Noza)',
-    pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgKWVvvDkCgw',
-    url: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgKWVvvDkCgw'
+  "finance-montreal-noza": {
+    name: "Finance Montreal (Noza)",
+    pipelineKey: "agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgKWVvvDkCgw",
+    url: "https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgKWVvvDkCgw"
   }
+};
+const PIPELINE_KEY = COMPANIES["mabsilico"].pipelineKey;
+COMPANIES["mabsilico"].name;
+const FIT_FIELD = "Fit";
+const INTEREST_FIELD = "Interest";
+const GOOGLE_SHEET_ID = "1NzUlKfHTW6v7i-S59GjtBFlzQwTX2AaeK4gQ4fVSAsw";
+const GOOGLE_SHEET_BASE_URL = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/export?format=csv`;
+async function getCompany(db, companyKey) {
+  return COMPANIES[companyKey];
 }
-
-// Default pipeline for backward compatibility
-const PIPELINE_KEY = COMPANIES['mabsilico'].pipelineKey
-const PIPELINE_NAME = COMPANIES['mabsilico'].name
-const FIT_FIELD = 'Fit'
-const INTEREST_FIELD = 'Interest'
-
-// Google Sheets configuration
-const GOOGLE_SHEET_ID = '1NzUlKfHTW6v7i-S59GjtBFlzQwTX2AaeK4gQ4fVSAsw'
-const GOOGLE_SHEET_BASE_URL = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/export?format=csv`
-
-// Helper function to get company from D1 or fallback to COMPANIES object
-async function getCompany(db: D1Database | undefined, companyKey: string) {
-  // Try D1 first if available
-  if (db) {
-    try {
-      const company = await db.prepare('SELECT * FROM companies WHERE key = ?').bind(companyKey).first()
-      if (company) {
-        return {
-          key: company.key as string,
-          name: company.name as string,
-          pipelineKey: company.pipeline_key as string,
-          url: company.url as string,
-          networkSheetGid: company.network_sheet_gid as string | null,
-          sources: {
-            promote: company.promote_url as string | null || '',
-            network: company.network_url as string | null || '',
-            engage: company.engage_url as string | null || ''
-          }
-        }
-      }
-    } catch (error) {
-      console.error('D1 query error, falling back to COMPANIES object:', error)
-    }
-  }
-  
-  // Fallback to COMPANIES object
-  return COMPANIES[companyKey]
-}
-
-// Helper function to make Streak API calls
-async function callStreakAPI(endpoint: string) {
-  const auth = btoa(`${STREAK_API_KEY}:`)
+async function callStreakAPI(endpoint) {
+  const auth = btoa(`${STREAK_API_KEY}:`);
   const response = await fetch(`${STREAK_API_BASE}${endpoint}`, {
     headers: {
-      'Authorization': `Basic ${auth}`,
-      'Content-Type': 'application/json'
+      "Authorization": `Basic ${auth}`,
+      "Content-Type": "application/json"
     }
-  })
-  
+  });
   if (!response.ok) {
-    throw new Error(`Streak API error: ${response.statusText}`)
+    throw new Error(`Streak API error: ${response.statusText}`);
   }
-  
-  return response.json()
+  return response.json();
 }
-
-// Helper function to fetch and parse Network data from Google Sheets
-async function fetchNetworkData(gid: string) {
+async function fetchNetworkData(gid) {
   try {
-    const url = `${GOOGLE_SHEET_BASE_URL}&gid=${gid}`
-    const response = await fetch(url)
-    
+    const url = `${GOOGLE_SHEET_BASE_URL}&gid=${gid}`;
+    const response = await fetch(url);
     if (!response.ok) {
-      throw new Error(`Google Sheets error: ${response.statusText}`)
+      throw new Error(`Google Sheets error: ${response.statusText}`);
     }
-    
-    const csvText = await response.text()
-    const lines = csvText.split('\n').filter(line => line.trim())
-    
-    // Parse CSV (skip header)
-    const data = []
+    const csvText = await response.text();
+    const lines = csvText.split("\n").filter((line) => line.trim());
+    const data = [];
     for (let i = 1; i < lines.length; i++) {
-      const line = lines[i]
-      const cols = line.split(',')
-      
-      // Extract data: W, From, To, Invitations, Messages, Inmails, Follow ups, Acceptance, Opportunities
+      const line = lines[i];
+      const cols = line.split(",");
       if (cols.length >= 9 && cols[3] && cols[3].trim()) {
-        const invitations = parseInt(cols[3]) || 0
-        const messages = parseInt(cols[4]) || 0
-        const acceptance = cols[7] ? cols[7].replace('%', '').trim() : '0'
-        const acceptanceRate = parseFloat(acceptance) || 0
-        
+        const invitations = parseInt(cols[3]) || 0;
+        const messages = parseInt(cols[4]) || 0;
+        const acceptance = cols[7] ? cols[7].replace("%", "").trim() : "0";
+        const acceptanceRate = parseFloat(acceptance) || 0;
         data.push({
           week: cols[0],
           from: cols[1],
@@ -160,60 +113,47 @@ async function fetchNetworkData(gid: string) {
           messages,
           acceptance: acceptanceRate,
           opportunities: parseInt(cols[8]) || 0
-        })
+        });
       }
     }
-    
-    // Calculate metrics
-    const totalInvitations = data.reduce((sum, row) => sum + row.invitations, 0)
-    
-    // Calculate total accepted - the acceptance rate represents messages/invitations ratio
-    // So if acceptance is 75%, it means 75 messages were received from 100 invitations
-    // We want to calculate actual accepted connections, not messages
-    // For simplicity, we'll use the acceptance rate directly as the percentage of accepted invitations
+    const totalInvitations = data.reduce((sum, row) => sum + row.invitations, 0);
     const totalAccepted = data.reduce((sum, row) => {
-      // Cap acceptance at 100% for calculation purposes
-      const cappedRate = Math.min(row.acceptance, 100)
-      return sum + Math.round(row.invitations * cappedRate / 100)
-    }, 0)
-    
-    // Calculate average acceptance rate, capping individual values at 100%
-    const validRates = data.map(row => Math.min(row.acceptance, 100))
-    const avgAcceptanceRate = validRates.length > 0 
-      ? validRates.reduce((sum, rate) => sum + rate, 0) / validRates.length 
-      : 0
-    
-    // Network objective is 20% acceptance rate
-    const networkObjective = 20
-    const objectiveAchievement = avgAcceptanceRate > 0 ? (avgAcceptanceRate / networkObjective) * 100 : 0
-    
-    // Get recent data (last 4 weeks)
-    const recentData = data.slice(-4)
-    const thisWeekData = data[data.length - 1] || { invitations: 0, acceptance: 0 }
-    const lastWeekData = data[data.length - 2] || { invitations: 0, acceptance: 0 }
-    
+      const cappedRate = Math.min(row.acceptance, 100);
+      return sum + Math.round(row.invitations * cappedRate / 100);
+    }, 0);
+    const validRates = data.map((row) => Math.min(row.acceptance, 100));
+    const avgAcceptanceRate = validRates.length > 0 ? validRates.reduce((sum, rate) => sum + rate, 0) / validRates.length : 0;
+    const networkObjective = 20;
+    const objectiveAchievement = avgAcceptanceRate > 0 ? avgAcceptanceRate / networkObjective * 100 : 0;
+    const recentData = data.slice(-4);
+    const thisWeekData = data[data.length - 1] || { invitations: 0, acceptance: 0 };
+    const lastWeekData = data[data.length - 2] || { invitations: 0, acceptance: 0 };
     return {
       totalInvitations,
       totalAccepted,
-      avgAcceptanceRate: Math.round(avgAcceptanceRate * 10) / 10, // Round to 1 decimal
+      avgAcceptanceRate: Math.round(avgAcceptanceRate * 10) / 10,
+      // Round to 1 decimal
       networkObjective,
       objectiveAchievement: Math.round(objectiveAchievement * 10) / 10,
       thisWeek: {
         invitations: thisWeekData.invitations,
-        acceptance: Math.min(thisWeekData.acceptance, 100) // Cap at 100%
+        acceptance: Math.min(thisWeekData.acceptance, 100)
+        // Cap at 100%
       },
       lastWeek: {
         invitations: lastWeekData.invitations,
-        acceptance: Math.min(lastWeekData.acceptance, 100) // Cap at 100%
+        acceptance: Math.min(lastWeekData.acceptance, 100)
+        // Cap at 100%
       },
-      recentWeeks: recentData.map(week => ({
+      recentWeeks: recentData.map((week) => ({
         ...week,
-        acceptance: Math.min(week.acceptance, 100) // Cap display at 100%
+        acceptance: Math.min(week.acceptance, 100)
+        // Cap display at 100%
       })),
       allData: data
-    }
+    };
   } catch (error) {
-    console.error('Error fetching network data:', error)
+    console.error("Error fetching network data:", error);
     return {
       totalInvitations: 0,
       totalAccepted: 0,
@@ -222,263 +162,219 @@ async function fetchNetworkData(gid: string) {
       lastWeek: { invitations: 0, acceptance: 0 },
       recentWeeks: [],
       allData: []
-    }
+    };
   }
 }
-
-// API Routes
-
-// Get pipeline information
-app.get('/api/pipeline', async (c) => {
+app.get("/api/pipeline", async (c) => {
   try {
-    const pipeline = await callStreakAPI(`/pipelines/${PIPELINE_KEY}`)
-    return c.json(pipeline)
+    const pipeline = await callStreakAPI(`/pipelines/${PIPELINE_KEY}`);
+    return c.json(pipeline);
   } catch (error) {
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: error.message }, 500);
   }
-})
-
-// Get all boxes from pipeline
-app.get('/api/boxes', async (c) => {
+});
+app.get("/api/boxes", async (c) => {
   try {
-    const boxes = await callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`)
-    return c.json(boxes)
+    const boxes = await callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`);
+    return c.json(boxes);
   } catch (error) {
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: error.message }, 500);
   }
-})
-
-// Get specific box details
-app.get('/api/boxes/:boxKey', async (c) => {
+});
+app.get("/api/boxes/:boxKey", async (c) => {
   try {
-    const boxKey = c.req.param('boxKey')
-    const box = await callStreakAPI(`/boxes/${boxKey}`)
-    return c.json(box)
+    const boxKey = c.req.param("boxKey");
+    const box = await callStreakAPI(`/boxes/${boxKey}`);
+    return c.json(box);
   } catch (error) {
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: error.message }, 500);
   }
-})
-
-// Google Sheets compatible endpoints - return plain text for IMPORTDATA
-// Get count by stage
-app.get('/api/sheets/stage/:stageName/count', async (c) => {
+});
+app.get("/api/sheets/stage/:stageName/count", async (c) => {
   try {
-    const stageName = c.req.param('stageName')
+    const stageName = c.req.param("stageName");
     const [pipeline, boxes] = await Promise.all([
       callStreakAPI(`/pipelines/${PIPELINE_KEY}`),
       callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`)
-    ])
-    
-    const stageMap = pipeline.stageOrder || []
-    const stages = Array.isArray(stageMap) ? stageMap.map(key => ({
-      key,
-      name: pipeline.stages?.[key]?.name || 'Unknown'
-    })) : []
-    
-    const count = Array.isArray(boxes) ? boxes.filter(box => {
-      const stage = stages.find(s => s && s.key === box.stageKey)
-      return stage && stage.name.toLowerCase() === stageName.toLowerCase()
-    }).length : 0
-    
-    return c.text(count.toString())
+    ]);
+    const stageMap = pipeline.stageOrder || [];
+    const stages = Array.isArray(stageMap) ? stageMap.map((key) => {
+      var _a, _b;
+      return {
+        key,
+        name: ((_b = (_a = pipeline.stages) == null ? void 0 : _a[key]) == null ? void 0 : _b.name) || "Unknown"
+      };
+    }) : [];
+    const count = Array.isArray(boxes) ? boxes.filter((box) => {
+      const stage = stages.find((s) => s && s.key === box.stageKey);
+      return stage && stage.name.toLowerCase() === stageName.toLowerCase();
+    }).length : 0;
+    return c.text(count.toString());
   } catch (error) {
-    return c.text('ERROR')
+    return c.text("ERROR");
   }
-})
-
-// Get count by priority
-app.get('/api/sheets/priority/:priorityName/count', async (c) => {
+});
+app.get("/api/sheets/priority/:priorityName/count", async (c) => {
   try {
-    const priorityName = c.req.param('priorityName')
+    const priorityName = c.req.param("priorityName");
     const [pipeline, boxes] = await Promise.all([
       callStreakAPI(`/pipelines/${PIPELINE_KEY}`),
       callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`)
-    ])
-    
-    const fields = Array.isArray(pipeline.fields) ? pipeline.fields : []
-    const priorityField = fields.find(f => f && f.name === 'Priority')
-    
-    const count = Array.isArray(boxes) ? boxes.filter(box => {
+    ]);
+    const fields = Array.isArray(pipeline.fields) ? pipeline.fields : [];
+    const priorityField = fields.find((f) => f && f.name === "Priority");
+    const count = Array.isArray(boxes) ? boxes.filter((box) => {
+      var _a;
       if (!priorityField || !box.fields || !box.fields[priorityField.key]) {
-        return priorityName.toLowerCase() === 'no priority'
+        return priorityName.toLowerCase() === "no priority";
       }
-      const priorityKey = box.fields[priorityField.key]
-      const items = priorityField.dropdownSettings?.items
-      const priorityItem = Array.isArray(items) ? items.find(i => i && i.key === priorityKey) : null
-      const priority = priorityItem ? priorityItem.name : 'No Priority'
-      return priority.toLowerCase().includes(priorityName.toLowerCase())
-    }).length : 0
-    
-    return c.text(count.toString())
+      const priorityKey = box.fields[priorityField.key];
+      const items = (_a = priorityField.dropdownSettings) == null ? void 0 : _a.items;
+      const priorityItem = Array.isArray(items) ? items.find((i) => i && i.key === priorityKey) : null;
+      const priority = priorityItem ? priorityItem.name : "No Priority";
+      return priority.toLowerCase().includes(priorityName.toLowerCase());
+    }).length : 0;
+    return c.text(count.toString());
   } catch (error) {
-    return c.text('ERROR')
+    return c.text("ERROR");
   }
-})
-
-// Get count by country
-app.get('/api/sheets/country/:countryName/count', async (c) => {
+});
+app.get("/api/sheets/country/:countryName/count", async (c) => {
   try {
-    const countryName = c.req.param('countryName')
+    const countryName = c.req.param("countryName");
     const [pipeline, boxes] = await Promise.all([
       callStreakAPI(`/pipelines/${PIPELINE_KEY}`),
       callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`)
-    ])
-    
-    const fields = Array.isArray(pipeline.fields) ? pipeline.fields : []
-    const countryField = fields.find(f => f && f.name === 'Country')
-    
-    const count = Array.isArray(boxes) ? boxes.filter(box => {
+    ]);
+    const fields = Array.isArray(pipeline.fields) ? pipeline.fields : [];
+    const countryField = fields.find((f) => f && f.name === "Country");
+    const count = Array.isArray(boxes) ? boxes.filter((box) => {
+      var _a;
       if (!countryField || !box.fields || !box.fields[countryField.key]) {
-        return countryName.toLowerCase() === 'unknown'
+        return countryName.toLowerCase() === "unknown";
       }
-      const countryKey = box.fields[countryField.key]
-      const items = countryField.dropdownSettings?.items
-      const countryItem = Array.isArray(items) ? items.find(i => i && i.key === countryKey) : null
-      const country = countryItem ? countryItem.name : 'Unknown'
-      return country.toLowerCase() === countryName.toLowerCase()
-    }).length : 0
-    
-    return c.text(count.toString())
+      const countryKey = box.fields[countryField.key];
+      const items = (_a = countryField.dropdownSettings) == null ? void 0 : _a.items;
+      const countryItem = Array.isArray(items) ? items.find((i) => i && i.key === countryKey) : null;
+      const country = countryItem ? countryItem.name : "Unknown";
+      return country.toLowerCase() === countryName.toLowerCase();
+    }).length : 0;
+    return c.text(count.toString());
   } catch (error) {
-    return c.text('ERROR')
+    return c.text("ERROR");
   }
-})
-
-// Get total boxes count
-app.get('/api/sheets/total', async (c) => {
+});
+app.get("/api/sheets/total", async (c) => {
   try {
-    const boxes = await callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`)
-    const count = Array.isArray(boxes) ? boxes.length : 0
-    return c.text(count.toString())
+    const boxes = await callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`);
+    const count = Array.isArray(boxes) ? boxes.length : 0;
+    return c.text(count.toString());
   } catch (error) {
-    return c.text('ERROR')
+    return c.text("ERROR");
   }
-})
-
-// Get boxes with due dates (relevant stages only)
-// Get count by freshness level
-app.get('/api/sheets/freshness/:level/count', async (c) => {
+});
+app.get("/api/sheets/freshness/:level/count", async (c) => {
   try {
-    const level = c.req.param('level').toLowerCase()
-    const boxes = await callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`)
-    
-    const count = Array.isArray(boxes) ? boxes.filter(box => {
-      const freshness = box.freshness || 0
-      if (level === 'high') {
-        return freshness > 0.5
-      } else if (level === 'medium') {
-        return freshness >= 0.2 && freshness <= 0.5
-      } else if (level === 'low') {
-        return freshness < 0.2
+    const level = c.req.param("level").toLowerCase();
+    const boxes = await callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`);
+    const count = Array.isArray(boxes) ? boxes.filter((box) => {
+      const freshness = box.freshness || 0;
+      if (level === "high") {
+        return freshness > 0.5;
+      } else if (level === "medium") {
+        return freshness >= 0.2 && freshness <= 0.5;
+      } else if (level === "low") {
+        return freshness < 0.2;
       }
-      return false
-    }).length : 0
-    
-    return c.text(count.toString())
+      return false;
+    }).length : 0;
+    return c.text(count.toString());
   } catch (error) {
-    return c.text('ERROR')
+    return c.text("ERROR");
   }
-})
-
-// Get count by FIT level
-app.get('/api/sheets/fit/:fitLevel/count', async (c) => {
+});
+app.get("/api/sheets/fit/:fitLevel/count", async (c) => {
   try {
-    const fitLevel = c.req.param('fitLevel')
+    const fitLevel = c.req.param("fitLevel");
     const [pipeline, boxes] = await Promise.all([
       callStreakAPI(`/pipelines/${PIPELINE_KEY}`),
       callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`)
-    ])
-    
-    const fields = Array.isArray(pipeline.fields) ? pipeline.fields : []
-    const fitField = fields.find(f => f && f.name === FIT_FIELD)
-    
-    const count = Array.isArray(boxes) ? boxes.filter(box => {
+    ]);
+    const fields = Array.isArray(pipeline.fields) ? pipeline.fields : [];
+    const fitField = fields.find((f) => f && f.name === FIT_FIELD);
+    const count = Array.isArray(boxes) ? boxes.filter((box) => {
+      var _a;
       if (!fitField || !box.fields || !box.fields[fitField.key]) {
-        return fitLevel.toLowerCase() === 'not set'
+        return fitLevel.toLowerCase() === "not set";
       }
-      const fitKey = box.fields[fitField.key]
-      const items = fitField.dropdownSettings?.items
-      const fitItem = Array.isArray(items) ? items.find(i => i && i.key === fitKey) : null
-      const fit = fitItem ? fitItem.name : 'Not Set'
-      return fit.toLowerCase() === fitLevel.toLowerCase()
-    }).length : 0
-    
-    return c.text(count.toString())
+      const fitKey = box.fields[fitField.key];
+      const items = (_a = fitField.dropdownSettings) == null ? void 0 : _a.items;
+      const fitItem = Array.isArray(items) ? items.find((i) => i && i.key === fitKey) : null;
+      const fit = fitItem ? fitItem.name : "Not Set";
+      return fit.toLowerCase() === fitLevel.toLowerCase();
+    }).length : 0;
+    return c.text(count.toString());
   } catch (error) {
-    return c.text('ERROR')
+    return c.text("ERROR");
   }
-})
-
-// Get count by INTEREST level
-app.get('/api/sheets/interest/:interestLevel/count', async (c) => {
+});
+app.get("/api/sheets/interest/:interestLevel/count", async (c) => {
   try {
-    const interestLevel = c.req.param('interestLevel')
+    const interestLevel = c.req.param("interestLevel");
     const [pipeline, boxes] = await Promise.all([
       callStreakAPI(`/pipelines/${PIPELINE_KEY}`),
       callStreakAPI(`/pipelines/${PIPELINE_KEY}/boxes`)
-    ])
-    
-    const fields = Array.isArray(pipeline.fields) ? pipeline.fields : []
-    const interestField = fields.find(f => f && f.name === INTEREST_FIELD)
-    
-    const count = Array.isArray(boxes) ? boxes.filter(box => {
+    ]);
+    const fields = Array.isArray(pipeline.fields) ? pipeline.fields : [];
+    const interestField = fields.find((f) => f && f.name === INTEREST_FIELD);
+    const count = Array.isArray(boxes) ? boxes.filter((box) => {
+      var _a;
       if (!interestField || !box.fields || !box.fields[interestField.key]) {
-        return interestLevel.toLowerCase() === 'not set'
+        return interestLevel.toLowerCase() === "not set";
       }
-      const interestKey = box.fields[interestField.key]
-      const items = interestField.dropdownSettings?.items
-      const interestItem = Array.isArray(items) ? items.find(i => i && i.key === interestKey) : null
-      const interest = interestItem ? interestItem.name : 'Not Set'
-      return interest.toLowerCase() === interestLevel.toLowerCase()
-    }).length : 0
-    
-    return c.text(count.toString())
+      const interestKey = box.fields[interestField.key];
+      const items = (_a = interestField.dropdownSettings) == null ? void 0 : _a.items;
+      const interestItem = Array.isArray(items) ? items.find((i) => i && i.key === interestKey) : null;
+      const interest = interestItem ? interestItem.name : "Not Set";
+      return interest.toLowerCase() === interestLevel.toLowerCase();
+    }).length : 0;
+    return c.text(count.toString());
   } catch (error) {
-    return c.text('ERROR')
+    return c.text("ERROR");
   }
-})
-
-// List all available companies
-// Get all companies from D1 database or fallback to COMPANIES object
-app.get('/api/companies', async (c) => {
+});
+app.get("/api/companies", async (c) => {
   try {
-    // For Node.js deployment, use fallback COMPANIES object
-    const companiesList = Object.keys(COMPANIES).map(key => ({
-      key: key,
-      name: COMPANIES[key].name,
-      url: COMPANIES[key].url,
-      pipeline_key: COMPANIES[key].pipelineKey,
-      promote_url: COMPANIES[key].sources?.promote || null,
-      network_url: COMPANIES[key].sources?.network || null,
-      network_sheet_gid: COMPANIES[key].networkSheetGid || null,
-      engage_url: COMPANIES[key].sources?.engage || null,
-      notion_url: COMPANIES[key].notionUrl || null
-    }))
-    
-    return c.json({ companies: companiesList, count: companiesList.length })
+    const companiesList = Object.keys(COMPANIES).map((key) => {
+      var _a, _b, _c;
+      return {
+        key,
+        name: COMPANIES[key].name,
+        url: COMPANIES[key].url,
+        pipeline_key: COMPANIES[key].pipelineKey,
+        promote_url: ((_a = COMPANIES[key].sources) == null ? void 0 : _a.promote) || null,
+        network_url: ((_b = COMPANIES[key].sources) == null ? void 0 : _b.network) || null,
+        network_sheet_gid: COMPANIES[key].networkSheetGid || null,
+        engage_url: ((_c = COMPANIES[key].sources) == null ? void 0 : _c.engage) || null,
+        notion_url: COMPANIES[key].notionUrl || null
+      };
+    });
+    return c.json({ companies: companiesList, count: companiesList.length });
   } catch (error) {
-    console.error('Error fetching companies:', error)
-    return c.json({ error: 'Failed to fetch companies', companies: [], count: 0 }, 500)
+    console.error("Error fetching companies:", error);
+    return c.json({ error: "Failed to fetch companies", companies: [], count: 0 }, 500);
   }
-})
-
-// Add new company (in-memory for Node.js deployment)
-app.post('/api/companies', async (c) => {
+});
+app.post("/api/companies", async (c) => {
   try {
-    const body = await c.req.json()
-    const { key, name, pipeline_key, url, promote_url, network_url, network_sheet_gid, engage_url, notion_url } = body
-    
-    // Validate required fields
+    const body = await c.req.json();
+    const { key, name, pipeline_key, url, promote_url, network_url, network_sheet_gid, engage_url, notion_url } = body;
     if (!key || !name || !pipeline_key || !url) {
-      return c.json({ error: 'Missing required fields: key, name, pipeline_key, url' }, 400)
+      return c.json({ error: "Missing required fields: key, name, pipeline_key, url" }, 400);
     }
-    
-    // Check if company already exists
     if (COMPANIES[key]) {
-      return c.json({ error: 'Company with this key already exists' }, 409)
+      return c.json({ error: "Company with this key already exists" }, 409);
     }
-    
-    // Add company to in-memory object
     COMPANIES[key] = {
       name,
       pipelineKey: pipeline_key,
@@ -486,52 +382,38 @@ app.post('/api/companies', async (c) => {
       networkSheetGid: network_sheet_gid || null,
       notionUrl: notion_url || null,
       sources: {
-        promote: promote_url || '',
-        network: network_url || '',
-        engage: engage_url || ''
+        promote: promote_url || "",
+        network: network_url || "",
+        engage: engage_url || ""
       }
-    }
-    
-    return c.json({ success: true, message: 'Company added successfully (session only)', key })
+    };
+    return c.json({ success: true, message: "Company added successfully (session only)", key });
   } catch (error) {
-    console.error('Error adding company:', error)
-    return c.json({ error: 'Failed to add company' }, 500)
+    console.error("Error adding company:", error);
+    return c.json({ error: "Failed to add company" }, 500);
   }
-})
-
-// Delete company (in-memory for Node.js deployment)
-app.delete('/api/companies/:key', async (c) => {
+});
+app.delete("/api/companies/:key", async (c) => {
   try {
-    const key = c.req.param('key')
-    
-    // Check if company exists
+    const key = c.req.param("key");
     if (!COMPANIES[key]) {
-      return c.json({ error: 'Company not found' }, 404)
+      return c.json({ error: "Company not found" }, 404);
     }
-    
-    // Delete company from in-memory object
-    delete COMPANIES[key]
-    
-    return c.json({ success: true, message: 'Company deleted successfully (session only)' })
+    delete COMPANIES[key];
+    return c.json({ success: true, message: "Company deleted successfully (session only)" });
   } catch (error) {
-    console.error('Error deleting company:', error)
-    return c.json({ error: 'Failed to delete company' }, 500)
+    console.error("Error deleting company:", error);
+    return c.json({ error: "Failed to delete company" }, 500);
   }
-})
-
-// Update company (in-memory for Node.js deployment)
-app.put('/api/companies/:key', async (c) => {
+});
+app.put("/api/companies/:key", async (c) => {
   try {
-    const key = c.req.param('key')
-    const body = await c.req.json()
-    const { name, pipeline_key, url, promote_url, network_url, network_sheet_gid, engage_url, notion_url } = body
-    
-    // Check if company exists
+    const key = c.req.param("key");
+    const body = await c.req.json();
+    const { name, pipeline_key, url, promote_url, network_url, network_sheet_gid, engage_url, notion_url } = body;
     if (!COMPANIES[key]) {
-      return c.json({ error: 'Company not found' }, 404)
+      return c.json({ error: "Company not found" }, 404);
     }
-    
-    // Update company in in-memory object
     COMPANIES[key] = {
       name,
       pipelineKey: pipeline_key,
@@ -539,476 +421,363 @@ app.put('/api/companies/:key', async (c) => {
       networkSheetGid: network_sheet_gid || null,
       notionUrl: notion_url || null,
       sources: {
-        promote: promote_url || '',
-        network: network_url || '',
-        engage: engage_url || ''
+        promote: promote_url || "",
+        network: network_url || "",
+        engage: engage_url || ""
       }
-    }
-    
-    return c.json({ success: true, message: 'Company updated successfully (session only)' })
+    };
+    return c.json({ success: true, message: "Company updated successfully (session only)" });
   } catch (error) {
-    console.error('Error updating company:', error)
-    return c.json({ error: 'Failed to update company' }, 500)
+    console.error("Error updating company:", error);
+    return c.json({ error: "Failed to update company" }, 500);
   }
-})
-
-// Get total leads for a specific company (case-insensitive)
-app.get('/api/sheets/:companyName/total', async (c) => {
+});
+app.get("/api/sheets/:companyName/total", async (c) => {
   try {
-    const companyName = c.req.param('companyName').toLowerCase()
-    const company = await getCompany(undefined, companyName)
-    
+    const companyName = c.req.param("companyName").toLowerCase();
+    const company = await getCompany(void 0, companyName);
     if (!company) {
-      return c.text('COMPANY_NOT_FOUND')
+      return c.text("COMPANY_NOT_FOUND");
     }
-    
-    const boxes = await callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`)
-    const count = Array.isArray(boxes) ? boxes.length : 0
-    
-    return c.text(count.toString())
+    const boxes = await callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`);
+    const count = Array.isArray(boxes) ? boxes.length : 0;
+    return c.text(count.toString());
   } catch (error) {
-    return c.text('ERROR')
+    return c.text("ERROR");
   }
-})
-
-// Get leads created in a specific month for a company (format: YYYY-MM)
-app.get('/api/sheets/:companyName/month/:yearMonth/count', async (c) => {
+});
+app.get("/api/sheets/:companyName/month/:yearMonth/count", async (c) => {
   try {
-    const companyName = c.req.param('companyName').toLowerCase()
-    const yearMonth = c.req.param('yearMonth') // Format: YYYY-MM
-    const company = await getCompany(undefined, companyName)
-    
+    const companyName = c.req.param("companyName").toLowerCase();
+    const yearMonth = c.req.param("yearMonth");
+    const company = await getCompany(void 0, companyName);
     if (!company) {
-      return c.text('COMPANY_NOT_FOUND')
+      return c.text("COMPANY_NOT_FOUND");
     }
-    
-    const boxes = await callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`)
-    const [year, month] = yearMonth.split('-').map(Number)
-    
-    const count = Array.isArray(boxes) ? boxes.filter(box => {
-      const createdDate = new Date(box.creationTimestamp)
-      return createdDate.getFullYear() === year && (createdDate.getMonth() + 1) === month
-    }).length : 0
-    
-    return c.text(count.toString())
+    const boxes = await callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`);
+    const [year, month] = yearMonth.split("-").map(Number);
+    const count = Array.isArray(boxes) ? boxes.filter((box) => {
+      const createdDate = new Date(box.creationTimestamp);
+      return createdDate.getFullYear() === year && createdDate.getMonth() + 1 === month;
+    }).length : 0;
+    return c.text(count.toString());
   } catch (error) {
-    return c.text('ERROR')
+    return c.text("ERROR");
   }
-})
-
-// Get leads count for the past week for a company
-app.get('/api/sheets/:companyName/week/count', async (c) => {
+});
+app.get("/api/sheets/:companyName/week/count", async (c) => {
   try {
-    const companyName = c.req.param('companyName').toLowerCase()
-    const company = await getCompany(undefined, companyName)
-    
+    const companyName = c.req.param("companyName").toLowerCase();
+    const company = await getCompany(void 0, companyName);
     if (!company) {
-      return c.text('ERROR')
+      return c.text("ERROR");
     }
-    
-    const boxes = await callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`)
-    
+    const boxes = await callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`);
     if (!Array.isArray(boxes)) {
-      return c.text('0')
+      return c.text("0");
     }
-    
-    // Calculate timestamp for 7 days ago
-    const now = Date.now()
-    const oneWeekAgo = now - (7 * 24 * 60 * 60 * 1000)
-    
-    // Count boxes created in the past 7 days
-    const weekCount = boxes.filter(box => {
-      const creationTime = box.creationTimestamp || 0
-      return creationTime >= oneWeekAgo
-    }).length
-    
-    return c.text(weekCount.toString())
+    const now = Date.now();
+    const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1e3;
+    const weekCount = boxes.filter((box) => {
+      const creationTime = box.creationTimestamp || 0;
+      return creationTime >= oneWeekAgo;
+    }).length;
+    return c.text(weekCount.toString());
   } catch (error) {
-    return c.text('ERROR')
+    return c.text("ERROR");
   }
-})
-
-// Get campaign duration in months for a company
-app.get('/api/sheets/:companyName/duration/total', async (c) => {
+});
+app.get("/api/sheets/:companyName/duration/total", async (c) => {
   try {
-    const companyName = c.req.param('companyName').toLowerCase()
-    const company = await getCompany(undefined, companyName)
-    
+    const companyName = c.req.param("companyName").toLowerCase();
+    const company = await getCompany(void 0, companyName);
     if (!company) {
-      return c.text('0')
+      return c.text("0");
     }
-    
-    const boxes = await callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`)
-    
+    const boxes = await callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`);
     if (!Array.isArray(boxes) || boxes.length === 0) {
-      return c.text('0')
+      return c.text("0");
     }
-    
-    // Find the earliest creation timestamp
-    const timestamps = boxes.map(box => box.creationTimestamp).filter(t => t)
-    
+    const timestamps = boxes.map((box) => box.creationTimestamp).filter((t) => t);
     if (timestamps.length === 0) {
-      return c.text('0')
+      return c.text("0");
     }
-    
-    const earliestTimestamp = Math.min(...timestamps)
-    const firstLeadDate = new Date(earliestTimestamp)
-    const now = new Date()
-    
-    // Calculate months between first lead and now
-    const yearsDiff = now.getFullYear() - firstLeadDate.getFullYear()
-    const monthsDiff = now.getMonth() - firstLeadDate.getMonth()
-    const campaignDurationMonths = (yearsDiff * 12) + monthsDiff + 1 // +1 to include current month
-    
-    return c.text(campaignDurationMonths.toString())
+    const earliestTimestamp = Math.min(...timestamps);
+    const firstLeadDate = new Date(earliestTimestamp);
+    const now = /* @__PURE__ */ new Date();
+    const yearsDiff = now.getFullYear() - firstLeadDate.getFullYear();
+    const monthsDiff = now.getMonth() - firstLeadDate.getMonth();
+    const campaignDurationMonths = yearsDiff * 12 + monthsDiff + 1;
+    return c.text(campaignDurationMonths.toString());
   } catch (error) {
-    return c.text('0')
+    return c.text("0");
   }
-})
-
-// Get monthly lead statistics for a company (last 12 months)
-app.get('/api/sheets/:companyName/monthly-stats', async (c) => {
+});
+app.get("/api/sheets/:companyName/monthly-stats", async (c) => {
   try {
-    const companyName = c.req.param('companyName').toLowerCase()
-    const company = await getCompany(undefined, companyName)
-    
+    const companyName = c.req.param("companyName").toLowerCase();
+    const company = await getCompany(void 0, companyName);
     if (!company) {
-      return c.json({ error: 'Company not found' }, 404)
+      return c.json({ error: "Company not found" }, 404);
     }
-    
-    const boxes = await callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`)
-    const companyBoxes = Array.isArray(boxes) ? boxes : []
-    
-    // Calculate monthly stats for last 12 months
-    const now = new Date()
-    const monthlyStats = []
-    
+    const boxes = await callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`);
+    const companyBoxes = Array.isArray(boxes) ? boxes : [];
+    const now = /* @__PURE__ */ new Date();
+    const monthlyStats = [];
     for (let i = 11; i >= 0; i--) {
-      const targetDate = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const year = targetDate.getFullYear()
-      const month = targetDate.getMonth() + 1
-      
-      const count = companyBoxes.filter(box => {
-        const createdDate = new Date(box.creationTimestamp)
-        return createdDate.getFullYear() === year && (createdDate.getMonth() + 1) === month
-      }).length
-      
-      const percentage = ((count / 10) * 100).toFixed(1)
-      
+      const targetDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = targetDate.getFullYear();
+      const month = targetDate.getMonth() + 1;
+      const count = companyBoxes.filter((box) => {
+        const createdDate = new Date(box.creationTimestamp);
+        return createdDate.getFullYear() === year && createdDate.getMonth() + 1 === month;
+      }).length;
+      const percentage = (count / 10 * 100).toFixed(1);
       monthlyStats.push({
-        month: `${year}-${String(month).padStart(2, '0')}`,
-        count: count,
+        month: `${year}-${String(month).padStart(2, "0")}`,
+        count,
         objective: 10,
         percentage: parseFloat(percentage)
-      })
+      });
     }
-    
-    // Calculate average
-    const totalLeads = monthlyStats.reduce((sum, stat) => sum + stat.count, 0)
-    const average = (totalLeads / 12).toFixed(1)
-    const averagePercentage = ((parseFloat(average) / 10) * 100).toFixed(1)
-    
+    const totalLeads = monthlyStats.reduce((sum, stat) => sum + stat.count, 0);
+    const average = (totalLeads / 12).toFixed(1);
+    const averagePercentage = (parseFloat(average) / 10 * 100).toFixed(1);
     return c.json({
       company: company.name,
       companyKey: companyName,
       objective: 10,
-      monthlyStats: monthlyStats,
+      monthlyStats,
       summary: {
-        totalLeads: totalLeads,
+        totalLeads,
         average: parseFloat(average),
         averagePercentage: parseFloat(averagePercentage)
       }
-    })
+    });
   } catch (error) {
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: error.message }, 500);
   }
-})
-
-// Get count of items with pending/overdue dates for a company
-app.get('/api/sheets/:companyName/due', async (c) => {
+});
+app.get("/api/sheets/:companyName/due", async (c) => {
   try {
-    const companyName = c.req.param('companyName').toLowerCase().replace(/ /g, '-')
-    const company = await getCompany(undefined, companyName)
-    
+    const companyName = c.req.param("companyName").toLowerCase().replace(/ /g, "-");
+    const company = await getCompany(void 0, companyName);
     if (!company) {
-      return c.text('COMPANY_NOT_FOUND')
+      return c.text("COMPANY_NOT_FOUND");
     }
-    
     const [pipeline, boxes] = await Promise.all([
       callStreakAPI(`/pipelines/${company.pipelineKey}`),
       callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`)
-    ])
-    
+    ]);
     if (!Array.isArray(boxes)) {
-      return c.text('0')
+      return c.text("0");
     }
-    
-    // Find the due date field (could be 'Est Start Date', 'Due Date', etc.)
-    const fields = Array.isArray(pipeline.fields) ? pipeline.fields : []
-    const dueDateField = fields.find(f => 
-      f && (f.name === 'Est Start Date' || f.name === 'Due Date' || f.name === 'Start Date')
-    )
-    
+    const fields = Array.isArray(pipeline.fields) ? pipeline.fields : [];
+    const dueDateField = fields.find(
+      (f) => f && (f.name === "Est Start Date" || f.name === "Due Date" || f.name === "Start Date")
+    );
     if (!dueDateField) {
-      return c.text('0')
+      return c.text("0");
     }
-    
-    // Count boxes with due dates (pending or overdue)
-    const now = Date.now()
-    let dueCount = 0
-    
-    boxes.forEach(box => {
+    const now = Date.now();
+    let dueCount = 0;
+    boxes.forEach((box) => {
       if (box.fields && box.fields[dueDateField.key]) {
-        const dueDate = box.fields[dueDateField.key]
-        // If there's a due date set, count it as pending
+        const dueDate = box.fields[dueDateField.key];
         if (dueDate) {
-          dueCount++
+          dueCount++;
         }
       }
-    })
-    
-    return c.text(dueCount.toString())
+    });
+    return c.text(dueCount.toString());
   } catch (error) {
-    console.error('Error fetching due items:', error)
-    return c.text('ERROR')
+    console.error("Error fetching due items:", error);
+    return c.text("ERROR");
   }
-})
-
-// Get count of overdue items for a company
-app.get('/api/sheets/:companyName/overdue', async (c) => {
+});
+app.get("/api/sheets/:companyName/overdue", async (c) => {
   try {
-    const companyName = c.req.param('companyName').toLowerCase().replace(/ /g, '-')
-    const company = await getCompany(undefined, companyName)
-    
+    const companyName = c.req.param("companyName").toLowerCase().replace(/ /g, "-");
+    const company = await getCompany(void 0, companyName);
     if (!company) {
-      return c.text('COMPANY_NOT_FOUND')
+      return c.text("COMPANY_NOT_FOUND");
     }
-    
     const [pipeline, boxes] = await Promise.all([
       callStreakAPI(`/pipelines/${company.pipelineKey}`),
       callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`)
-    ])
-    
+    ]);
     if (!Array.isArray(boxes)) {
-      return c.text('0')
+      return c.text("0");
     }
-    
-    // Find the due date field
-    const fields = Array.isArray(pipeline.fields) ? pipeline.fields : []
-    const dueDateField = fields.find(f => 
-      f && (f.name === 'Est Start Date' || f.name === 'Due Date' || f.name === 'Start Date')
-    )
-    
+    const fields = Array.isArray(pipeline.fields) ? pipeline.fields : [];
+    const dueDateField = fields.find(
+      (f) => f && (f.name === "Est Start Date" || f.name === "Due Date" || f.name === "Start Date")
+    );
     if (!dueDateField) {
-      return c.text('0')
+      return c.text("0");
     }
-    
-    // Count boxes with overdue dates (past due)
-    const now = Date.now()
-    let overdueCount = 0
-    
-    boxes.forEach(box => {
+    const now = Date.now();
+    let overdueCount = 0;
+    boxes.forEach((box) => {
       if (box.fields && box.fields[dueDateField.key]) {
-        const dueDate = box.fields[dueDateField.key]
+        const dueDate = box.fields[dueDateField.key];
         if (dueDate && dueDate < now) {
-          overdueCount++
+          overdueCount++;
         }
       }
-    })
-    
-    return c.text(overdueCount.toString())
+    });
+    return c.text(overdueCount.toString());
   } catch (error) {
-    console.error('Error fetching overdue items:', error)
-    return c.text('ERROR')
+    console.error("Error fetching overdue items:", error);
+    return c.text("ERROR");
   }
-})
-
-// Get analytics summary
-app.get('/api/analytics', async (c) => {
+});
+app.get("/api/analytics", async (c) => {
   try {
-    // Get company from query parameter or default to MabSilico
-    const companyKey = c.req.query('company') || 'mabsilico'
-    const company = await getCompany(undefined, companyKey)
-    
+    const companyKey = c.req.query("company") || "mabsilico";
+    const company = await getCompany(void 0, companyKey);
     if (!company) {
-      return c.json({ error: 'Invalid company key' }, 400)
+      return c.json({ error: "Invalid company key" }, 400);
     }
-    
-    const pipelineKey = company.pipelineKey
+    const pipelineKey = company.pipelineKey;
     const [pipeline, boxes] = await Promise.all([
       callStreakAPI(`/pipelines/${pipelineKey}`),
       callStreakAPI(`/pipelines/${pipelineKey}/boxes`)
-    ])
-    
-    // Calculate analytics
-    const totalBoxes = Array.isArray(boxes) ? boxes.length : 0
-    const stageDistribution = {}
-    const originDistribution = {}
-    const fitDistribution = {}
-    const interestDistribution = {}
-    const countryDistribution = {}
-    const languageDistribution = {}
-    const freshnessDistribution = { 'High (>0.5)': 0, 'Medium (0.2-0.5)': 0, 'Low (<0.2)': 0 }
-
-    
-    // Find stage and field keys
-    const stageMap = pipeline.stageOrder || []
-    const stages = Array.isArray(stageMap) ? stageMap.map(key => ({
-      key,
-      name: pipeline.stages?.[key]?.name || 'Unknown'
-    })) : []
-    const fields = Array.isArray(pipeline.fields) ? pipeline.fields : []
-    const originField = fields.find(f => f && f.name === 'Origin')
-    const fitField = fields.find(f => f && f.name === FIT_FIELD)
-    const interestField = fields.find(f => f && f.name === INTEREST_FIELD)
-    const dueDateField = fields.find(f => f && f.name === 'Est Start Date')
-    const countryField = fields.find(f => f && f.name === 'Country')
-    const languageField = fields.find(f => f && f.name === 'Language')
-    
+    ]);
+    const totalBoxes = Array.isArray(boxes) ? boxes.length : 0;
+    const stageDistribution = {};
+    const originDistribution = {};
+    const fitDistribution = {};
+    const interestDistribution = {};
+    const countryDistribution = {};
+    const languageDistribution = {};
+    const freshnessDistribution = { "High (>0.5)": 0, "Medium (0.2-0.5)": 0, "Low (<0.2)": 0 };
+    const stageMap = pipeline.stageOrder || [];
+    const stages = Array.isArray(stageMap) ? stageMap.map((key) => {
+      var _a, _b;
+      return {
+        key,
+        name: ((_b = (_a = pipeline.stages) == null ? void 0 : _a[key]) == null ? void 0 : _b.name) || "Unknown"
+      };
+    }) : [];
+    const fields = Array.isArray(pipeline.fields) ? pipeline.fields : [];
+    const originField = fields.find((f) => f && f.name === "Origin");
+    const fitField = fields.find((f) => f && f.name === FIT_FIELD);
+    const interestField = fields.find((f) => f && f.name === INTEREST_FIELD);
+    const dueDateField = fields.find((f) => f && f.name === "Est Start Date");
+    const countryField = fields.find((f) => f && f.name === "Country");
+    const languageField = fields.find((f) => f && f.name === "Language");
     if (Array.isArray(boxes)) {
-      boxes.forEach(box => {
-        if (!box) return
-        
-        // Get stage info (used multiple times)
-        const stage = stages.find(s => s && s.key === box.stageKey)
-        const stageName = stage ? stage.name : 'Unknown'
-        stageDistribution[stageName] = (stageDistribution[stageName] || 0) + 1
-        
-        // Count by origin
+      boxes.forEach((box) => {
+        var _a, _b, _c, _d, _e;
+        if (!box) return;
+        const stage = stages.find((s) => s && s.key === box.stageKey);
+        const stageName = stage ? stage.name : "Unknown";
+        stageDistribution[stageName] = (stageDistribution[stageName] || 0) + 1;
         if (originField && box.fields && box.fields[originField.key]) {
-          const originKey = box.fields[originField.key]
-          const items = originField.dropdownSettings?.items
-          const originItem = Array.isArray(items) ? items.find(i => i && i.key === originKey) : null
-          const originName = originItem ? originItem.name : 'Unknown'
-          originDistribution[originName] = (originDistribution[originName] || 0) + 1
+          const originKey = box.fields[originField.key];
+          const items = (_a = originField.dropdownSettings) == null ? void 0 : _a.items;
+          const originItem = Array.isArray(items) ? items.find((i) => i && i.key === originKey) : null;
+          const originName = originItem ? originItem.name : "Unknown";
+          originDistribution[originName] = (originDistribution[originName] || 0) + 1;
         }
-        
-        // Count by FIT
         if (fitField && box.fields && box.fields[fitField.key]) {
-          const fitKey = box.fields[fitField.key]
-          const items = fitField.dropdownSettings?.items
-          const fitItem = Array.isArray(items) ? items.find(i => i && i.key === fitKey) : null
-          const fitName = fitItem ? fitItem.name : 'Not Set'
-          fitDistribution[fitName] = (fitDistribution[fitName] || 0) + 1
+          const fitKey = box.fields[fitField.key];
+          const items = (_b = fitField.dropdownSettings) == null ? void 0 : _b.items;
+          const fitItem = Array.isArray(items) ? items.find((i) => i && i.key === fitKey) : null;
+          const fitName = fitItem ? fitItem.name : "Not Set";
+          fitDistribution[fitName] = (fitDistribution[fitName] || 0) + 1;
         } else {
-          fitDistribution['Not Set'] = (fitDistribution['Not Set'] || 0) + 1
+          fitDistribution["Not Set"] = (fitDistribution["Not Set"] || 0) + 1;
         }
-        
-        // Count by INTEREST
         if (interestField && box.fields && box.fields[interestField.key]) {
-          const interestKey = box.fields[interestField.key]
-          const items = interestField.dropdownSettings?.items
-          const interestItem = Array.isArray(items) ? items.find(i => i && i.key === interestKey) : null
-          const interestName = interestItem ? interestItem.name : 'Not Set'
-          interestDistribution[interestName] = (interestDistribution[interestName] || 0) + 1
+          const interestKey = box.fields[interestField.key];
+          const items = (_c = interestField.dropdownSettings) == null ? void 0 : _c.items;
+          const interestItem = Array.isArray(items) ? items.find((i) => i && i.key === interestKey) : null;
+          const interestName = interestItem ? interestItem.name : "Not Set";
+          interestDistribution[interestName] = (interestDistribution[interestName] || 0) + 1;
         } else {
-          interestDistribution['Not Set'] = (interestDistribution['Not Set'] || 0) + 1
+          interestDistribution["Not Set"] = (interestDistribution["Not Set"] || 0) + 1;
         }
-        
-        // Count by country
         if (countryField && box.fields && box.fields[countryField.key]) {
-          const countryKey = box.fields[countryField.key]
-          const items = countryField.dropdownSettings?.items
-          const countryItem = Array.isArray(items) ? items.find(i => i && i.key === countryKey) : null
-          const countryName = countryItem ? countryItem.name : 'Unknown'
-          countryDistribution[countryName] = (countryDistribution[countryName] || 0) + 1
+          const countryKey = box.fields[countryField.key];
+          const items = (_d = countryField.dropdownSettings) == null ? void 0 : _d.items;
+          const countryItem = Array.isArray(items) ? items.find((i) => i && i.key === countryKey) : null;
+          const countryName = countryItem ? countryItem.name : "Unknown";
+          countryDistribution[countryName] = (countryDistribution[countryName] || 0) + 1;
         } else {
-          countryDistribution['Unknown'] = (countryDistribution['Unknown'] || 0) + 1
+          countryDistribution["Unknown"] = (countryDistribution["Unknown"] || 0) + 1;
         }
-        
-        // Count by language
         if (languageField && box.fields && box.fields[languageField.key]) {
-          const languageKey = box.fields[languageField.key]
-          const items = languageField.dropdownSettings?.items
-          const languageItem = Array.isArray(items) ? items.find(i => i && i.key === languageKey) : null
-          const languageName = languageItem ? languageItem.name : 'Unknown'
-          languageDistribution[languageName] = (languageDistribution[languageName] || 0) + 1
+          const languageKey = box.fields[languageField.key];
+          const items = (_e = languageField.dropdownSettings) == null ? void 0 : _e.items;
+          const languageItem = Array.isArray(items) ? items.find((i) => i && i.key === languageKey) : null;
+          const languageName = languageItem ? languageItem.name : "Unknown";
+          languageDistribution[languageName] = (languageDistribution[languageName] || 0) + 1;
         } else {
-          languageDistribution['Unknown'] = (languageDistribution['Unknown'] || 0) + 1
+          languageDistribution["Unknown"] = (languageDistribution["Unknown"] || 0) + 1;
         }
-        
-        // Count by freshness
-        const freshness = box.freshness || 0
+        const freshness = box.freshness || 0;
         if (freshness > 0.5) {
-          freshnessDistribution['High (>0.5)']++
+          freshnessDistribution["High (>0.5)"]++;
         } else if (freshness >= 0.2) {
-          freshnessDistribution['Medium (0.2-0.5)']++
+          freshnessDistribution["Medium (0.2-0.5)"]++;
         } else {
-          freshnessDistribution['Low (<0.2)']++
+          freshnessDistribution["Low (<0.2)"]++;
         }
-      })
+      });
     }
-    
-    // Calculate percentages
-    const fitPercentages = {}
-    Object.keys(fitDistribution).forEach(key => {
-      fitPercentages[key] = totalBoxes > 0 ? ((fitDistribution[key] / totalBoxes) * 100).toFixed(1) : 0
-    })
-    
-    const interestPercentages = {}
-    Object.keys(interestDistribution).forEach(key => {
-      interestPercentages[key] = totalBoxes > 0 ? ((interestDistribution[key] / totalBoxes) * 100).toFixed(1) : 0
-    })
-    
-    // Calculate monthly lead tracking (last 12 months)
-    const now = new Date()
-    const monthlyLeads = []
-    const leadObjective = 10
-    
+    const fitPercentages = {};
+    Object.keys(fitDistribution).forEach((key) => {
+      fitPercentages[key] = totalBoxes > 0 ? (fitDistribution[key] / totalBoxes * 100).toFixed(1) : 0;
+    });
+    const interestPercentages = {};
+    Object.keys(interestDistribution).forEach((key) => {
+      interestPercentages[key] = totalBoxes > 0 ? (interestDistribution[key] / totalBoxes * 100).toFixed(1) : 0;
+    });
+    const now = /* @__PURE__ */ new Date();
+    const monthlyLeads = [];
+    const leadObjective = 10;
     for (let i = 11; i >= 0; i--) {
-      const targetDate = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const year = targetDate.getFullYear()
-      const month = targetDate.getMonth() + 1
-      
-      const count = Array.isArray(boxes) ? boxes.filter(box => {
-        const createdDate = new Date(box.creationTimestamp)
-        return createdDate.getFullYear() === year && (createdDate.getMonth() + 1) === month
-      }).length : 0
-      
-      const percentage = ((count / leadObjective) * 100).toFixed(1)
-      
+      const targetDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = targetDate.getFullYear();
+      const month = targetDate.getMonth() + 1;
+      const count = Array.isArray(boxes) ? boxes.filter((box) => {
+        const createdDate = new Date(box.creationTimestamp);
+        return createdDate.getFullYear() === year && createdDate.getMonth() + 1 === month;
+      }).length : 0;
+      const percentage = (count / leadObjective * 100).toFixed(1);
       monthlyLeads.push({
-        month: `${year}-${String(month).padStart(2, '0')}`,
-        monthName: targetDate.toLocaleString('en-US', { month: 'short', year: 'numeric' }),
-        count: count,
+        month: `${year}-${String(month).padStart(2, "0")}`,
+        monthName: targetDate.toLocaleString("en-US", { month: "short", year: "numeric" }),
+        count,
         objective: leadObjective,
         percentage: parseFloat(percentage),
-        status: count >= leadObjective ? 'achieved' : 'pending'
-      })
+        status: count >= leadObjective ? "achieved" : "pending"
+      });
     }
-    
-    // Calculate average
-    const totalMonthlyLeads = monthlyLeads.reduce((sum, m) => sum + m.count, 0)
-    const averageLeadsPerMonth = (totalMonthlyLeads / 12).toFixed(1)
-    const averagePercentage = ((parseFloat(averageLeadsPerMonth) / leadObjective) * 100).toFixed(1)
-    
-    // Calculate campaign duration (from first lead to now)
-    let campaignDurationMonths = 0
-    let firstLeadDate = null
-    
+    const totalMonthlyLeads = monthlyLeads.reduce((sum, m) => sum + m.count, 0);
+    const averageLeadsPerMonth = (totalMonthlyLeads / 12).toFixed(1);
+    const averagePercentage = (parseFloat(averageLeadsPerMonth) / leadObjective * 100).toFixed(1);
+    let campaignDurationMonths = 0;
+    let firstLeadDate = null;
     if (Array.isArray(boxes) && boxes.length > 0) {
-      // Find the earliest lead creation date
-      const timestamps = boxes.map(box => box.creationTimestamp).filter(t => t)
+      const timestamps = boxes.map((box) => box.creationTimestamp).filter((t) => t);
       if (timestamps.length > 0) {
-        const earliestTimestamp = Math.min(...timestamps)
-        firstLeadDate = new Date(earliestTimestamp)
-        
-        // Calculate months between first lead and now
-        const yearsDiff = now.getFullYear() - firstLeadDate.getFullYear()
-        const monthsDiff = now.getMonth() - firstLeadDate.getMonth()
-        campaignDurationMonths = (yearsDiff * 12) + monthsDiff + 1 // +1 to include current month
+        const earliestTimestamp = Math.min(...timestamps);
+        firstLeadDate = new Date(earliestTimestamp);
+        const yearsDiff = now.getFullYear() - firstLeadDate.getFullYear();
+        const monthsDiff = now.getMonth() - firstLeadDate.getMonth();
+        campaignDurationMonths = yearsDiff * 12 + monthsDiff + 1;
       }
     }
-    
-    // Fetch network data if available for this company
-    let networkData = null
+    let networkData = null;
     if (company.networkSheetGid) {
-      networkData = await fetchNetworkData(company.networkSheetGid)
+      networkData = await fetchNetworkData(company.networkSheetGid);
     }
-    
     return c.json({
       company: company.name,
-      companyKey: companyKey,
+      companyKey,
       totalBoxes,
       campaignDurationMonths,
       firstLeadDate: firstLeadDate ? firstLeadDate.toISOString() : null,
@@ -1022,102 +791,84 @@ app.get('/api/analytics', async (c) => {
       countryDistribution,
       languageDistribution,
       freshnessDistribution,
-      monthlyLeads: monthlyLeads,
-      leadObjective: leadObjective,
+      monthlyLeads,
+      leadObjective,
       averageLeadsPerMonth: parseFloat(averageLeadsPerMonth),
       averagePercentage: parseFloat(averagePercentage),
-      recentBoxes: Array.isArray(boxes) ? boxes.filter(box => {
-        // Filter for High FIT and High INTEREST
-        const hasFit = fitField && box.fields && box.fields[fitField.key]
-        const hasInterest = interestField && box.fields && box.fields[interestField.key]
-        
-        let fitName = 'Not Set'
+      recentBoxes: Array.isArray(boxes) ? boxes.filter((box) => {
+        var _a, _b;
+        const hasFit = fitField && box.fields && box.fields[fitField.key];
+        const hasInterest = interestField && box.fields && box.fields[interestField.key];
+        let fitName = "Not Set";
         if (hasFit) {
-          const fitKey = box.fields[fitField.key]
-          const items = fitField.dropdownSettings?.items
-          const fitItem = Array.isArray(items) ? items.find(i => i && i.key === fitKey) : null
-          fitName = fitItem ? fitItem.name : 'Not Set'
+          const fitKey = box.fields[fitField.key];
+          const items = (_a = fitField.dropdownSettings) == null ? void 0 : _a.items;
+          const fitItem = Array.isArray(items) ? items.find((i) => i && i.key === fitKey) : null;
+          fitName = fitItem ? fitItem.name : "Not Set";
         }
-        
-        let interestName = 'Not Set'
+        let interestName = "Not Set";
         if (hasInterest) {
-          const interestKey = box.fields[interestField.key]
-          const items = interestField.dropdownSettings?.items
-          const interestItem = Array.isArray(items) ? items.find(i => i && i.key === interestKey) : null
-          interestName = interestItem ? interestItem.name : 'Not Set'
+          const interestKey = box.fields[interestField.key];
+          const items = (_b = interestField.dropdownSettings) == null ? void 0 : _b.items;
+          const interestItem = Array.isArray(items) ? items.find((i) => i && i.key === interestKey) : null;
+          interestName = interestItem ? interestItem.name : "Not Set";
         }
-        
-        // Show boxes with High FIT or High INTEREST
-        return fitName === 'High' || interestName === 'High'
-      }).slice(0, 10).map(box => {
-        const stage = stages.find(s => s && s.key === box.stageKey)
-        
-        // Get FIT
-        let fit = 'Not Set'
+        return fitName === "High" || interestName === "High";
+      }).slice(0, 10).map((box) => {
+        var _a, _b, _c, _d;
+        const stage = stages.find((s) => s && s.key === box.stageKey);
+        let fit = "Not Set";
         if (fitField && box.fields && box.fields[fitField.key]) {
-          const fitKey = box.fields[fitField.key]
-          const items = fitField.dropdownSettings?.items
-          const fitItem = Array.isArray(items) ? items.find(i => i && i.key === fitKey) : null
-          fit = fitItem ? fitItem.name : 'Not Set'
+          const fitKey = box.fields[fitField.key];
+          const items = (_a = fitField.dropdownSettings) == null ? void 0 : _a.items;
+          const fitItem = Array.isArray(items) ? items.find((i) => i && i.key === fitKey) : null;
+          fit = fitItem ? fitItem.name : "Not Set";
         }
-        
-        // Get INTEREST
-        let interest = 'Not Set'
+        let interest = "Not Set";
         if (interestField && box.fields && box.fields[interestField.key]) {
-          const interestKey = box.fields[interestField.key]
-          const items = interestField.dropdownSettings?.items
-          const interestItem = Array.isArray(items) ? items.find(i => i && i.key === interestKey) : null
-          interest = interestItem ? interestItem.name : 'Not Set'
+          const interestKey = box.fields[interestField.key];
+          const items = (_b = interestField.dropdownSettings) == null ? void 0 : _b.items;
+          const interestItem = Array.isArray(items) ? items.find((i) => i && i.key === interestKey) : null;
+          interest = interestItem ? interestItem.name : "Not Set";
         }
-        
-        // Get due date
-        let dueDate = null
+        let dueDate = null;
         if (dueDateField && box.fields && box.fields[dueDateField.key]) {
-          dueDate = new Date(box.fields[dueDateField.key]).toISOString()
+          dueDate = new Date(box.fields[dueDateField.key]).toISOString();
         }
-        
-        // Get country
-        let country = 'Unknown'
+        let country = "Unknown";
         if (countryField && box.fields && box.fields[countryField.key]) {
-          const countryKey = box.fields[countryField.key]
-          const items = countryField.dropdownSettings?.items
-          const countryItem = Array.isArray(items) ? items.find(i => i && i.key === countryKey) : null
-          country = countryItem ? countryItem.name : 'Unknown'
+          const countryKey = box.fields[countryField.key];
+          const items = (_c = countryField.dropdownSettings) == null ? void 0 : _c.items;
+          const countryItem = Array.isArray(items) ? items.find((i) => i && i.key === countryKey) : null;
+          country = countryItem ? countryItem.name : "Unknown";
         }
-        
-        // Get language
-        let language = 'Unknown'
+        let language = "Unknown";
         if (languageField && box.fields && box.fields[languageField.key]) {
-          const languageKey = box.fields[languageField.key]
-          const items = languageField.dropdownSettings?.items
-          const languageItem = Array.isArray(items) ? items.find(i => i && i.key === languageKey) : null
-          language = languageItem ? languageItem.name : 'Unknown'
+          const languageKey = box.fields[languageField.key];
+          const items = (_d = languageField.dropdownSettings) == null ? void 0 : _d.items;
+          const languageItem = Array.isArray(items) ? items.find((i) => i && i.key === languageKey) : null;
+          language = languageItem ? languageItem.name : "Unknown";
         }
-        
-        // Get freshness
-        const freshness = box.freshness || 0
-        
+        const freshness = box.freshness || 0;
         return {
-          name: box.name || 'Unnamed',
+          name: box.name || "Unnamed",
           key: box.boxKey,
-          stage: stage ? stage.name : 'Unknown',
-          fit: fit,
-          interest: interest,
-          dueDate: dueDate,
-          country: country,
-          language: language,
+          stage: stage ? stage.name : "Unknown",
+          fit,
+          interest,
+          dueDate,
+          country,
+          language,
           freshness: freshness.toFixed(3),
           lastUpdated: new Date(box.lastUpdatedTimestamp).toISOString()
-        }
+        };
       }) : []
-    })
+    });
   } catch (error) {
-    return c.json({ error: error.message }, 500)
+    return c.json({ error: error.message }, 500);
   }
-})
-
-// Admin Panel Route
-app.get('/admin', (c) => {
+});
+app.get("/admin", (c) => {
   return c.html(`
     <!DOCTYPE html>
     <html lang="en">
@@ -1125,7 +876,7 @@ app.get('/admin', (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Admin Panel - Gershon CRM</title>
-        <script src="https://cdn.tailwindcss.com"></script>
+        <script src="https://cdn.tailwindcss.com"><\/script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <style>
             body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
@@ -1591,14 +1342,12 @@ app.get('/admin', (c) => {
 
             // Load on page load
             loadCompanies();
-        </script>
+        <\/script>
     </body>
     </html>
-  `)
-})
-
-// Default route - Dashboard HTML
-app.get('/', (c) => {
+  `);
+});
+app.get("/", (c) => {
   return c.html(`
     <!DOCTYPE html>
     <html lang="en">
@@ -1606,10 +1355,10 @@ app.get('/', (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Gershon CRM - Client Dashboard</title>
-        <script src="https://cdn.tailwindcss.com"></script>
+        <script src="https://cdn.tailwindcss.com"><\/script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
-        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"><\/script>
+        <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"><\/script>
         <style>
             @media print {
                 .no-print { display: none !important; }
@@ -3851,10 +3600,20 @@ app.get('/', (c) => {
             updateSettingsView(); // Initialize Settings view
             loadCompanies(); // Load companies from D1 database (will call loadDashboard internally)
             setupAutoRefresh();
-        </script>
+        <\/script>
     </body>
     </html>
-  `)
-})
-
-export default app
+  `);
+});
+const port = parseInt(process.env.PORT || "3000");
+console.log(`🚀 Gershon CRM Dashboard v1.0.0 starting on port ${port}`);
+serve({
+  fetch: app.fetch,
+  port
+});
+console.log(`✅ Server running at http://localhost:${port}`);
+console.log(`📊 Dashboard: http://localhost:${port}`);
+console.log(`⚙️  Admin Panel: http://localhost:${port}/admin`);
+export {
+  app as default
+};
