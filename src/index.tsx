@@ -1112,7 +1112,12 @@ app.get('/api/analytics', async (c) => {
       }) : []
     })
   } catch (error) {
-    return c.json({ error: error.message }, 500)
+    console.error('[Analytics API] Error:', error)
+    return c.json({ 
+      error: error.message,
+      details: String(error),
+      companyKey: c.req.query('company') || 'mabsilico'
+    }, 500)
   }
 })
 
@@ -2717,11 +2722,12 @@ app.get('/', (c) => {
                     const company = await getCompany(undefined, companyKey);
                     const response = await fetch(\`/api/analytics?company=\${companyKey}\`);
                     
+                    const data = await response.json();
+                    
                     if (!response.ok) {
-                        throw new Error('Failed to fetch company data');
+                        throw new Error(data.error || data.details || 'Failed to fetch company data');
                     }
                     
-                    const data = await response.json();
                     currentData = data;
                     
                     // Update page title with company name
