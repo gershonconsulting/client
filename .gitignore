@@ -1,5 +1,6 @@
 # prod
-dist/
+# NOTE: dist/ is NOT ignored for Genspark Hosted Deploy
+# dist/
 
 # dev
 .yarn/
