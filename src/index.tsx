@@ -2720,7 +2720,6 @@ app.get('/', (c) => {
             // Fetch data for a specific company
             async function fetchCompanyData(companyKey) {
                 try {
-                    const company = await getCompany(undefined, companyKey);
                     const response = await fetch(\`/api/analytics?company=\${companyKey}\`);
                     
                     if (!response.ok) {
@@ -2730,10 +2729,13 @@ app.get('/', (c) => {
                     const data = await response.json();
                     currentData = data;
                     
+                    // Get company name from analytics data
+                    const companyName = COMPANIES[companyKey]?.name || companyKey;
+                    
                     // Update page title with company name
                     document.querySelector('h1').innerHTML = \`
                         <i class="fas fa-chart-line mr-3"></i>
-                        \${company.name} - Pipeline Report
+                        \${companyName} - Pipeline Report
                     \`;
                     
                     // Hide loading, show dashboard
