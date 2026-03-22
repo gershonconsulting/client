@@ -112,6 +112,8 @@ async function getCompany(db: D1Database | undefined, companyKey: string) {
 // Helper function to make Streak API calls
 async function callStreakAPI(endpoint: string) {
   const auth = btoa(`${STREAK_API_KEY}:`)
+  console.log(`[Streak API] Calling: ${endpoint}`)
+  
   const response = await fetch(`${STREAK_API_BASE}${endpoint}`, {
     headers: {
       'Authorization': `Basic ${auth}`,
@@ -119,8 +121,12 @@ async function callStreakAPI(endpoint: string) {
     }
   })
   
+  console.log(`[Streak API] Response status: ${response.status}`)
+  
   if (!response.ok) {
-    throw new Error(`Streak API error: ${response.statusText}`)
+    const errorText = await response.text()
+    console.error(`[Streak API] Error: ${response.status} - ${errorText}`)
+    throw new Error(`Streak API error: ${response.status} ${response.statusText}`)
   }
   
   return response.json()
