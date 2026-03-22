@@ -1,13 +1,8 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { serveStatic } from 'hono/cloudflare-workers'
+import { serveStatic } from '@hono/node-server/serve-static'
 
-// Type definitions for Cloudflare bindings
-type Bindings = {
-  DB: D1Database
-}
-
-const app = new Hono<{ Bindings: Bindings }>()
+const app = new Hono()
 
 // Enable CORS for frontend-backend communication
 app.use('/api/*', cors())
@@ -448,21 +443,30 @@ app.get('/api/sheets/interest/:interestLevel/count', async (c) => {
 })
 
 // List all available companies
-// Get all companies from D1 database
+// Get all companies from D1 database or fallback to COMPANIES object
 app.get('/api/companies', async (c) => {
   try {
-    const { results } = await c.env.DB.prepare(
-      'SELECT key, name, url, pipeline_key, promote_url, network_url, network_sheet_gid, engage_url, notion_url FROM companies ORDER BY name'
-    ).all()
+    // For Node.js deployment, use fallback COMPANIES object
+    const companiesList = Object.keys(COMPANIES).map(key => ({
+      key: key,
+      name: COMPANIES[key].name,
+      url: COMPANIES[key].url,
+      pipeline_key: COMPANIES[key].pipelineKey,
+      promote_url: COMPANIES[key].sources?.promote || null,
+      network_url: COMPANIES[key].sources?.network || null,
+      network_sheet_gid: COMPANIES[key].networkSheetGid || null,
+      engage_url: COMPANIES[key].sources?.engage || null,
+      notion_url: COMPANIES[key].notionUrl || null
+    }))
     
-    return c.json({ companies: results, count: results.length })
+    return c.json({ companies: companiesList, count: companiesList.length })
   } catch (error) {
     console.error('Error fetching companies:', error)
     return c.json({ error: 'Failed to fetch companies', companies: [], count: 0 }, 500)
   }
 })
 
-// Add new company to D1 database
+// Add new company (in-memory for Node.js deployment)
 app.post('/api/companies', async (c) => {
   try {
     const body = await c.req.json()
@@ -474,46 +478,52 @@ app.post('/api/companies', async (c) => {
     }
     
     // Check if company already exists
-    const existing = await c.env.DB.prepare('SELECT key FROM companies WHERE key = ?').bind(key).first()
-    if (existing) {
+    if (COMPANIES[key]) {
       return c.json({ error: 'Company with this key already exists' }, 409)
     }
     
-    // Insert new company
-    await c.env.DB.prepare(
-      `INSERT INTO companies (key, name, pipeline_key, url, promote_url, network_url, network_sheet_gid, engage_url, notion_url)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(key, name, pipeline_key, url, promote_url || null, network_url || null, network_sheet_gid || null, engage_url || null, notion_url || null).run()
+    // Add company to in-memory object
+    COMPANIES[key] = {
+      name,
+      pipelineKey: pipeline_key,
+      url,
+      networkSheetGid: network_sheet_gid || null,
+      notionUrl: notion_url || null,
+      sources: {
+        promote: promote_url || '',
+        network: network_url || '',
+        engage: engage_url || ''
+      }
+    }
     
-    return c.json({ success: true, message: 'Company added successfully', key })
+    return c.json({ success: true, message: 'Company added successfully (session only)', key })
   } catch (error) {
     console.error('Error adding company:', error)
     return c.json({ error: 'Failed to add company' }, 500)
   }
 })
 
-// Delete company from D1 database
+// Delete company (in-memory for Node.js deployment)
 app.delete('/api/companies/:key', async (c) => {
   try {
     const key = c.req.param('key')
     
     // Check if company exists
-    const existing = await c.env.DB.prepare('SELECT key FROM companies WHERE key = ?').bind(key).first()
-    if (!existing) {
+    if (!COMPANIES[key]) {
       return c.json({ error: 'Company not found' }, 404)
     }
     
-    // Delete company
-    await c.env.DB.prepare('DELETE FROM companies WHERE key = ?').bind(key).run()
+    // Delete company from in-memory object
+    delete COMPANIES[key]
     
-    return c.json({ success: true, message: 'Company deleted successfully' })
+    return c.json({ success: true, message: 'Company deleted successfully (session only)' })
   } catch (error) {
     console.error('Error deleting company:', error)
     return c.json({ error: 'Failed to delete company' }, 500)
   }
 })
 
-// Update company in D1 database
+// Update company (in-memory for Node.js deployment)
 app.put('/api/companies/:key', async (c) => {
   try {
     const key = c.req.param('key')
@@ -521,19 +531,25 @@ app.put('/api/companies/:key', async (c) => {
     const { name, pipeline_key, url, promote_url, network_url, network_sheet_gid, engage_url, notion_url } = body
     
     // Check if company exists
-    const existing = await c.env.DB.prepare('SELECT key FROM companies WHERE key = ?').bind(key).first()
-    if (!existing) {
+    if (!COMPANIES[key]) {
       return c.json({ error: 'Company not found' }, 404)
     }
     
-    // Update company
-    await c.env.DB.prepare(
-      `UPDATE companies 
-       SET name = ?, pipeline_key = ?, url = ?, promote_url = ?, network_url = ?, network_sheet_gid = ?, engage_url = ?, notion_url = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE key = ?`
-    ).bind(name, pipeline_key, url, promote_url || null, network_url || null, network_sheet_gid || null, engage_url || null, notion_url || null, key).run()
+    // Update company in in-memory object
+    COMPANIES[key] = {
+      name,
+      pipelineKey: pipeline_key,
+      url,
+      networkSheetGid: network_sheet_gid || null,
+      notionUrl: notion_url || null,
+      sources: {
+        promote: promote_url || '',
+        network: network_url || '',
+        engage: engage_url || ''
+      }
+    }
     
-    return c.json({ success: true, message: 'Company updated successfully' })
+    return c.json({ success: true, message: 'Company updated successfully (session only)' })
   } catch (error) {
     console.error('Error updating company:', error)
     return c.json({ error: 'Failed to update company' }, 500)
@@ -544,7 +560,7 @@ app.put('/api/companies/:key', async (c) => {
 app.get('/api/sheets/:companyName/total', async (c) => {
   try {
     const companyName = c.req.param('companyName').toLowerCase()
-    const company = await getCompany(c.env.DB, companyName)
+    const company = await getCompany(undefined, companyName)
     
     if (!company) {
       return c.text('COMPANY_NOT_FOUND')
@@ -564,7 +580,7 @@ app.get('/api/sheets/:companyName/month/:yearMonth/count', async (c) => {
   try {
     const companyName = c.req.param('companyName').toLowerCase()
     const yearMonth = c.req.param('yearMonth') // Format: YYYY-MM
-    const company = await getCompany(c.env.DB, companyName)
+    const company = await getCompany(undefined, companyName)
     
     if (!company) {
       return c.text('COMPANY_NOT_FOUND')
@@ -588,7 +604,7 @@ app.get('/api/sheets/:companyName/month/:yearMonth/count', async (c) => {
 app.get('/api/sheets/:companyName/week/count', async (c) => {
   try {
     const companyName = c.req.param('companyName').toLowerCase()
-    const company = await getCompany(c.env.DB, companyName)
+    const company = await getCompany(undefined, companyName)
     
     if (!company) {
       return c.text('ERROR')
@@ -620,7 +636,7 @@ app.get('/api/sheets/:companyName/week/count', async (c) => {
 app.get('/api/sheets/:companyName/duration/total', async (c) => {
   try {
     const companyName = c.req.param('companyName').toLowerCase()
-    const company = await getCompany(c.env.DB, companyName)
+    const company = await getCompany(undefined, companyName)
     
     if (!company) {
       return c.text('0')
@@ -658,7 +674,7 @@ app.get('/api/sheets/:companyName/duration/total', async (c) => {
 app.get('/api/sheets/:companyName/monthly-stats', async (c) => {
   try {
     const companyName = c.req.param('companyName').toLowerCase()
-    const company = await getCompany(c.env.DB, companyName)
+    const company = await getCompany(undefined, companyName)
     
     if (!company) {
       return c.json({ error: 'Company not found' }, 404)
@@ -716,7 +732,7 @@ app.get('/api/sheets/:companyName/monthly-stats', async (c) => {
 app.get('/api/sheets/:companyName/due', async (c) => {
   try {
     const companyName = c.req.param('companyName').toLowerCase().replace(/ /g, '-')
-    const company = await getCompany(c.env.DB, companyName)
+    const company = await getCompany(undefined, companyName)
     
     if (!company) {
       return c.text('COMPANY_NOT_FOUND')
@@ -766,7 +782,7 @@ app.get('/api/sheets/:companyName/due', async (c) => {
 app.get('/api/sheets/:companyName/overdue', async (c) => {
   try {
     const companyName = c.req.param('companyName').toLowerCase().replace(/ /g, '-')
-    const company = await getCompany(c.env.DB, companyName)
+    const company = await getCompany(undefined, companyName)
     
     if (!company) {
       return c.text('COMPANY_NOT_FOUND')
@@ -816,7 +832,7 @@ app.get('/api/analytics', async (c) => {
   try {
     // Get company from query parameter or default to MabSilico
     const companyKey = c.req.query('company') || 'mabsilico'
-    const company = await getCompany(c.env.DB, companyKey)
+    const company = await getCompany(undefined, companyKey)
     
     if (!company) {
       return c.json({ error: 'Invalid company key' }, 400)
@@ -2702,7 +2718,7 @@ app.get('/', (c) => {
             // Fetch data for a specific company
             async function fetchCompanyData(companyKey) {
                 try {
-                    const company = await getCompany(c.env.DB, companyKey);
+                    const company = await getCompany(undefined, companyKey);
                     const response = await fetch(\`/api/analytics?company=\${companyKey}\`);
                     
                     if (!response.ok) {
