@@ -449,27 +449,28 @@ app.get('/api/companies', async (c) => {
 app.post('/api/companies', async (c) => {
   try {
     const body = await c.req.json()
-    const { name, pipelineKey, networkUrl, promoteUrl, notionUrl } = body
+    const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, notionUrl, networkGid, key: providedKey } = body
 
     if (!name || !pipelineKey) {
       return c.json({ error: 'name and pipelineKey are required' }, 400)
     }
 
-    // Auto-generate key from name
-    const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+    // Use provided key or auto-generate from name
+    const key = providedKey || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
-    const company = {
+    const company: any = {
       key,
       name,
       pipelineKey,
-      url: `https://www.streak.com/a/pipelines/${pipelineKey}`,
+      url: engageUrl || `https://www.streak.com/a/pipelines/${pipelineKey}`,
       sources: {
         promote: promoteUrl || '',
         network: networkUrl || '',
-        engage: `https://www.streak.com/a/pipelines/${pipelineKey}`,
+        engage: engageUrl || `https://www.streak.com/a/pipelines/${pipelineKey}`,
         notion: notionUrl || ''
       }
     }
+    if (networkGid) company.networkSheetGid = networkGid
 
     await c.env.COMPANIES_KV.put(`company:${key}`, JSON.stringify(company))
     return c.json({ success: true, company })
@@ -486,6 +487,43 @@ app.delete('/api/companies/:key', async (c) => {
     return c.json({ success: true })
   } catch (err) {
     return c.json({ error: 'Failed to delete company' }, 500)
+  }
+})
+
+app.put('/api/companies/:key', async (c) => {
+  try {
+    const key = c.req.param('key')
+    const body = await c.req.json()
+    const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, networkGid } = body
+
+    // Load existing company (from hardcoded defaults or KV)
+    const all = await getAllCompanies(c.env.COMPANIES_KV)
+    const existing = all.find((co: any) => co.key === key)
+    if (!existing) {
+      return c.json({ error: 'Company not found' }, 404)
+    }
+
+    const updated: any = {
+      ...existing,
+      key,
+      name: name || existing.name,
+      pipelineKey: pipelineKey || existing.pipelineKey,
+      sources: {
+        promote: promoteUrl !== undefined ? promoteUrl : (existing.sources?.promote || ''),
+        network: networkUrl !== undefined ? networkUrl : (existing.sources?.network || ''),
+        engage: engageUrl !== undefined ? engageUrl : (existing.sources?.engage || existing.url || ''),
+      }
+    }
+    if (networkGid !== undefined) {
+      if (networkGid) updated.networkSheetGid = networkGid
+      else delete updated.networkSheetGid
+    }
+    if (engageUrl) updated.url = engageUrl
+
+    await c.env.COMPANIES_KV.put(`company:${key}`, JSON.stringify(updated))
+    return c.json({ success: true, company: updated })
+  } catch (err) {
+    return c.json({ error: 'Failed to update company' }, 500)
   }
 })
 
@@ -3282,9 +3320,9 @@ app.get('/', (c) => {
             }
 
             // Save Source URLs Function
-            function saveSourceURLs() {
+            async function saveSourceURLs() {
                 const company = COMPANIES[currentCompany];
-                
+
                 // Get values from input fields
                 const promoteUrl = document.getElementById('edit-promote-url').value.trim();
                 const networkUrl = document.getElementById('edit-network-url').value.trim();
@@ -3309,32 +3347,28 @@ app.get('/', (c) => {
                     return;
                 }
 
-                // Update company sources
-                if (!company.sources) {
-                    company.sources = {};
-                }
-                
-                company.sources.promote = promoteUrl;
-                company.sources.network = networkUrl;
-                company.sources.engage = engageUrl || company.url;
-                
-                // Update network GID if provided
-                if (networkGid) {
-                    company.networkSheetGid = networkGid;
-                } else {
-                    delete company.networkSheetGid;
-                }
-                
-                // Also update the main URL to match engage URL if provided
-                if (engageUrl) {
-                    company.url = engageUrl;
-                }
+                try {
+                    const res = await fetch(\`/api/companies/\${currentCompany}\`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ promoteUrl, networkUrl, networkGid, engageUrl })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || 'Save failed');
 
-                // Show success message
-                showEditMessage('success', \`Source URLs for \${company.name} have been saved successfully! The changes are active for this session.\`);
+                    // Update local object so dashboard reflects immediately
+                    if (!company.sources) company.sources = {};
+                    company.sources.promote = promoteUrl;
+                    company.sources.network = networkUrl;
+                    company.sources.engage = engageUrl || company.url;
+                    if (networkGid) { company.networkSheetGid = networkGid; } else { delete company.networkSheetGid; }
+                    if (engageUrl) company.url = engageUrl;
 
-                // Reload dashboard to reflect changes
-                loadDashboard();
+                    showEditMessage('success', \`Source URLs for \${company.name} saved and persisted successfully!\`);
+                    loadDashboard();
+                } catch (err) {
+                    showEditMessage('error', \`Failed to save: \${err.message}\`);
+                }
             }
 
             // Validate URL
@@ -3383,7 +3417,7 @@ app.get('/', (c) => {
             }
 
             // Add New Company Function
-            function addNewCompany() {
+            async function addNewCompany() {
                 // Get form values
                 const name = document.getElementById('new-company-name').value.trim();
                 const key = document.getElementById('new-company-key').value.trim();
@@ -3428,33 +3462,39 @@ app.get('/', (c) => {
                     newCompany.networkSheetGid = networkGid;
                 }
 
-                // Add company to COMPANIES object
-                COMPANIES[key] = newCompany;
+                try {
+                    const res = await fetch('/api/companies', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name, pipelineKey, networkUrl, promoteUrl, engageUrl, networkGid, key })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || 'Failed to add company');
 
-                // Add to dropdown
-                const selector = document.getElementById('company-selector');
-                const option = document.createElement('option');
-                option.value = key;
-                option.textContent = name;
-                selector.appendChild(option);
+                    // Add company to local COMPANIES object
+                    COMPANIES[key] = newCompany;
 
-                // Switch to the new company
-                currentCompany = key;
-                selector.value = key;
+                    // Add to dropdown
+                    const selector = document.getElementById('company-selector');
+                    const option = document.createElement('option');
+                    option.value = key;
+                    option.textContent = name;
+                    selector.appendChild(option);
 
-                // Update UI
-                updateSheetsFormulas();
-                updateSettingsView();
-                loadDashboard();
+                    // Switch to the new company
+                    currentCompany = key;
+                    selector.value = key;
 
-                // Show success message
-                showMessage('success', \`Company "\${name}" has been added successfully! Switched to this company.\`);
+                    updateSheetsFormulas();
+                    updateSettingsView();
+                    loadDashboard();
 
-                // Reset form
-                resetAddCompanyForm();
-
-                // Scroll to top
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+                    showMessage('success', \`Company "\${name}" added and saved permanently!\`);
+                    resetAddCompanyForm();
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                } catch (err) {
+                    showMessage('error', \`Failed to add company: \${err.message}\`);
+                }
             }
 
             // Reset Add Company Form
