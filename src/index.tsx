@@ -432,7 +432,18 @@ app.get('/api/sheets/interest/:interestLevel/count', async (c) => {
   }
 })
 
-// List all available companies
+// Helper: look up a single company by key — checks hardcoded first, then KV
+async function getCompany(kv: KVNamespace, key: string): Promise<any | null> {
+  // Hardcoded companies have priority (they may be overridden via KV)
+  const kvRaw = await kv.get(`company:${key}`)
+  if (kvRaw) return JSON.parse(kvRaw)
+  if (COMPANIES[key]) {
+    const c = COMPANIES[key]
+    return { key, name: c.name, pipelineKey: c.pipelineKey, url: c.url || '', networkSheetGid: c.networkSheetGid || '', sources: c.sources || {} }
+  }
+  return null
+}
+
 // Helper: load all companies (hardcoded defaults + KV overrides)
 async function getAllCompanies(kv: KVNamespace) {
   const merged: Record<string, any> = {}
@@ -546,7 +557,7 @@ app.put('/api/companies/:key', async (c) => {
 app.get('/api/sheets/:companyName/total', async (c) => {
   try {
     const companyName = c.req.param('companyName').toLowerCase()
-    const company = COMPANIES[companyName]
+    const company = await getCompany(c.env.COMPANIES_KV, companyName)
     
     if (!company) {
       return c.text('COMPANY_NOT_FOUND')
@@ -566,7 +577,7 @@ app.get('/api/sheets/:companyName/month/:yearMonth/count', async (c) => {
   try {
     const companyName = c.req.param('companyName').toLowerCase()
     const yearMonth = c.req.param('yearMonth') // Format: YYYY-MM
-    const company = COMPANIES[companyName]
+    const company = await getCompany(c.env.COMPANIES_KV, companyName)
     
     if (!company) {
       return c.text('COMPANY_NOT_FOUND')
@@ -590,7 +601,7 @@ app.get('/api/sheets/:companyName/month/:yearMonth/count', async (c) => {
 app.get('/api/sheets/:companyName/week/count', async (c) => {
   try {
     const companyName = c.req.param('companyName').toLowerCase()
-    const company = COMPANIES[companyName]
+    const company = await getCompany(c.env.COMPANIES_KV, companyName)
     
     if (!company) {
       return c.text('ERROR')
@@ -622,7 +633,7 @@ app.get('/api/sheets/:companyName/week/count', async (c) => {
 app.get('/api/sheets/:companyName/duration/total', async (c) => {
   try {
     const companyName = c.req.param('companyName').toLowerCase()
-    const company = COMPANIES[companyName]
+    const company = await getCompany(c.env.COMPANIES_KV, companyName)
     
     if (!company) {
       return c.text('0')
@@ -660,7 +671,7 @@ app.get('/api/sheets/:companyName/duration/total', async (c) => {
 app.get('/api/sheets/:companyName/monthly-stats', async (c) => {
   try {
     const companyName = c.req.param('companyName').toLowerCase()
-    const company = COMPANIES[companyName]
+    const company = await getCompany(c.env.COMPANIES_KV, companyName)
     
     if (!company) {
       return c.json({ error: 'Company not found' }, 404)
@@ -719,7 +730,7 @@ app.get('/api/analytics', async (c) => {
   try {
     // Get company from query parameter or default to MabSilico
     const companyKey = c.req.query('company') || 'mabsilico'
-    const company = COMPANIES[companyKey]
+    const company = await getCompany(c.env.COMPANIES_KV, companyKey)
     
     if (!company) {
       return c.json({ error: 'Invalid company key' }, 400)
@@ -3591,10 +3602,40 @@ app.get('/', (c) => {
                 }
             }
 
+            // Load KV companies on startup and merge into COMPANIES + dropdown
+            async function loadKVCompanies() {
+                try {
+                    const res = await fetch('/api/companies');
+                    const data = await res.json();
+                    if (!data.companies) return;
+                    const selector = document.getElementById('company-selector');
+                    data.companies.forEach(company => {
+                        // Merge into COMPANIES object
+                        if (!COMPANIES[company.key]) {
+                            COMPANIES[company.key] = company;
+                            // Add to dropdown if not already there
+                            if (selector && !selector.querySelector(\`option[value="\${company.key}"]\`)) {
+                                const option = document.createElement('option');
+                                option.value = company.key;
+                                option.textContent = company.name;
+                                selector.appendChild(option);
+                            }
+                        } else {
+                            // Override hardcoded entry with KV version (has saved URLs)
+                            COMPANIES[company.key] = { ...COMPANIES[company.key], ...company };
+                        }
+                    });
+                } catch (e) {
+                    console.warn('Could not load KV companies:', e);
+                }
+            }
+
             // Load dashboard on page load and setup auto-refresh
-            updateSheetsFormulas(); // Initialize Google Sheets formulas
-            updateSettingsView(); // Initialize Settings view
-            loadDashboard();
+            loadKVCompanies().then(() => {
+                updateSheetsFormulas();
+                updateSettingsView();
+                loadDashboard();
+            });
             setupAutoRefresh();
         </script>
     </body>
