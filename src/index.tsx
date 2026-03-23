@@ -106,9 +106,24 @@ async function callStreakAPI(endpoint: string) {
 }
 
 // Helper function to fetch and parse Network data from Google Sheets
-async function fetchNetworkData(gid: string) {
+// Parse a Google Sheets URL to extract sheetId and gid
+function parseSheetUrl(urlOrGid: string): { sheetId: string, gid: string } {
+  // If it looks like a full URL, extract sheet ID and gid
+  if (urlOrGid.includes('docs.google.com')) {
+    const sheetIdMatch = urlOrGid.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/)
+    const gidMatch = urlOrGid.match(/[?&#]gid=(\d+)/)
+    const sheetId = sheetIdMatch ? sheetIdMatch[1] : GOOGLE_SHEET_ID
+    const gid = gidMatch ? gidMatch[1] : '0'
+    return { sheetId, gid }
+  }
+  // Otherwise treat as a raw GID using default sheet
+  return { sheetId: GOOGLE_SHEET_ID, gid: urlOrGid }
+}
+
+async function fetchNetworkData(urlOrGid: string) {
   try {
-    const url = `${GOOGLE_SHEET_BASE_URL}&gid=${gid}`
+    const { sheetId, gid } = parseSheetUrl(urlOrGid)
+    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`
     const response = await fetch(url)
     
     if (!response.ok) {
@@ -877,9 +892,11 @@ app.get('/api/analytics', async (c) => {
     }
     
     // Fetch network data if available for this company
+    // Priority: networkSheetGid (raw GID) → sources.network (full URL with any sheet)
     let networkData = null
-    if (company.networkSheetGid) {
-      networkData = await fetchNetworkData(company.networkSheetGid)
+    const networkSource = company.networkSheetGid || company.sources?.network
+    if (networkSource) {
+      networkData = await fetchNetworkData(networkSource)
     }
     
     return c.json({
@@ -1443,7 +1460,6 @@ app.get('/', (c) => {
                         <h1 class="text-4xl font-bold mb-3">
                             <i class="fas fa-chart-line mr-3"></i>
                             Gershon CRM - Client Dashboard
-                            <span class="text-sm font-normal text-blue-200 ml-3">v${__APP_VERSION__}</span>
                         </h1>
                         <!-- Company Selector -->
                         <div class="flex items-center space-x-3">
@@ -1471,6 +1487,11 @@ app.get('/', (c) => {
                         </div>
                     </div>
                     <div class="text-right">
+                        <div class="mb-3">
+                            <span class="inline-block bg-white text-indigo-700 font-bold text-sm px-3 py-1 rounded-full shadow-md tracking-wide">
+                                v${__APP_VERSION__}
+                            </span>
+                        </div>
                         <p class="text-blue-100 text-sm mb-2">
                             <i class="fas fa-sync-alt mr-2"></i>
                             Last Updated: <span id="last-updated" class="font-semibold">Loading...</span>
@@ -1784,15 +1805,15 @@ app.get('/', (c) => {
                     <form id="edit-sources-form" class="space-y-6" onsubmit="return false;">
                         <!-- PROMOTE Source -->
                         <div class="p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
-                            <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-                                <i class="fas fa-bullhorn text-yellow-600 mr-2"></i>
-                                PROMOTE Data Source
+                            <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center justify-between">
+                                <span><i class="fas fa-bullhorn text-yellow-600 mr-2"></i>PROMOTE Data Source</span>
+                                <span id="status-promote" class="hidden text-xs font-semibold px-2 py-1 rounded-full bg-green-100 text-green-700"><i class="fas fa-check-circle mr-1"></i>URL saved</span>
                             </h3>
                             <div class="space-y-2">
                                 <label class="text-sm font-medium text-gray-700">Source URL:</label>
-                                <input 
-                                    type="url" 
-                                    id="edit-promote-url" 
+                                <input
+                                    type="url"
+                                    id="edit-promote-url"
                                     placeholder="https://..."
                                     class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 font-mono text-sm"
                                 />
@@ -1805,25 +1826,25 @@ app.get('/', (c) => {
 
                         <!-- NETWORK Source -->
                         <div class="p-6 bg-blue-50 border border-blue-200 rounded-lg">
-                            <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-                                <i class="fas fa-users text-blue-600 mr-2"></i>
-                                NETWORK Data Source
+                            <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center justify-between">
+                                <span><i class="fas fa-users text-blue-600 mr-2"></i>NETWORK Data Source</span>
+                                <span id="status-network" class="hidden text-xs font-semibold px-2 py-1 rounded-full bg-green-100 text-green-700"><i class="fas fa-check-circle mr-1"></i>URL saved</span>
                             </h3>
                             <div class="space-y-3">
                                 <div>
                                     <label class="text-sm font-medium text-gray-700">Google Sheets URL:</label>
-                                    <input 
-                                        type="url" 
-                                        id="edit-network-url" 
+                                    <input
+                                        type="url"
+                                        id="edit-network-url"
                                         placeholder="https://docs.google.com/spreadsheets/d/..."
                                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
                                     />
                                 </div>
                                 <div>
-                                    <label class="text-sm font-medium text-gray-700">Sheet GID (optional):</label>
-                                    <input 
-                                        type="text" 
-                                        id="edit-network-gid" 
+                                    <label class="text-sm font-medium text-gray-700">Sheet GID (optional — extracted from URL automatically):</label>
+                                    <input
+                                        type="text"
+                                        id="edit-network-gid"
                                         placeholder="e.g., 608600451"
                                         pattern="[0-9]*"
                                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
@@ -1831,22 +1852,22 @@ app.get('/', (c) => {
                                 </div>
                                 <p class="text-xs text-gray-500">
                                     <i class="fas fa-table mr-1"></i>
-                                    LinkedIn networking data from Google Sheets
+                                    LinkedIn networking data from Google Sheets — paste the full URL, GID is auto-extracted
                                 </p>
                             </div>
                         </div>
 
                         <!-- ENGAGE Source -->
                         <div class="p-6 bg-green-50 border border-green-200 rounded-lg">
-                            <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-                                <i class="fas fa-handshake text-green-600 mr-2"></i>
-                                ENGAGE Data Source
+                            <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center justify-between">
+                                <span><i class="fas fa-handshake text-green-600 mr-2"></i>ENGAGE Data Source</span>
+                                <span id="status-engage" class="hidden text-xs font-semibold px-2 py-1 rounded-full bg-green-100 text-green-700"><i class="fas fa-check-circle mr-1"></i>URL saved</span>
                             </h3>
                             <div class="space-y-2">
                                 <label class="text-sm font-medium text-gray-700">Streak Pipeline URL:</label>
-                                <input 
-                                    type="url" 
-                                    id="edit-engage-url" 
+                                <input
+                                    type="url"
+                                    id="edit-engage-url"
                                     placeholder="https://www.streak.com/a/pipelines/..."
                                     class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 font-mono text-sm"
                                 />
@@ -3299,19 +3320,38 @@ app.get('/', (c) => {
                     '=IMPORTDATA("' + baseUrl + '/api/sheets/' + currentCompany + '/month/2025-12/count")';
             }
 
+            // Update the green check badges for saved URLs
+            function updateSourceStatusBadges(sources, company) {
+                const badges = {
+                    'status-promote': sources.promote,
+                    'status-network': sources.network,
+                    'status-engage': sources.engage || company.url
+                };
+                for (const [id, value] of Object.entries(badges)) {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        if (value) { el.classList.remove('hidden'); }
+                        else { el.classList.add('hidden'); }
+                    }
+                }
+            }
+
             function updateSettingsView() {
                 const company = COMPANIES[currentCompany];
                 const sources = company.sources || { promote: '', network: '', engage: '' };
-                
+
                 // Update company name in settings header
                 document.getElementById('settings-company-name').textContent = company.name;
-                
+
                 // Populate input fields with current values
                 document.getElementById('edit-promote-url').value = sources.promote || '';
                 document.getElementById('edit-network-url').value = sources.network || '';
                 document.getElementById('edit-network-gid').value = company.networkSheetGid || '';
                 document.getElementById('edit-engage-url').value = sources.engage || company.url || '';
-                
+
+                // Show green badges for already-saved URLs
+                updateSourceStatusBadges(sources, company);
+
                 // Hide any previous messages
                 const messageEl = document.getElementById('edit-sources-message');
                 if (messageEl) {
@@ -3364,6 +3404,8 @@ app.get('/', (c) => {
                     if (networkGid) { company.networkSheetGid = networkGid; } else { delete company.networkSheetGid; }
                     if (engageUrl) company.url = engageUrl;
 
+                    // Refresh status badges
+                    updateSourceStatusBadges(company.sources, company);
                     showEditMessage('success', \`Source URLs for \${company.name} saved and persisted successfully!\`);
                     loadDashboard();
                 } catch (err) {
