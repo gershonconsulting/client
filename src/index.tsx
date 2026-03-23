@@ -1020,6 +1020,84 @@ app.get('/api/analytics', async (c) => {
   }
 })
 
+// Overview API — stats for ALL companies for a given time period
+app.get('/api/overview', async (c) => {
+  try {
+    const period = c.req.query('period') || 'this-month'
+    const now = Date.now()
+    const nowDate = new Date()
+
+    let periodStart = 0
+    let periodEnd = now
+
+    if (period === 'week') {
+      periodStart = now - 7 * 24 * 60 * 60 * 1000
+    } else if (period === 'last-month') {
+      periodStart = new Date(nowDate.getFullYear(), nowDate.getMonth() - 1, 1).getTime()
+      periodEnd = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1).getTime()
+    } else if (period === 'this-month') {
+      periodStart = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1).getTime()
+    } else if (period === 'year') {
+      periodStart = new Date(nowDate.getFullYear(), 0, 1).getTime()
+    }
+    // 'all' → periodStart stays 0
+
+    const companiesList = await getAllCompanies(c.env.COMPANIES_KV)
+
+    const results = await Promise.all(
+      companiesList.map(async (company: any) => {
+        try {
+          const boxes = await callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`)
+          const allBoxes = Array.isArray(boxes) ? boxes : []
+          const totalLeads = allBoxes.length
+
+          const periodLeads = allBoxes.filter((box: any) => {
+            const ts = box.creationTimestamp || 0
+            return ts >= periodStart && ts < periodEnd
+          }).length
+
+          // Scale goal (10 leads/month) to the period
+          const monthlyGoal = 10
+          let periodGoal = monthlyGoal
+          if (period === 'week') periodGoal = Math.round((monthlyGoal / 30) * 7)
+          else if (period === 'year') periodGoal = monthlyGoal * 12
+          else if (period === 'all') {
+            const timestamps = allBoxes.map((b: any) => b.creationTimestamp).filter(Boolean)
+            if (timestamps.length > 0) {
+              const earliest = new Date(Math.min(...timestamps))
+              const months = (nowDate.getFullYear() - earliest.getFullYear()) * 12
+                + (nowDate.getMonth() - earliest.getMonth()) + 1
+              periodGoal = monthlyGoal * Math.max(months, 1)
+            }
+          }
+
+          return {
+            key: company.key,
+            name: company.name,
+            periodLeads,
+            totalLeads,
+            goalPct: periodGoal > 0 ? Math.round((periodLeads / periodGoal) * 100) : 0,
+            error: false
+          }
+        } catch (_err) {
+          return { key: company.key, name: company.name, periodLeads: 0, totalLeads: 0, goalPct: 0, error: true }
+        }
+      })
+    )
+
+    results.sort((a, b) => b.periodLeads - a.periodLeads)
+
+    return c.json({
+      period,
+      totalPeriodLeads: results.reduce((s, r) => s + r.periodLeads, 0),
+      totalAllLeads: results.reduce((s, r) => s + r.totalLeads, 0),
+      companies: results
+    })
+  } catch (error: any) {
+    return c.json({ error: error.message }, 500)
+  }
+})
+
 // Admin Panel Route
 app.get('/admin', (c) => {
   return c.html(`
@@ -1434,6 +1512,211 @@ app.get('/admin', (c) => {
   `)
 })
 
+// Overview Page — all clients at a glance
+app.get('/overview', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Overview — Gershon CRM</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <style>
+            body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+            .skeleton { animation: pulse 1.5s cubic-bezier(0.4,0,0.6,1) infinite; background-color: #e5e7eb; border-radius: 0.375rem; }
+            @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+            .period-btn { transition: all 0.15s ease; cursor: pointer; }
+            .period-btn.active { background: white; color: #4338ca; box-shadow: 0 1px 4px rgba(0,0,0,0.15); font-weight: 700; }
+        </style>
+    </head>
+    <body class="bg-gray-50 min-h-screen">
+        <div class="container mx-auto px-4 py-8 max-w-7xl">
+
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-lg shadow-xl p-8 mb-8 text-white">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-4xl font-bold mb-4">
+                            <i class="fas fa-th-large mr-3"></i>
+                            Gershon CRM — Client Overview
+                        </h1>
+                        <div class="flex items-center space-x-3">
+                            <a href="/" class="bg-blue-500 hover:bg-blue-400 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors shadow-md">
+                                <i class="fas fa-arrow-left mr-2"></i>Dashboard
+                            </a>
+                            <a href="/admin" class="bg-purple-500 hover:bg-purple-400 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors shadow-md">
+                                <i class="fas fa-shield-alt mr-2"></i>Admin Panel
+                            </a>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <span class="inline-block bg-white text-indigo-700 font-bold text-sm px-3 py-1 rounded-full shadow-md tracking-wide mb-3">
+                            v${__APP_VERSION__}
+                        </span>
+                        <p class="text-blue-100 text-sm">
+                            <i class="fas fa-building mr-1"></i>All active client pipelines
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Period filter bar -->
+            <div class="bg-white rounded-lg shadow p-4 mb-6 flex flex-wrap items-center gap-3">
+                <span class="text-gray-500 text-sm font-medium">
+                    <i class="fas fa-calendar-alt mr-1"></i>Period:
+                </span>
+                <div class="flex bg-gray-100 rounded-lg p-1 gap-1">
+                    <button class="period-btn active px-4 py-2 rounded-md text-sm" data-period="week">Last Week</button>
+                    <button class="period-btn px-4 py-2 rounded-md text-sm text-gray-600" data-period="last-month">Last Month</button>
+                    <button class="period-btn px-4 py-2 rounded-md text-sm text-gray-600" data-period="this-month">This Month</button>
+                    <button class="period-btn px-4 py-2 rounded-md text-sm text-gray-600" data-period="year">This Year</button>
+                    <button class="period-btn px-4 py-2 rounded-md text-sm text-gray-600" data-period="all">All Time</button>
+                </div>
+                <button onclick="loadOverview(currentPeriod)" class="ml-auto bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors">
+                    <i class="fas fa-sync-alt mr-2"></i>Refresh
+                </button>
+            </div>
+
+            <!-- Summary row -->
+            <div id="summary-row" class="bg-white rounded-lg shadow p-5 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div class="flex gap-8">
+                    <div><div class="skeleton h-4 w-32 mb-2"></div><div class="skeleton h-8 w-16"></div></div>
+                    <div><div class="skeleton h-4 w-32 mb-2"></div><div class="skeleton h-8 w-16"></div></div>
+                    <div><div class="skeleton h-4 w-32 mb-2"></div><div class="skeleton h-8 w-16"></div></div>
+                </div>
+            </div>
+
+            <!-- Cards grid -->
+            <div id="cards-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="bg-white rounded-lg shadow p-6"><div class="skeleton h-6 w-3/4 mb-4"></div><div class="skeleton h-14 w-20 mb-3"></div><div class="skeleton h-3 w-full mb-2"></div><div class="skeleton h-3 w-2/3 mb-4"></div><div class="skeleton h-2 w-full mb-4"></div><div class="skeleton h-10 w-full"></div></div>
+                <div class="bg-white rounded-lg shadow p-6"><div class="skeleton h-6 w-3/4 mb-4"></div><div class="skeleton h-14 w-20 mb-3"></div><div class="skeleton h-3 w-full mb-2"></div><div class="skeleton h-3 w-2/3 mb-4"></div><div class="skeleton h-2 w-full mb-4"></div><div class="skeleton h-10 w-full"></div></div>
+                <div class="bg-white rounded-lg shadow p-6"><div class="skeleton h-6 w-3/4 mb-4"></div><div class="skeleton h-14 w-20 mb-3"></div><div class="skeleton h-3 w-full mb-2"></div><div class="skeleton h-3 w-2/3 mb-4"></div><div class="skeleton h-2 w-full mb-4"></div><div class="skeleton h-10 w-full"></div></div>
+            </div>
+
+            <!-- Error state -->
+            <div id="error-state" class="hidden bg-red-50 border border-red-200 rounded-lg p-6 mt-4">
+                <div class="flex items-center">
+                    <i class="fas fa-exclamation-circle text-red-500 text-2xl mr-3"></i>
+                    <div>
+                        <h3 class="text-red-800 font-semibold">Error Loading Overview</h3>
+                        <p id="error-message" class="text-red-600 text-sm mt-1"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            let currentPeriod = 'week';
+
+            document.querySelectorAll('.period-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.period-btn').forEach(b => {
+                        b.classList.remove('active');
+                        b.classList.add('text-gray-600');
+                    });
+                    btn.classList.add('active');
+                    btn.classList.remove('text-gray-600');
+                    currentPeriod = btn.dataset.period;
+                    loadOverview(currentPeriod);
+                });
+            });
+
+            function goalColor(pct) {
+                if (pct >= 100) return { bar: 'bg-green-500', text: 'text-green-700', badge: 'bg-green-100 text-green-700 border-green-200' };
+                if (pct >= 50)  return { bar: 'bg-yellow-400', text: 'text-yellow-700', badge: 'bg-yellow-100 text-yellow-700 border-yellow-200' };
+                return { bar: 'bg-red-400', text: 'text-red-600', badge: 'bg-red-100 text-red-600 border-red-200' };
+            }
+
+            function periodLabel(p) {
+                return { week:'Last Week', 'last-month':'Last Month', 'this-month':'This Month', year:'This Year', all:'All Time' }[p] || p;
+            }
+
+            function renderSummary(data) {
+                document.getElementById('summary-row').innerHTML = \`
+                    <div class="flex flex-wrap gap-8">
+                        <div>
+                            <p class="text-xs text-gray-500 uppercase font-semibold tracking-wide mb-1">Leads — \${periodLabel(data.period)}</p>
+                            <p class="text-4xl font-extrabold text-gray-900">\${data.totalPeriodLeads}</p>
+                        </div>
+                        <div class="border-l border-gray-200 pl-8">
+                            <p class="text-xs text-gray-500 uppercase font-semibold tracking-wide mb-1">All-Time Leads</p>
+                            <p class="text-4xl font-extrabold text-gray-900">\${data.totalAllLeads}</p>
+                        </div>
+                        <div class="border-l border-gray-200 pl-8">
+                            <p class="text-xs text-gray-500 uppercase font-semibold tracking-wide mb-1">Active Clients</p>
+                            <p class="text-4xl font-extrabold text-gray-900">\${data.companies.length}</p>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2 sm:mt-0">
+                        <i class="fas fa-clock mr-1"></i>Updated \${new Date().toLocaleTimeString()}
+                    </p>
+                \`;
+            }
+
+            function renderCards(companies) {
+                const grid = document.getElementById('cards-grid');
+                if (!companies.length) {
+                    grid.innerHTML = '<p class="col-span-3 text-center text-gray-400 py-16 text-lg">No company data available.</p>';
+                    return;
+                }
+                grid.innerHTML = companies.map(co => {
+                    const pct = Math.min(co.goalPct, 100);
+                    const colors = goalColor(co.goalPct);
+                    const errBadge = co.error ? '<span class="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full ml-2">API Error</span>' : '';
+                    return \`
+                    <div class="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-lg transition-shadow flex flex-col">
+                        <div class="flex items-start justify-between mb-3">
+                            <h3 class="text-lg font-bold text-gray-800 leading-tight">\${co.name}\${errBadge}</h3>
+                            <span class="ml-2 flex-shrink-0 border text-xs font-semibold px-2 py-0.5 rounded-full \${colors.badge}">\${co.goalPct}% of goal</span>
+                        </div>
+                        <p class="text-5xl font-extrabold text-gray-900 mb-0.5">\${co.periodLeads}</p>
+                        <p class="text-xs text-gray-400 mb-1">leads this period</p>
+                        <p class="text-sm text-gray-500 mb-4"><i class="fas fa-database mr-1 text-gray-300"></i>\${co.totalLeads} total all time</p>
+                        <div class="mb-5">
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-gray-400">Goal progress</span>
+                                <span class="font-semibold \${colors.text}">\${co.goalPct}%</span>
+                            </div>
+                            <div class="w-full bg-gray-100 rounded-full h-2">
+                                <div class="\${colors.bar} h-2 rounded-full transition-all duration-700" style="width:\${pct}%"></div>
+                            </div>
+                        </div>
+                        <div class="mt-auto">
+                            <a href="/?company=\${co.key}" class="block w-full text-center bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg px-4 py-2.5 text-sm font-semibold transition-all shadow">
+                                <i class="fas fa-chart-line mr-2"></i>View Dashboard
+                            </a>
+                        </div>
+                    </div>\`;
+                }).join('');
+            }
+
+            async function loadOverview(period) {
+                document.getElementById('error-state').classList.add('hidden');
+                document.getElementById('summary-row').innerHTML = '<div class="flex gap-8"><div><div class="skeleton h-4 w-32 mb-2"></div><div class="skeleton h-8 w-16"></div></div><div><div class="skeleton h-4 w-32 mb-2"></div><div class="skeleton h-8 w-16"></div></div><div><div class="skeleton h-4 w-32 mb-2"></div><div class="skeleton h-8 w-16"></div></div></div>';
+                document.getElementById('cards-grid').innerHTML = '<div class="bg-white rounded-lg shadow p-6"><div class="skeleton h-6 w-3/4 mb-4"></div><div class="skeleton h-14 w-20 mb-3"></div><div class="skeleton h-3 w-full mb-2"></div><div class="skeleton h-2 w-full mb-4"></div><div class="skeleton h-10 w-full"></div></div>'.repeat(6);
+                try {
+                    const res = await fetch('/api/overview?period=' + period);
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    const data = await res.json();
+                    renderSummary(data);
+                    renderCards(data.companies);
+                } catch (err) {
+                    document.getElementById('error-message').textContent = err.message;
+                    document.getElementById('error-state').classList.remove('hidden');
+                    document.getElementById('summary-row').innerHTML = '';
+                    document.getElementById('cards-grid').innerHTML = '';
+                }
+            }
+
+            loadOverview(currentPeriod);
+        </script>
+    </body>
+    </html>
+  `)
+})
+
 // Default route - Dashboard HTML
 app.get('/', (c) => {
   return c.html(`
@@ -1492,6 +1775,9 @@ app.get('/', (c) => {
                             <button onclick="refreshDashboard()" class="bg-blue-500 hover:bg-blue-400 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors shadow-md">
                                 <i class="fas fa-sync-alt mr-2"></i>Refresh
                             </button>
+                            <a href="/overview" class="bg-indigo-500 hover:bg-indigo-400 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors shadow-md">
+                                <i class="fas fa-th-large mr-2"></i>Overview
+                            </a>
                             <a href="/admin" class="bg-purple-500 hover:bg-purple-400 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors shadow-md">
                                 <i class="fas fa-shield-alt mr-2"></i>Admin Panel
                             </a>
