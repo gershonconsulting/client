@@ -445,16 +445,16 @@ async function getCompany(kv: KVNamespace, key: string): Promise<any | null> {
 }
 
 // Helper: load all companies (hardcoded defaults + KV overrides)
-async function getAllCompanies(kv: KVNamespace) {
+async function getAllCompanies(kv: KVNamespace, includeArchived = false) {
   const merged: Record<string, any> = {}
 
   // Start with hardcoded defaults
   for (const key of Object.keys(COMPANIES)) {
     const c = COMPANIES[key]
-    merged[key] = { key, name: c.name, pipelineKey: c.pipelineKey, url: c.url || '', networkSheetGid: c.networkSheetGid || '', sources: c.sources || {} }
+    merged[key] = { key, name: c.name, pipelineKey: c.pipelineKey, url: c.url || '', networkSheetGid: c.networkSheetGid || '', sources: c.sources || {}, archived: false }
   }
 
-  // Overlay with KV entries (new companies or overrides)
+  // Overlay with KV entries (new companies or overrides, including archived flag)
   const kvList = await kv.list({ prefix: 'company:' })
   for (const item of kvList.keys) {
     const raw = await kv.get(item.name)
@@ -464,11 +464,13 @@ async function getAllCompanies(kv: KVNamespace) {
     }
   }
 
-  return Object.values(merged)
+  const all = Object.values(merged)
+  return includeArchived ? all : all.filter((c: any) => !c.archived)
 }
 
 app.get('/api/companies', async (c) => {
-  const companiesList = await getAllCompanies(c.env.COMPANIES_KV)
+  const includeArchived = c.req.query('includeArchived') === 'true'
+  const companiesList = await getAllCompanies(c.env.COMPANIES_KV, includeArchived)
   return c.json({ companies: companiesList, count: companiesList.length })
 })
 
@@ -522,13 +524,14 @@ app.put('/api/companies/:key', async (c) => {
     const body = await c.req.json()
     const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, networkGid } = body
 
-    // Load existing company (from hardcoded defaults or KV)
-    const all = await getAllCompanies(c.env.COMPANIES_KV)
+    // Load existing company (include archived so we can restore)
+    const all = await getAllCompanies(c.env.COMPANIES_KV, true)
     const existing = all.find((co: any) => co.key === key)
     if (!existing) {
       return c.json({ error: 'Company not found' }, 404)
     }
 
+    const { archived } = body
     const updated: any = {
       ...existing,
       key,
@@ -545,6 +548,7 @@ app.put('/api/companies/:key', async (c) => {
       else delete updated.networkSheetGid
     }
     if (engageUrl) updated.url = engageUrl
+    if (archived !== undefined) updated.archived = archived
 
     await c.env.COMPANIES_KV.put(`company:${key}`, JSON.stringify(updated))
     return c.json({ success: true, company: updated })
@@ -1298,7 +1302,7 @@ app.get('/admin', (c) => {
 
             async function loadCompanies() {
                 try {
-                    const response = await fetch('/api/companies');
+                    const response = await fetch('/api/companies?includeArchived=true');
                     const data = await response.json();
                     companies = {};
                     
@@ -1332,111 +1336,148 @@ app.get('/admin', (c) => {
                 }
             }
 
+            function companyCard(company, isArchived) {
+                const sources = company.sources || {};
+                const cardStyle = isArchived ? 'border-gray-200 bg-gray-50 opacity-75' : 'border-gray-200 hover:shadow-lg';
+                const nameBadge = isArchived ? '<span class="ml-2 text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full font-normal">Archived</span>' : '';
+                const iconColor = isArchived ? 'text-gray-400' : 'text-blue-600';
+                return \`
+                <div class="border rounded-lg p-6 transition-all \${cardStyle}">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="flex-1">
+                            <h3 class="text-lg font-bold text-gray-800 mb-3">
+                                <i class="fas fa-building \${iconColor} mr-2"></i>
+                                \${company.name}\${nameBadge}
+                            </h3>
+                            <div class="mb-3">
+                                <span class="text-gray-600 font-medium text-sm">Key:</span>
+                                <code class="ml-2 bg-gray-100 px-2 py-1 rounded text-xs font-mono">\${company.key}</code>
+                            </div>
+                            <div class="space-y-2 mt-4">
+                                <h4 class="text-sm font-semibold text-gray-700 mb-2">Data Sources:</h4>
+                                <div class="flex items-start space-x-2 text-sm">
+                                    <i class="fas fa-bullhorn text-yellow-600 mt-0.5"></i>
+                                    <div class="flex-1"><span class="font-medium text-gray-700">PROMOTE:</span>
+                                        \${sources.promote ? \`<a href="\${sources.promote}" target="_blank" class="text-blue-600 hover:underline text-xs ml-2 break-all">\${sources.promote.substring(0,50)}...</a>\` : '<span class="text-gray-400 text-xs ml-2">Not configured</span>'}
+                                    </div>
+                                </div>
+                                <div class="flex items-start space-x-2 text-sm">
+                                    <i class="fas fa-users text-blue-600 mt-0.5"></i>
+                                    <div class="flex-1"><span class="font-medium text-gray-700">NETWORK:</span>
+                                        \${sources.network ? \`<a href="\${sources.network}" target="_blank" class="text-blue-600 hover:underline text-xs ml-2 break-all">\${sources.network.substring(0,50)}...</a>\` : '<span class="text-gray-400 text-xs ml-2">Not configured</span>'}
+                                        \${company.networkSheetGid ? \`<span class="text-gray-500 text-xs ml-2">(GID: \${company.networkSheetGid})</span>\` : ''}
+                                    </div>
+                                </div>
+                                <div class="flex items-start space-x-2 text-sm">
+                                    <i class="fas fa-handshake text-green-600 mt-0.5"></i>
+                                    <div class="flex-1"><span class="font-medium text-gray-700">ENGAGE:</span>
+                                        \${sources.engage || company.url ? \`<a href="\${sources.engage || company.url}" target="_blank" class="text-blue-600 hover:underline text-xs ml-2 break-all">\${(sources.engage || company.url).substring(0,50)}...</a>\` : '<span class="text-gray-400 text-xs ml-2">Not configured</span>'}
+                                    </div>
+                                </div>
+                                <div class="flex items-start space-x-2 text-sm">
+                                    <i class="fas fa-key text-purple-600 mt-0.5"></i>
+                                    <div class="flex-1"><span class="font-medium text-gray-700">Pipeline Key:</span>
+                                        <code class="text-xs ml-2 bg-gray-100 px-2 py-1 rounded break-all">\${company.pipelineKey || 'Not set'}</code>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="ml-6 flex flex-col space-y-2">
+                            \${!isArchived ? \`
+                            <a href="/?company=\${company.key}" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all text-sm text-center whitespace-nowrap">
+                                <i class="fas fa-external-link-alt mr-1"></i>View Dashboard
+                            </a>
+                            <button onclick="archiveCompany('\${company.key}', '\${company.name}')" class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-all text-sm whitespace-nowrap">
+                                <i class="fas fa-archive mr-1"></i>Archive
+                            </button>
+                            \` : \`
+                            <button onclick="restoreCompany('\${company.key}', '\${company.name}')" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all text-sm whitespace-nowrap">
+                                <i class="fas fa-undo mr-1"></i>Restore
+                            </button>
+                            \`}
+                        </div>
+                    </div>
+                </div>\`;
+            }
+
             function displayCompanies(companiesList) {
                 const container = document.getElementById('companies-list');
-                if (companiesList.length === 0) {
+                const active = companiesList.filter(c => !c.archived);
+                const archived = companiesList.filter(c => c.archived);
+
+                let html = '';
+
+                if (active.length === 0 && archived.length === 0) {
                     container.innerHTML = '<p class="text-gray-500 text-center py-8">No companies found</p>';
                     return;
                 }
 
-                container.innerHTML = companiesList.map(company => {
-                    const sources = company.sources || {};
-                    return \`
-                    <div class="border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-all">
-                        <div class="flex items-start justify-between mb-4">
-                            <div class="flex-1">
-                                <h3 class="text-lg font-bold text-gray-800 mb-3">
-                                    <i class="fas fa-building text-blue-600 mr-2"></i>
-                                    \${company.name}
-                                </h3>
-                                
-                                <!-- Company Key -->
-                                <div class="mb-3">
-                                    <span class="text-gray-600 font-medium text-sm">Key:</span>
-                                    <code class="ml-2 bg-gray-100 px-2 py-1 rounded text-xs font-mono">\${company.key}</code>
-                                </div>
-                                
-                                <!-- Data Sources -->
-                                <div class="space-y-2 mt-4">
-                                    <h4 class="text-sm font-semibold text-gray-700 mb-2">Data Sources:</h4>
-                                    
-                                    <!-- PROMOTE -->
-                                    <div class="flex items-start space-x-2 text-sm">
-                                        <i class="fas fa-bullhorn text-yellow-600 mt-0.5"></i>
-                                        <div class="flex-1">
-                                            <span class="font-medium text-gray-700">PROMOTE:</span>
-                                            \${sources.promote ? 
-                                                \`<a href="\${sources.promote}" target="_blank" class="text-blue-600 hover:underline text-xs ml-2 break-all">\${sources.promote.substring(0, 50)}...</a>\` : 
-                                                '<span class="text-gray-400 text-xs ml-2">Not configured</span>'
-                                            }
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- NETWORK -->
-                                    <div class="flex items-start space-x-2 text-sm">
-                                        <i class="fas fa-users text-blue-600 mt-0.5"></i>
-                                        <div class="flex-1">
-                                            <span class="font-medium text-gray-700">NETWORK:</span>
-                                            \${sources.network ? 
-                                                \`<a href="\${sources.network}" target="_blank" class="text-blue-600 hover:underline text-xs ml-2 break-all">\${sources.network.substring(0, 50)}...</a>\` : 
-                                                '<span class="text-gray-400 text-xs ml-2">Not configured</span>'
-                                            }
-                                            \${company.networkSheetGid ? \`<span class="text-gray-500 text-xs ml-2">(GID: \${company.networkSheetGid})</span>\` : ''}
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- ENGAGE -->
-                                    <div class="flex items-start space-x-2 text-sm">
-                                        <i class="fas fa-handshake text-green-600 mt-0.5"></i>
-                                        <div class="flex-1">
-                                            <span class="font-medium text-gray-700">ENGAGE:</span>
-                                            \${sources.engage || company.url ? 
-                                                \`<a href="\${sources.engage || company.url}" target="_blank" class="text-blue-600 hover:underline text-xs ml-2 break-all">\${(sources.engage || company.url).substring(0, 50)}...</a>\` : 
-                                                '<span class="text-gray-400 text-xs ml-2">Not configured</span>'
-                                            }
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Pipeline Key -->
-                                    <div class="flex items-start space-x-2 text-sm">
-                                        <i class="fas fa-key text-purple-600 mt-0.5"></i>
-                                        <div class="flex-1">
-                                            <span class="font-medium text-gray-700">Pipeline Key:</span>
-                                            <code class="text-xs ml-2 bg-gray-100 px-2 py-1 rounded break-all">\${company.pipelineKey || 'Not set'}</code>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Action Buttons -->
-                            <div class="ml-6 flex flex-col space-y-2">
-                                <a href="/?company=\${company.key}" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all text-sm text-center whitespace-nowrap">
-                                    <i class="fas fa-external-link-alt mr-1"></i>
-                                    View Dashboard
-                                </a>
-                                <button onclick="deleteCompany('\${company.key}', '\${company.name}')" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all text-sm whitespace-nowrap">
-                                    <i class="fas fa-trash-alt mr-1"></i>
-                                    Delete
-                                </button>
-                            </div>
+                // Active section
+                html += \`<div class="mb-2">
+                    <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                        <i class="fas fa-circle text-green-500 mr-2 text-xs"></i>Active Clients (\${active.length})
+                    </h3>
+                    <div class="space-y-4">\${active.map(c => companyCard(c, false)).join('')}</div>
+                </div>\`;
+
+                // Archived section (collapsible)
+                if (archived.length > 0) {
+                    html += \`<div class="mt-8">
+                        <button onclick="toggleArchived()" class="flex items-center text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 hover:text-gray-700">
+                            <i class="fas fa-circle text-gray-400 mr-2 text-xs"></i>
+                            Archived Clients (\${archived.length})
+                            <i id="archived-chevron" class="fas fa-chevron-down ml-2 text-xs transition-transform"></i>
+                        </button>
+                        <div id="archived-section" class="hidden space-y-4">
+                            \${archived.map(c => companyCard(c, true)).join('')}
                         </div>
-                    </div>
-                \`;
-                }).join('');
+                    </div>\`;
+                }
+
+                container.innerHTML = html;
             }
 
-            // Delete Company Function
-            async function deleteCompany(companyKey, companyName) {
-                if (!confirm(\`Are you sure you want to delete "\${companyName}"?\\n\\nThis will permanently remove this company.\`)) {
-                    return;
-                }
+            function toggleArchived() {
+                const section = document.getElementById('archived-section');
+                const chevron = document.getElementById('archived-chevron');
+                const hidden = section.classList.toggle('hidden');
+                chevron.style.transform = hidden ? '' : 'rotate(180deg)';
+            }
+
+            // Archive Company Function
+            async function archiveCompany(companyKey, companyName) {
+                if (!confirm(\`Archive "\${companyName}"?\\n\\nThe client will be hidden from the dashboard and overview but all data is preserved. You can restore them at any time.\`)) return;
                 try {
-                    const response = await fetch(\`/api/companies/\${companyKey}\`, { method: 'DELETE' });
+                    const response = await fetch(\`/api/companies/\${companyKey}\`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ archived: true })
+                    });
                     const data = await response.json();
                     if (data.success) {
-                        showMessage('success', \`Company "\${companyName}" deleted successfully.\`);
+                        showMessage('success', \`"\${companyName}" archived. They are hidden from the dashboard but data is intact.\`);
                     } else {
-                        showMessage('error', data.error || 'Failed to delete company');
+                        showMessage('error', data.error || 'Failed to archive company');
+                    }
+                } catch (err) {
+                    showMessage('error', 'Network error: ' + err.message);
+                }
+                loadCompanies();
+            }
+
+            // Restore Company Function
+            async function restoreCompany(companyKey, companyName) {
+                try {
+                    const response = await fetch(\`/api/companies/\${companyKey}\`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ archived: false })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        showMessage('success', \`"\${companyName}" restored and visible in the dashboard again.\`);
+                    } else {
+                        showMessage('error', data.error || 'Failed to restore company');
                     }
                 } catch (err) {
                     showMessage('error', 'Network error: ' + err.message);
