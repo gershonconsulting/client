@@ -741,6 +741,9 @@ app.get('/api/analytics', async (c) => {
     }
     
     const pipelineKey = company.pipelineKey
+    if (!pipelineKey) {
+      return c.json({ error: `No Streak pipeline key configured for "${company.name}". Please set it in the Admin Panel.` }, 400)
+    }
     const [pipeline, boxes] = await Promise.all([
       callStreakAPI(`/pipelines/${pipelineKey}`),
       callStreakAPI(`/pipelines/${pipelineKey}/boxes`)
@@ -1455,14 +1458,24 @@ app.get('/admin', (c) => {
                     });
                     const data = await response.json();
                     if (data.success) {
-                        showMessage('success', \`"\${companyName}" archived. They are hidden from the dashboard but data is intact.\`);
+                        // Update local state immediately — do NOT re-fetch from KV
+                        // (KV has eventual consistency and would return stale data)
+                        if (companies[companyKey]) companies[companyKey].archived = true;
+                        displayCompanies(Object.values(companies));
+                        // Auto-expand the archived section so user sees the move
+                        const section = document.getElementById('archived-section');
+                        const chevron = document.getElementById('archived-chevron');
+                        if (section && section.classList.contains('hidden')) {
+                            section.classList.remove('hidden');
+                            if (chevron) chevron.style.transform = 'rotate(180deg)';
+                        }
+                        showMessage('success', \`"\${companyName}" archived. Visible in the Archived section below — data fully preserved.\`);
                     } else {
                         showMessage('error', data.error || 'Failed to archive company');
                     }
                 } catch (err) {
                     showMessage('error', 'Network error: ' + err.message);
                 }
-                loadCompanies();
             }
 
             // Restore Company Function
@@ -1475,14 +1488,16 @@ app.get('/admin', (c) => {
                     });
                     const data = await response.json();
                     if (data.success) {
-                        showMessage('success', \`"\${companyName}" restored and visible in the dashboard again.\`);
+                        // Update local state immediately — do NOT re-fetch from KV
+                        if (companies[companyKey]) companies[companyKey].archived = false;
+                        displayCompanies(Object.values(companies));
+                        showMessage('success', \`"\${companyName}" restored and now visible in the dashboard and overview.\`);
                     } else {
                         showMessage('error', data.error || 'Failed to restore company');
                     }
                 } catch (err) {
                     showMessage('error', 'Network error: ' + err.message);
                 }
-                loadCompanies();
             }
 
             // Handle form submission
@@ -2828,20 +2843,28 @@ app.get('/', (c) => {
             // Fetch data for a specific company
             async function fetchCompanyData(companyKey) {
                 try {
-                    const company = COMPANIES[companyKey];
                     const response = await fetch(\`/api/analytics?company=\${companyKey}\`);
-                    
+
                     if (!response.ok) {
-                        throw new Error('Failed to fetch company data');
+                        // Surface the actual server error (Streak API issue, missing pipeline key, etc.)
+                        let detail = 'Failed to fetch company data';
+                        try {
+                            const errData = await response.json();
+                            detail = errData.error || detail;
+                        } catch (_) {}
+                        throw new Error(detail);
                     }
-                    
+
                     const data = await response.json();
                     currentData = data;
-                    
+
+                    // Use company name from API response (works for both hardcoded and KV companies)
+                    const companyName = data.company || (COMPANIES[companyKey] && COMPANIES[companyKey].name) || companyKey;
+
                     // Update page title with company name
                     document.querySelector('h1').innerHTML = \`
                         <i class="fas fa-chart-line mr-3"></i>
-                        \${company.name} - Pipeline Report
+                        \${companyName} - Pipeline Report
                     \`;
                     
                     // Hide loading, show dashboard

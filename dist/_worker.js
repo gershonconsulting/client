@@ -1,5 +1,5 @@
-var Yt=Object.defineProperty;var dt=e=>{throw TypeError(e)};var Kt=(e,t,s)=>t in e?Yt(e,t,{enumerable:!0,configurable:!0,writable:!0,value:s}):e[t]=s;var y=(e,t,s)=>Kt(e,typeof t!="symbol"?t+"":t,s),at=(e,t,s)=>t.has(e)||dt("Cannot "+s);var d=(e,t,s)=>(at(e,t,"read from private field"),s?s.call(e):t.get(e)),v=(e,t,s)=>t.has(e)?dt("Cannot add the same private member more than once"):t instanceof WeakSet?t.add(e):t.set(e,s),h=(e,t,s,a)=>(at(e,t,"write to private field"),a?a.call(e,s):t.set(e,s),s),E=(e,t,s)=>(at(e,t,"access private method"),s);var mt=(e,t,s,a)=>({set _(n){h(e,t,n,s)},get _(){return d(e,t,a)}});var pt=(e,t,s)=>(a,n)=>{let r=-1;return o(0);async function o(i){if(i<=r)throw new Error("next() called multiple times");r=i;let c,l=!1,m;if(e[i]?(m=e[i][0][0],a.req.routeIndex=i):m=i===e.length&&n||void 0,m)try{c=await m(a,()=>o(i+1))}catch(u){if(u instanceof Error&&t)a.error=u,c=await t(u,a),l=!0;else throw u}else a.finalized===!1&&s&&(c=await s(a));return c&&(a.finalized===!1||l)&&(a.res=c),a}},Vt=Symbol(),zt=async(e,t=Object.create(null))=>{const{all:s=!1,dot:a=!1}=t,r=(e instanceof Nt?e.raw.headers:e.headers).get("Content-Type");return r!=null&&r.startsWith("multipart/form-data")||r!=null&&r.startsWith("application/x-www-form-urlencoded")?_t(e,{all:s,dot:a}):{}};async function _t(e,t){const s=await e.formData();return s?Qt(s,t):{}}function Qt(e,t){const s=Object.create(null);return e.forEach((a,n)=>{t.all||n.endsWith("[]")?Xt(s,n,a):s[n]=a}),t.dot&&Object.entries(s).forEach(([a,n])=>{a.includes(".")&&(Zt(s,a,n),delete s[a])}),s}var Xt=(e,t,s)=>{e[t]!==void 0?Array.isArray(e[t])?e[t].push(s):e[t]=[e[t],s]:t.endsWith("[]")?e[t]=[s]:e[t]=s},Zt=(e,t,s)=>{let a=e;const n=t.split(".");n.forEach((r,o)=>{o===n.length-1?a[r]=s:((!a[r]||typeof a[r]!="object"||Array.isArray(a[r])||a[r]instanceof File)&&(a[r]=Object.create(null)),a=a[r])})},kt=e=>{const t=e.split("/");return t[0]===""&&t.shift(),t},qt=e=>{const{groups:t,path:s}=Jt(e),a=kt(s);return es(a,t)},Jt=e=>{const t=[];return e=e.replace(/\{[^}]+\}/g,(s,a)=>{const n=`@${a}`;return t.push([n,s]),n}),{groups:t,path:e}},es=(e,t)=>{for(let s=t.length-1;s>=0;s--){const[a]=t[s];for(let n=e.length-1;n>=0;n--)if(e[n].includes(a)){e[n]=e[n].replace(a,t[s][1]);break}}return e},Qe={},ts=(e,t)=>{if(e==="*")return"*";const s=e.match(/^\:([^\{\}]+)(?:\{(.+)\})?$/);if(s){const a=`${e}#${t}`;return Qe[a]||(s[2]?Qe[a]=t&&t[0]!==":"&&t[0]!=="*"?[a,s[1],new RegExp(`^${s[2]}(?=/${t})`)]:[e,s[1],new RegExp(`^${s[2]}$`)]:Qe[a]=[e,s[1],!0]),Qe[a]}return null},it=(e,t)=>{try{return t(e)}catch{return e.replace(/(?:%[0-9A-Fa-f]{2})+/g,s=>{try{return t(s)}catch{return s}})}},ss=e=>it(e,decodeURI),Ct=e=>{const t=e.url,s=t.indexOf("/",t.indexOf(":")+4);let a=s;for(;a<t.length;a++){const n=t.charCodeAt(a);if(n===37){const r=t.indexOf("?",a),o=t.slice(s,r===-1?void 0:r);return ss(o.includes("%25")?o.replace(/%25/g,"%2525"):o)}else if(n===63)break}return t.slice(s,a)},as=e=>{const t=Ct(e);return t.length>1&&t.at(-1)==="/"?t.slice(0,-1):t},Ae=(e,t,...s)=>(s.length&&(t=Ae(t,...s)),`${(e==null?void 0:e[0])==="/"?"":"/"}${e}${t==="/"?"":`${(e==null?void 0:e.at(-1))==="/"?"":"/"}${(t==null?void 0:t[0])==="/"?t.slice(1):t}`}`),St=e=>{if(e.charCodeAt(e.length-1)!==63||!e.includes(":"))return null;const t=e.split("/"),s=[];let a="";return t.forEach(n=>{if(n!==""&&!/\:/.test(n))a+="/"+n;else if(/\:/.test(n))if(/\?/.test(n)){s.length===0&&a===""?s.push("/"):s.push(a);const r=n.replace("?","");a+="/"+r,s.push(a)}else a+="/"+n}),s.filter((n,r,o)=>o.indexOf(n)===r)},nt=e=>/[%+]/.test(e)?(e.indexOf("+")!==-1&&(e=e.replace(/\+/g," ")),e.indexOf("%")!==-1?it(e,It):e):e,At=(e,t,s)=>{let a;if(!s&&t&&!/[%+]/.test(t)){let o=e.indexOf("?",8);if(o===-1)return;for(e.startsWith(t,o+1)||(o=e.indexOf(`&${t}`,o+1));o!==-1;){const i=e.charCodeAt(o+t.length+1);if(i===61){const c=o+t.length+2,l=e.indexOf("&",c);return nt(e.slice(c,l===-1?void 0:l))}else if(i==38||isNaN(i))return"";o=e.indexOf(`&${t}`,o+1)}if(a=/[%+]/.test(e),!a)return}const n={};a??(a=/[%+]/.test(e));let r=e.indexOf("?",8);for(;r!==-1;){const o=e.indexOf("&",r+1);let i=e.indexOf("=",r);i>o&&o!==-1&&(i=-1);let c=e.slice(r+1,i===-1?o===-1?void 0:o:i);if(a&&(c=nt(c)),r=o,c==="")continue;let l;i===-1?l="":(l=e.slice(i+1,o===-1?void 0:o),a&&(l=nt(l))),s?(n[c]&&Array.isArray(n[c])||(n[c]=[]),n[c].push(l)):n[c]??(n[c]=l)}return t?n[t]:n},ns=At,rs=(e,t)=>At(e,t,!0),It=decodeURIComponent,ut=e=>it(e,It),Te,V,ce,Tt,Lt,ot,me,yt,Nt=(yt=class{constructor(e,t="/",s=[[]]){v(this,ce);y(this,"raw");v(this,Te);v(this,V);y(this,"routeIndex",0);y(this,"path");y(this,"bodyCache",{});v(this,me,e=>{const{bodyCache:t,raw:s}=this,a=t[e];if(a)return a;const n=Object.keys(t)[0];return n?t[n].then(r=>(n==="json"&&(r=JSON.stringify(r)),new Response(r)[e]())):t[e]=s[e]()});this.raw=e,this.path=t,h(this,V,s),h(this,Te,{})}param(e){return e?E(this,ce,Tt).call(this,e):E(this,ce,Lt).call(this)}query(e){return ns(this.url,e)}queries(e){return rs(this.url,e)}header(e){if(e)return this.raw.headers.get(e)??void 0;const t={};return this.raw.headers.forEach((s,a)=>{t[a]=s}),t}async parseBody(e){var t;return(t=this.bodyCache).parsedBody??(t.parsedBody=await zt(this,e))}json(){return d(this,me).call(this,"text").then(e=>JSON.parse(e))}text(){return d(this,me).call(this,"text")}arrayBuffer(){return d(this,me).call(this,"arrayBuffer")}blob(){return d(this,me).call(this,"blob")}formData(){return d(this,me).call(this,"formData")}addValidatedData(e,t){d(this,Te)[e]=t}valid(e){return d(this,Te)[e]}get url(){return this.raw.url}get method(){return this.raw.method}get[Vt](){return d(this,V)}get matchedRoutes(){return d(this,V)[0].map(([[,e]])=>e)}get routePath(){return d(this,V)[0].map(([[,e]])=>e)[this.routeIndex].path}},Te=new WeakMap,V=new WeakMap,ce=new WeakSet,Tt=function(e){const t=d(this,V)[0][this.routeIndex][1][e],s=E(this,ce,ot).call(this,t);return s&&/\%/.test(s)?ut(s):s},Lt=function(){const e={},t=Object.keys(d(this,V)[0][this.routeIndex][1]);for(const s of t){const a=E(this,ce,ot).call(this,d(this,V)[0][this.routeIndex][1][s]);a!==void 0&&(e[s]=/\%/.test(a)?ut(a):a)}return e},ot=function(e){return d(this,V)[1]?d(this,V)[1][e]:e},me=new WeakMap,yt),os={Stringify:1},Rt=async(e,t,s,a,n)=>{typeof e=="object"&&!(e instanceof String)&&(e instanceof Promise||(e=e.toString()),e instanceof Promise&&(e=await e));const r=e.callbacks;return r!=null&&r.length?(n?n[0]+=e:n=[e],Promise.all(r.map(i=>i({phase:t,buffer:n,context:a}))).then(i=>Promise.all(i.filter(Boolean).map(c=>Rt(c,t,!1,a,n))).then(()=>n[0]))):Promise.resolve(e)},is="text/plain; charset=UTF-8",rt=(e,t)=>({"Content-Type":e,...t}),$e,He,re,Le,oe,U,Ye,Re,Me,xe,Ke,Ve,pe,Ie,bt,ls=(bt=class{constructor(e,t){v(this,pe);v(this,$e);v(this,He);y(this,"env",{});v(this,re);y(this,"finalized",!1);y(this,"error");v(this,Le);v(this,oe);v(this,U);v(this,Ye);v(this,Re);v(this,Me);v(this,xe);v(this,Ke);v(this,Ve);y(this,"render",(...e)=>(d(this,Re)??h(this,Re,t=>this.html(t)),d(this,Re).call(this,...e)));y(this,"setLayout",e=>h(this,Ye,e));y(this,"getLayout",()=>d(this,Ye));y(this,"setRenderer",e=>{h(this,Re,e)});y(this,"header",(e,t,s)=>{this.finalized&&h(this,U,new Response(d(this,U).body,d(this,U)));const a=d(this,U)?d(this,U).headers:d(this,xe)??h(this,xe,new Headers);t===void 0?a.delete(e):s!=null&&s.append?a.append(e,t):a.set(e,t)});y(this,"status",e=>{h(this,Le,e)});y(this,"set",(e,t)=>{d(this,re)??h(this,re,new Map),d(this,re).set(e,t)});y(this,"get",e=>d(this,re)?d(this,re).get(e):void 0);y(this,"newResponse",(...e)=>E(this,pe,Ie).call(this,...e));y(this,"body",(e,t,s)=>E(this,pe,Ie).call(this,e,t,s));y(this,"text",(e,t,s)=>!d(this,xe)&&!d(this,Le)&&!t&&!s&&!this.finalized?new Response(e):E(this,pe,Ie).call(this,e,t,rt(is,s)));y(this,"json",(e,t,s)=>E(this,pe,Ie).call(this,JSON.stringify(e),t,rt("application/json",s)));y(this,"html",(e,t,s)=>{const a=n=>E(this,pe,Ie).call(this,n,t,rt("text/html; charset=UTF-8",s));return typeof e=="object"?Rt(e,os.Stringify,!1,{}).then(a):a(e)});y(this,"redirect",(e,t)=>{const s=String(e);return this.header("Location",/[^\x00-\xFF]/.test(s)?encodeURI(s):s),this.newResponse(null,t??302)});y(this,"notFound",()=>(d(this,Me)??h(this,Me,()=>new Response),d(this,Me).call(this,this)));h(this,$e,e),t&&(h(this,oe,t.executionCtx),this.env=t.env,h(this,Me,t.notFoundHandler),h(this,Ve,t.path),h(this,Ke,t.matchResult))}get req(){return d(this,He)??h(this,He,new Nt(d(this,$e),d(this,Ve),d(this,Ke))),d(this,He)}get event(){if(d(this,oe)&&"respondWith"in d(this,oe))return d(this,oe);throw Error("This context has no FetchEvent")}get executionCtx(){if(d(this,oe))return d(this,oe);throw Error("This context has no ExecutionContext")}get res(){return d(this,U)||h(this,U,new Response(null,{headers:d(this,xe)??h(this,xe,new Headers)}))}set res(e){if(d(this,U)&&e){e=new Response(e.body,e);for(const[t,s]of d(this,U).headers.entries())if(t!=="content-type")if(t==="set-cookie"){const a=d(this,U).headers.getSetCookie();e.headers.delete("set-cookie");for(const n of a)e.headers.append("set-cookie",n)}else e.headers.set(t,s)}h(this,U,e),this.finalized=!0}get var(){return d(this,re)?Object.fromEntries(d(this,re)):{}}},$e=new WeakMap,He=new WeakMap,re=new WeakMap,Le=new WeakMap,oe=new WeakMap,U=new WeakMap,Ye=new WeakMap,Re=new WeakMap,Me=new WeakMap,xe=new WeakMap,Ke=new WeakMap,Ve=new WeakMap,pe=new WeakSet,Ie=function(e,t,s){const a=d(this,U)?new Headers(d(this,U).headers):d(this,xe)??new Headers;if(typeof t=="object"&&"headers"in t){const r=t.headers instanceof Headers?t.headers:new Headers(t.headers);for(const[o,i]of r)o.toLowerCase()==="set-cookie"?a.append(o,i):a.set(o,i)}if(s)for(const[r,o]of Object.entries(s))if(typeof o=="string")a.set(r,o);else{a.delete(r);for(const i of o)a.append(r,i)}const n=typeof t=="number"?t:(t==null?void 0:t.status)??d(this,Le);return new Response(e,{status:n,headers:a})},bt),O="ALL",cs="all",ds=["get","post","put","delete","options","patch"],Mt="Can not add a route since the matcher is already built.",Dt=class extends Error{},ms="__COMPOSED_HANDLER",ps=e=>e.text("404 Not Found",404),gt=(e,t)=>{if("getResponse"in e){const s=e.getResponse();return t.newResponse(s.body,s)}return console.error(e),t.text("Internal Server Error",500)},Z,F,Ot,q,ye,Xe,Ze,De,us=(De=class{constructor(t={}){v(this,F);y(this,"get");y(this,"post");y(this,"put");y(this,"delete");y(this,"options");y(this,"patch");y(this,"all");y(this,"on");y(this,"use");y(this,"router");y(this,"getPath");y(this,"_basePath","/");v(this,Z,"/");y(this,"routes",[]);v(this,q,ps);y(this,"errorHandler",gt);y(this,"onError",t=>(this.errorHandler=t,this));y(this,"notFound",t=>(h(this,q,t),this));y(this,"fetch",(t,...s)=>E(this,F,Ze).call(this,t,s[1],s[0],t.method));y(this,"request",(t,s,a,n)=>t instanceof Request?this.fetch(s?new Request(t,s):t,a,n):(t=t.toString(),this.fetch(new Request(/^https?:\/\//.test(t)?t:`http://localhost${Ae("/",t)}`,s),a,n)));y(this,"fire",()=>{addEventListener("fetch",t=>{t.respondWith(E(this,F,Ze).call(this,t.request,t,void 0,t.request.method))})});[...ds,cs].forEach(r=>{this[r]=(o,...i)=>(typeof o=="string"?h(this,Z,o):E(this,F,ye).call(this,r,d(this,Z),o),i.forEach(c=>{E(this,F,ye).call(this,r,d(this,Z),c)}),this)}),this.on=(r,o,...i)=>{for(const c of[o].flat()){h(this,Z,c);for(const l of[r].flat())i.map(m=>{E(this,F,ye).call(this,l.toUpperCase(),d(this,Z),m)})}return this},this.use=(r,...o)=>(typeof r=="string"?h(this,Z,r):(h(this,Z,"*"),o.unshift(r)),o.forEach(i=>{E(this,F,ye).call(this,O,d(this,Z),i)}),this);const{strict:a,...n}=t;Object.assign(this,n),this.getPath=a??!0?t.getPath??Ct:as}route(t,s){const a=this.basePath(t);return s.routes.map(n=>{var o;let r;s.errorHandler===gt?r=n.handler:(r=async(i,c)=>(await pt([],s.errorHandler)(i,()=>n.handler(i,c))).res,r[ms]=n.handler),E(o=a,F,ye).call(o,n.method,n.path,r)}),this}basePath(t){const s=E(this,F,Ot).call(this);return s._basePath=Ae(this._basePath,t),s}mount(t,s,a){let n,r;a&&(typeof a=="function"?r=a:(r=a.optionHandler,a.replaceRequest===!1?n=c=>c:n=a.replaceRequest));const o=r?c=>{const l=r(c);return Array.isArray(l)?l:[l]}:c=>{let l;try{l=c.executionCtx}catch{}return[c.env,l]};n||(n=(()=>{const c=Ae(this._basePath,t),l=c==="/"?0:c.length;return m=>{const u=new URL(m.url);return u.pathname=u.pathname.slice(l)||"/",new Request(u,m)}})());const i=async(c,l)=>{const m=await s(n(c.req.raw),...o(c));if(m)return m;await l()};return E(this,F,ye).call(this,O,Ae(t,"*"),i),this}},Z=new WeakMap,F=new WeakSet,Ot=function(){const t=new De({router:this.router,getPath:this.getPath});return t.errorHandler=this.errorHandler,h(t,q,d(this,q)),t.routes=this.routes,t},q=new WeakMap,ye=function(t,s,a){t=t.toUpperCase(),s=Ae(this._basePath,s);const n={basePath:this._basePath,path:s,method:t,handler:a};this.router.add(t,s,[a,n]),this.routes.push(n)},Xe=function(t,s){if(t instanceof Error)return this.errorHandler(t,s);throw t},Ze=function(t,s,a,n){if(n==="HEAD")return(async()=>new Response(null,await E(this,F,Ze).call(this,t,s,a,"GET")))();const r=this.getPath(t,{env:a}),o=this.router.match(n,r),i=new ls(t,{path:r,matchResult:o,env:a,executionCtx:s,notFoundHandler:d(this,q)});if(o[0].length===1){let l;try{l=o[0][0][0][0](i,async()=>{i.res=await d(this,q).call(this,i)})}catch(m){return E(this,F,Xe).call(this,m,i)}return l instanceof Promise?l.then(m=>m||(i.finalized?i.res:d(this,q).call(this,i))).catch(m=>E(this,F,Xe).call(this,m,i)):l??d(this,q).call(this,i)}const c=pt(o[0],this.errorHandler,d(this,q));return(async()=>{try{const l=await c(i);if(!l.finalized)throw new Error("Context is not finalized. Did you forget to return a Response object or `await next()`?");return l.res}catch(l){return E(this,F,Xe).call(this,l,i)}})()},De),Ft=[];function gs(e,t){const s=this.buildAllMatchers(),a=((n,r)=>{const o=s[n]||s[O],i=o[2][r];if(i)return i;const c=r.match(o[0]);if(!c)return[[],Ft];const l=c.indexOf("",1);return[o[1][l],c]});return this.match=a,a(e,t)}var Je="[^/]+",Ue=".*",Be="(?:|/.*)",Ne=Symbol(),fs=new Set(".\\+*[^]$()");function hs(e,t){return e.length===1?t.length===1?e<t?-1:1:-1:t.length===1||e===Ue||e===Be?1:t===Ue||t===Be?-1:e===Je?1:t===Je?-1:e.length===t.length?e<t?-1:1:t.length-e.length}var ve,we,J,Ce,ys=(Ce=class{constructor(){v(this,ve);v(this,we);v(this,J,Object.create(null))}insert(t,s,a,n,r){if(t.length===0){if(d(this,ve)!==void 0)throw Ne;if(r)return;h(this,ve,s);return}const[o,...i]=t,c=o==="*"?i.length===0?["","",Ue]:["","",Je]:o==="/*"?["","",Be]:o.match(/^\:([^\{\}]+)(?:\{(.+)\})?$/);let l;if(c){const m=c[1];let u=c[2]||Je;if(m&&c[2]&&(u===".*"||(u=u.replace(/^\((?!\?:)(?=[^)]+\)$)/,"(?:"),/\((?!\?:)/.test(u))))throw Ne;if(l=d(this,J)[u],!l){if(Object.keys(d(this,J)).some(g=>g!==Ue&&g!==Be))throw Ne;if(r)return;l=d(this,J)[u]=new Ce,m!==""&&h(l,we,n.varIndex++)}!r&&m!==""&&a.push([m,d(l,we)])}else if(l=d(this,J)[o],!l){if(Object.keys(d(this,J)).some(m=>m.length>1&&m!==Ue&&m!==Be))throw Ne;if(r)return;l=d(this,J)[o]=new Ce}l.insert(i,s,a,n,r)}buildRegExpStr(){const s=Object.keys(d(this,J)).sort(hs).map(a=>{const n=d(this,J)[a];return(typeof d(n,we)=="number"?`(${a})@${d(n,we)}`:fs.has(a)?`\\${a}`:a)+n.buildRegExpStr()});return typeof d(this,ve)=="number"&&s.unshift(`#${d(this,ve)}`),s.length===0?"":s.length===1?s[0]:"(?:"+s.join("|")+")"}},ve=new WeakMap,we=new WeakMap,J=new WeakMap,Ce),et,ze,xt,bs=(xt=class{constructor(){v(this,et,{varIndex:0});v(this,ze,new ys)}insert(e,t,s){const a=[],n=[];for(let o=0;;){let i=!1;if(e=e.replace(/\{[^}]+\}/g,c=>{const l=`@\\${o}`;return n[o]=[l,c],o++,i=!0,l}),!i)break}const r=e.match(/(?::[^\/]+)|(?:\/\*$)|./g)||[];for(let o=n.length-1;o>=0;o--){const[i]=n[o];for(let c=r.length-1;c>=0;c--)if(r[c].indexOf(i)!==-1){r[c]=r[c].replace(i,n[o][1]);break}}return d(this,ze).insert(r,t,a,d(this,et),s),a}buildRegExp(){let e=d(this,ze).buildRegExpStr();if(e==="")return[/^$/,[],[]];let t=0;const s=[],a=[];return e=e.replace(/#(\d+)|@(\d+)|\.\*\$/g,(n,r,o)=>r!==void 0?(s[++t]=Number(r),"$()"):(o!==void 0&&(a[Number(o)]=++t),"")),[new RegExp(`^${e}`),s,a]}},et=new WeakMap,ze=new WeakMap,xt),xs=[/^$/,[],Object.create(null)],qe=Object.create(null);function Pt(e){return qe[e]??(qe[e]=new RegExp(e==="*"?"":`^${e.replace(/\/\*$|([.\\+*[^\]$()])/g,(t,s)=>s?`\\${s}`:"(?:|/.*)")}$`))}function vs(){qe=Object.create(null)}function ws(e){var l;const t=new bs,s=[];if(e.length===0)return xs;const a=e.map(m=>[!/\*|\/:/.test(m[0]),...m]).sort(([m,u],[g,f])=>m?1:g?-1:u.length-f.length),n=Object.create(null);for(let m=0,u=-1,g=a.length;m<g;m++){const[f,k,w]=a[m];f?n[k]=[w.map(([x])=>[x,Object.create(null)]),Ft]:u++;let b;try{b=t.insert(k,u,f)}catch(x){throw x===Ne?new Dt(k):x}f||(s[u]=w.map(([x,A])=>{const D=Object.create(null);for(A-=1;A>=0;A--){const[ee,R]=b[A];D[ee]=R}return[x,D]}))}const[r,o,i]=t.buildRegExp();for(let m=0,u=s.length;m<u;m++)for(let g=0,f=s[m].length;g<f;g++){const k=(l=s[m][g])==null?void 0:l[1];if(!k)continue;const w=Object.keys(k);for(let b=0,x=w.length;b<x;b++)k[w[b]]=i[k[w[b]]]}const c=[];for(const m in o)c[m]=s[o[m]];return[r,c,n]}function Se(e,t){if(e){for(const s of Object.keys(e).sort((a,n)=>n.length-a.length))if(Pt(s).test(t))return[...e[s]]}}var ue,ge,tt,jt,vt,Es=(vt=class{constructor(){v(this,tt);y(this,"name","RegExpRouter");v(this,ue);v(this,ge);y(this,"match",gs);h(this,ue,{[O]:Object.create(null)}),h(this,ge,{[O]:Object.create(null)})}add(e,t,s){var i;const a=d(this,ue),n=d(this,ge);if(!a||!n)throw new Error(Mt);a[e]||[a,n].forEach(c=>{c[e]=Object.create(null),Object.keys(c[O]).forEach(l=>{c[e][l]=[...c[O][l]]})}),t==="/*"&&(t="*");const r=(t.match(/\/:/g)||[]).length;if(/\*$/.test(t)){const c=Pt(t);e===O?Object.keys(a).forEach(l=>{var m;(m=a[l])[t]||(m[t]=Se(a[l],t)||Se(a[O],t)||[])}):(i=a[e])[t]||(i[t]=Se(a[e],t)||Se(a[O],t)||[]),Object.keys(a).forEach(l=>{(e===O||e===l)&&Object.keys(a[l]).forEach(m=>{c.test(m)&&a[l][m].push([s,r])})}),Object.keys(n).forEach(l=>{(e===O||e===l)&&Object.keys(n[l]).forEach(m=>c.test(m)&&n[l][m].push([s,r]))});return}const o=St(t)||[t];for(let c=0,l=o.length;c<l;c++){const m=o[c];Object.keys(n).forEach(u=>{var g;(e===O||e===u)&&((g=n[u])[m]||(g[m]=[...Se(a[u],m)||Se(a[O],m)||[]]),n[u][m].push([s,r-l+c+1]))})}}buildAllMatchers(){const e=Object.create(null);return Object.keys(d(this,ge)).concat(Object.keys(d(this,ue))).forEach(t=>{e[t]||(e[t]=E(this,tt,jt).call(this,t))}),h(this,ue,h(this,ge,void 0)),vs(),e}},ue=new WeakMap,ge=new WeakMap,tt=new WeakSet,jt=function(e){const t=[];let s=e===O;return[d(this,ue),d(this,ge)].forEach(a=>{const n=a[e]?Object.keys(a[e]).map(r=>[r,a[e][r]]):[];n.length!==0?(s||(s=!0),t.push(...n)):e!==O&&t.push(...Object.keys(a[O]).map(r=>[r,a[O][r]]))}),s?ws(t):null},vt),fe,ie,wt,ks=(wt=class{constructor(e){y(this,"name","SmartRouter");v(this,fe,[]);v(this,ie,[]);h(this,fe,e.routers)}add(e,t,s){if(!d(this,ie))throw new Error(Mt);d(this,ie).push([e,t,s])}match(e,t){if(!d(this,ie))throw new Error("Fatal error");const s=d(this,fe),a=d(this,ie),n=s.length;let r=0,o;for(;r<n;r++){const i=s[r];try{for(let c=0,l=a.length;c<l;c++)i.add(...a[c]);o=i.match(e,t)}catch(c){if(c instanceof Dt)continue;throw c}this.match=i.match.bind(i),h(this,fe,[i]),h(this,ie,void 0);break}if(r===n)throw new Error("Fatal error");return this.name=`SmartRouter + ${this.activeRouter.name}`,o}get activeRouter(){if(d(this,ie)||d(this,fe).length!==1)throw new Error("No active router has been determined yet.");return d(this,fe)[0]}},fe=new WeakMap,ie=new WeakMap,wt),Ge=Object.create(null),he,W,Ee,Oe,j,le,be,Fe,Cs=(Fe=class{constructor(t,s,a){v(this,le);v(this,he);v(this,W);v(this,Ee);v(this,Oe,0);v(this,j,Ge);if(h(this,W,a||Object.create(null)),h(this,he,[]),t&&s){const n=Object.create(null);n[t]={handler:s,possibleKeys:[],score:0},h(this,he,[n])}h(this,Ee,[])}insert(t,s,a){h(this,Oe,++mt(this,Oe)._);let n=this;const r=qt(s),o=[];for(let i=0,c=r.length;i<c;i++){const l=r[i],m=r[i+1],u=ts(l,m),g=Array.isArray(u)?u[0]:l;if(g in d(n,W)){n=d(n,W)[g],u&&o.push(u[1]);continue}d(n,W)[g]=new Fe,u&&(d(n,Ee).push(u),o.push(u[1])),n=d(n,W)[g]}return d(n,he).push({[t]:{handler:a,possibleKeys:o.filter((i,c,l)=>l.indexOf(i)===c),score:d(this,Oe)}}),n}search(t,s){var c;const a=[];h(this,j,Ge);let r=[this];const o=kt(s),i=[];for(let l=0,m=o.length;l<m;l++){const u=o[l],g=l===m-1,f=[];for(let k=0,w=r.length;k<w;k++){const b=r[k],x=d(b,W)[u];x&&(h(x,j,d(b,j)),g?(d(x,W)["*"]&&a.push(...E(this,le,be).call(this,d(x,W)["*"],t,d(b,j))),a.push(...E(this,le,be).call(this,x,t,d(b,j)))):f.push(x));for(let A=0,D=d(b,Ee).length;A<D;A++){const ee=d(b,Ee)[A],R=d(b,j)===Ge?{}:{...d(b,j)};if(ee==="*"){const $=d(b,W)["*"];$&&(a.push(...E(this,le,be).call(this,$,t,d(b,j))),h($,j,R),f.push($));continue}const[te,Pe,de]=ee;if(!u&&!(de instanceof RegExp))continue;const B=d(b,W)[te],je=o.slice(l).join("/");if(de instanceof RegExp){const $=de.exec(je);if($){if(R[Pe]=$[0],a.push(...E(this,le,be).call(this,B,t,d(b,j),R)),Object.keys(d(B,W)).length){h(B,j,R);const _e=((c=$[0].match(/\//))==null?void 0:c.length)??0;(i[_e]||(i[_e]=[])).push(B)}continue}}(de===!0||de.test(u))&&(R[Pe]=u,g?(a.push(...E(this,le,be).call(this,B,t,R,d(b,j))),d(B,W)["*"]&&a.push(...E(this,le,be).call(this,d(B,W)["*"],t,R,d(b,j)))):(h(B,j,R),f.push(B)))}}r=f.concat(i.shift()??[])}return a.length>1&&a.sort((l,m)=>l.score-m.score),[a.map(({handler:l,params:m})=>[l,m])]}},he=new WeakMap,W=new WeakMap,Ee=new WeakMap,Oe=new WeakMap,j=new WeakMap,le=new WeakSet,be=function(t,s,a,n){const r=[];for(let o=0,i=d(t,he).length;o<i;o++){const c=d(t,he)[o],l=c[s]||c[O],m={};if(l!==void 0&&(l.params=Object.create(null),r.push(l),a!==Ge||n&&n!==Ge))for(let u=0,g=l.possibleKeys.length;u<g;u++){const f=l.possibleKeys[u],k=m[l.score];l.params[f]=n!=null&&n[f]&&!k?n[f]:a[f]??(n==null?void 0:n[f]),m[l.score]=!0}}return r},Fe),ke,Et,Ss=(Et=class{constructor(){y(this,"name","TrieRouter");v(this,ke);h(this,ke,new Cs)}add(e,t,s){const a=St(t);if(a){for(let n=0,r=a.length;n<r;n++)d(this,ke).insert(e,a[n],s);return}d(this,ke).insert(e,t,s)}match(e,t){return d(this,ke).search(e,t)}},ke=new WeakMap,Et),Wt=class extends us{constructor(e={}){super(e),this.router=e.router??new ks({routers:[new Es,new Ss]})}},As=e=>{const s={...{origin:"*",allowMethods:["GET","HEAD","PUT","POST","DELETE","PATCH"],allowHeaders:[],exposeHeaders:[]},...e},a=(r=>typeof r=="string"?r==="*"?()=>r:o=>r===o?o:null:typeof r=="function"?r:o=>r.includes(o)?o:null)(s.origin),n=(r=>typeof r=="function"?r:Array.isArray(r)?()=>r:()=>[])(s.allowMethods);return async function(o,i){var m;function c(u,g){o.res.headers.set(u,g)}const l=await a(o.req.header("origin")||"",o);if(l&&c("Access-Control-Allow-Origin",l),s.credentials&&c("Access-Control-Allow-Credentials","true"),(m=s.exposeHeaders)!=null&&m.length&&c("Access-Control-Expose-Headers",s.exposeHeaders.join(",")),o.req.method==="OPTIONS"){s.origin!=="*"&&c("Vary","Origin"),s.maxAge!=null&&c("Access-Control-Max-Age",s.maxAge.toString());const u=await n(o.req.header("origin")||"",o);u.length&&c("Access-Control-Allow-Methods",u.join(","));let g=s.allowHeaders;if(!(g!=null&&g.length)){const f=o.req.header("Access-Control-Request-Headers");f&&(g=f.split(/\s*,\s*/))}return g!=null&&g.length&&(c("Access-Control-Allow-Headers",g.join(",")),o.res.headers.append("Vary","Access-Control-Request-Headers")),o.res.headers.delete("Content-Length"),o.res.headers.delete("Content-Type"),new Response(null,{headers:o.res.headers,status:204,statusText:"No Content"})}await i(),s.origin!=="*"&&o.header("Vary","Origin",{append:!0})}},Is=/^\s*(?:text\/(?!event-stream(?:[;\s]|$))[^;\s]+|application\/(?:javascript|json|xml|xml-dtd|ecmascript|dart|postscript|rtf|tar|toml|vnd\.dart|vnd\.ms-fontobject|vnd\.ms-opentype|wasm|x-httpd-php|x-javascript|x-ns-proxy-autoconfig|x-sh|x-tar|x-virtualbox-hdd|x-virtualbox-ova|x-virtualbox-ovf|x-virtualbox-vbox|x-virtualbox-vdi|x-virtualbox-vhd|x-virtualbox-vmdk|x-www-form-urlencoded)|font\/(?:otf|ttf)|image\/(?:bmp|vnd\.adobe\.photoshop|vnd\.microsoft\.icon|vnd\.ms-dds|x-icon|x-ms-bmp)|message\/rfc822|model\/gltf-binary|x-shader\/x-fragment|x-shader\/x-vertex|[^;\s]+?\+(?:json|text|xml|yaml))(?:[;\s]|$)/i,ft=(e,t=Ts)=>{const s=/\.([a-zA-Z0-9]+?)$/,a=e.match(s);if(!a)return;let n=t[a[1]];return n&&n.startsWith("text")&&(n+="; charset=utf-8"),n},Ns={aac:"audio/aac",avi:"video/x-msvideo",avif:"image/avif",av1:"video/av1",bin:"application/octet-stream",bmp:"image/bmp",css:"text/css",csv:"text/csv",eot:"application/vnd.ms-fontobject",epub:"application/epub+zip",gif:"image/gif",gz:"application/gzip",htm:"text/html",html:"text/html",ico:"image/x-icon",ics:"text/calendar",jpeg:"image/jpeg",jpg:"image/jpeg",js:"text/javascript",json:"application/json",jsonld:"application/ld+json",map:"application/json",mid:"audio/x-midi",midi:"audio/x-midi",mjs:"text/javascript",mp3:"audio/mpeg",mp4:"video/mp4",mpeg:"video/mpeg",oga:"audio/ogg",ogv:"video/ogg",ogx:"application/ogg",opus:"audio/opus",otf:"font/otf",pdf:"application/pdf",png:"image/png",rtf:"application/rtf",svg:"image/svg+xml",tif:"image/tiff",tiff:"image/tiff",ts:"video/mp2t",ttf:"font/ttf",txt:"text/plain",wasm:"application/wasm",webm:"video/webm",weba:"audio/webm",webmanifest:"application/manifest+json",webp:"image/webp",woff:"font/woff",woff2:"font/woff2",xhtml:"application/xhtml+xml",xml:"application/xml",zip:"application/zip","3gp":"video/3gpp","3g2":"video/3gpp2",gltf:"model/gltf+json",glb:"model/gltf-binary"},Ts=Ns,Ls=(...e)=>{let t=e.filter(n=>n!=="").join("/");t=t.replace(new RegExp("(?<=\\/)\\/+","g"),"");const s=t.split("/"),a=[];for(const n of s)n===".."&&a.length>0&&a.at(-1)!==".."?a.pop():n!=="."&&a.push(n);return a.join("/")||"."},Gt={br:".br",zstd:".zst",gzip:".gz"},Rs=Object.keys(Gt),Ms="index.html",Ds=e=>{const t=e.root??"./",s=e.path,a=e.join??Ls;return async(n,r)=>{var m,u,g,f;if(n.finalized)return r();let o;if(e.path)o=e.path;else try{if(o=decodeURIComponent(n.req.path),/(?:^|[\/\\])\.\.(?:$|[\/\\])/.test(o))throw new Error}catch{return await((m=e.onNotFound)==null?void 0:m.call(e,n.req.path,n)),r()}let i=a(t,!s&&e.rewriteRequestPath?e.rewriteRequestPath(o):o);e.isDir&&await e.isDir(i)&&(i=a(i,Ms));const c=e.getContent;let l=await c(i,n);if(l instanceof Response)return n.newResponse(l.body,l);if(l){const k=e.mimes&&ft(i,e.mimes)||ft(i);if(n.header("Content-Type",k||"application/octet-stream"),e.precompressed&&(!k||Is.test(k))){const w=new Set((u=n.req.header("Accept-Encoding"))==null?void 0:u.split(",").map(b=>b.trim()));for(const b of Rs){if(!w.has(b))continue;const x=await c(i+Gt[b],n);if(x){l=x,n.header("Content-Encoding",b),n.header("Vary","Accept-Encoding",{append:!0});break}}}return await((g=e.onFound)==null?void 0:g.call(e,i,n)),n.body(l)}await((f=e.onNotFound)==null?void 0:f.call(e,i,n)),await r()}},Os=async(e,t)=>{let s;t&&t.manifest?typeof t.manifest=="string"?s=JSON.parse(t.manifest):s=t.manifest:typeof __STATIC_CONTENT_MANIFEST=="string"?s=JSON.parse(__STATIC_CONTENT_MANIFEST):s=__STATIC_CONTENT_MANIFEST;let a;t&&t.namespace?a=t.namespace:a=__STATIC_CONTENT;const n=s[e]||e;if(!n)return null;const r=await a.get(n,{type:"stream"});return r||null},Fs=e=>async function(s,a){return Ds({...e,getContent:async r=>Os(r,{manifest:e.manifest,namespace:e.namespace?e.namespace:s.env?s.env.__STATIC_CONTENT:void 0})})(s,a)},Ps=e=>Fs(e);const L=new Wt;L.use("/api/*",As());L.use("/static/*",Ps({root:"./public"}));const js="e77554988b424c6498d85362b0367757",Ws="https://www.streak.com/api/v1",ne={mabsilico:{name:"MabSilico",pipelineKey:"agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw",url:"https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw",networkSheetGid:"910674612",sources:{promote:"",network:"https://docs.google.com/spreadsheets/d/1NzUlKfHTW6v7i-S59GjtBFlzQwTX2AaeK4gQ4fVSAsw/edit?gid=910674612#gid=910674612",engage:"https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw"}},"finance-montreal":{name:"Finance Montreal (Steve)",pipelineKey:"agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgI7YkpykCQw",url:"https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgI7YkpykCQw"},"apm-music":{name:"APM Music",pipelineKey:"agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgIClnNb8gwsM",url:"https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgIClnNb8gwsM"},ducrocq:{name:"Ducrocq",pipelineKey:"agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgNaSl4OGCww",url:"https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgNaSl4OGCww"},milvue:{name:"Milvue",pipelineKey:"agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgMX-7baZCgw",url:"https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgMX-7baZCgw"},seekyo:{name:"Seekyo Therapeutics",pipelineKey:"agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgLnYo_uUCww",url:"https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgLnYo_uUCww"},altavia:{name:"Altavia",pipelineKey:"agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgICFz_elmwgM",url:"https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgICFz_elmwgM"},valos:{name:"Valos",pipelineKey:"agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgICF5ei7lgkM",url:"https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgICF5ei7lgkM"},"dab-embedded":{name:"DAB-Embedded",pipelineKey:"agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgKWyqIboCww",url:"https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgKWyqIboCww"},"finance-montreal-noza":{name:"Finance Montreal (Noza)",pipelineKey:"agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgKWVvvDkCgw",url:"https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgKWVvvDkCgw"}},H=ne.mabsilico.pipelineKey,Ut="Fit",Bt="Interest",Gs="1NzUlKfHTW6v7i-S59GjtBFlzQwTX2AaeK4gQ4fVSAsw",Us=`https://docs.google.com/spreadsheets/d/${Gs}/export?format=csv`;async function T(e){const t=btoa(`${js}:`),s=await fetch(`${Ws}${e}`,{headers:{Authorization:`Basic ${t}`,"Content-Type":"application/json"}});if(!s.ok)throw new Error(`Streak API error: ${s.statusText}`);return s.json()}async function Bs(e){try{const t=`${Us}&gid=${e}`,s=await fetch(t);if(!s.ok)throw new Error(`Google Sheets error: ${s.statusText}`);const n=(await s.text()).split(`
-`).filter(w=>w.trim()),r=[];for(let w=1;w<n.length;w++){const x=n[w].split(",");if(x.length>=9&&x[3]&&x[3].trim()){const A=parseInt(x[3])||0,D=parseInt(x[4])||0,ee=x[7]?x[7].replace("%","").trim():"0",R=parseFloat(ee)||0;r.push({week:x[0],from:x[1],to:x[2],invitations:A,messages:D,acceptance:R,opportunities:parseInt(x[8])||0})}}const o=r.reduce((w,b)=>w+b.invitations,0),i=r.reduce((w,b)=>{const x=Math.min(b.acceptance,100);return w+Math.round(b.invitations*x/100)},0),c=r.map(w=>Math.min(w.acceptance,100)),l=c.length>0?c.reduce((w,b)=>w+b,0)/c.length:0,m=20,u=l>0?l/m*100:0,g=r.slice(-4),f=r[r.length-1]||{invitations:0,acceptance:0},k=r[r.length-2]||{invitations:0,acceptance:0};return{totalInvitations:o,totalAccepted:i,avgAcceptanceRate:Math.round(l*10)/10,networkObjective:m,objectiveAchievement:Math.round(u*10)/10,thisWeek:{invitations:f.invitations,acceptance:Math.min(f.acceptance,100)},lastWeek:{invitations:k.invitations,acceptance:Math.min(k.acceptance,100)},recentWeeks:g.map(w=>({...w,acceptance:Math.min(w.acceptance,100)})),allData:r}}catch(t){return console.error("Error fetching network data:",t),{totalInvitations:0,totalAccepted:0,avgAcceptanceRate:0,thisWeek:{invitations:0,acceptance:0},lastWeek:{invitations:0,acceptance:0},recentWeeks:[],allData:[]}}}L.get("/api/pipeline",async e=>{try{const t=await T(`/pipelines/${H}`);return e.json(t)}catch(t){return e.json({error:t.message},500)}});L.get("/api/boxes",async e=>{try{const t=await T(`/pipelines/${H}/boxes`);return e.json(t)}catch(t){return e.json({error:t.message},500)}});L.get("/api/boxes/:boxKey",async e=>{try{const t=e.req.param("boxKey"),s=await T(`/boxes/${t}`);return e.json(s)}catch(t){return e.json({error:t.message},500)}});L.get("/api/sheets/stage/:stageName/count",async e=>{try{const t=e.req.param("stageName"),[s,a]=await Promise.all([T(`/pipelines/${H}`),T(`/pipelines/${H}/boxes`)]),n=s.stageOrder||[],r=Array.isArray(n)?n.map(i=>{var c,l;return{key:i,name:((l=(c=s.stages)==null?void 0:c[i])==null?void 0:l.name)||"Unknown"}}):[],o=Array.isArray(a)?a.filter(i=>{const c=r.find(l=>l&&l.key===i.stageKey);return c&&c.name.toLowerCase()===t.toLowerCase()}).length:0;return e.text(o.toString())}catch{return e.text("ERROR")}});L.get("/api/sheets/priority/:priorityName/count",async e=>{try{const t=e.req.param("priorityName"),[s,a]=await Promise.all([T(`/pipelines/${H}`),T(`/pipelines/${H}/boxes`)]),r=(Array.isArray(s.fields)?s.fields:[]).find(i=>i&&i.name==="Priority"),o=Array.isArray(a)?a.filter(i=>{var g;if(!r||!i.fields||!i.fields[r.key])return t.toLowerCase()==="no priority";const c=i.fields[r.key],l=(g=r.dropdownSettings)==null?void 0:g.items,m=Array.isArray(l)?l.find(f=>f&&f.key===c):null;return(m?m.name:"No Priority").toLowerCase().includes(t.toLowerCase())}).length:0;return e.text(o.toString())}catch{return e.text("ERROR")}});L.get("/api/sheets/country/:countryName/count",async e=>{try{const t=e.req.param("countryName"),[s,a]=await Promise.all([T(`/pipelines/${H}`),T(`/pipelines/${H}/boxes`)]),r=(Array.isArray(s.fields)?s.fields:[]).find(i=>i&&i.name==="Country"),o=Array.isArray(a)?a.filter(i=>{var g;if(!r||!i.fields||!i.fields[r.key])return t.toLowerCase()==="unknown";const c=i.fields[r.key],l=(g=r.dropdownSettings)==null?void 0:g.items,m=Array.isArray(l)?l.find(f=>f&&f.key===c):null;return(m?m.name:"Unknown").toLowerCase()===t.toLowerCase()}).length:0;return e.text(o.toString())}catch{return e.text("ERROR")}});L.get("/api/sheets/total",async e=>{try{const t=await T(`/pipelines/${H}/boxes`),s=Array.isArray(t)?t.length:0;return e.text(s.toString())}catch{return e.text("ERROR")}});L.get("/api/sheets/freshness/:level/count",async e=>{try{const t=e.req.param("level").toLowerCase(),s=await T(`/pipelines/${H}/boxes`),a=Array.isArray(s)?s.filter(n=>{const r=n.freshness||0;return t==="high"?r>.5:t==="medium"?r>=.2&&r<=.5:t==="low"?r<.2:!1}).length:0;return e.text(a.toString())}catch{return e.text("ERROR")}});L.get("/api/sheets/fit/:fitLevel/count",async e=>{try{const t=e.req.param("fitLevel"),[s,a]=await Promise.all([T(`/pipelines/${H}`),T(`/pipelines/${H}/boxes`)]),r=(Array.isArray(s.fields)?s.fields:[]).find(i=>i&&i.name===Ut),o=Array.isArray(a)?a.filter(i=>{var g;if(!r||!i.fields||!i.fields[r.key])return t.toLowerCase()==="not set";const c=i.fields[r.key],l=(g=r.dropdownSettings)==null?void 0:g.items,m=Array.isArray(l)?l.find(f=>f&&f.key===c):null;return(m?m.name:"Not Set").toLowerCase()===t.toLowerCase()}).length:0;return e.text(o.toString())}catch{return e.text("ERROR")}});L.get("/api/sheets/interest/:interestLevel/count",async e=>{try{const t=e.req.param("interestLevel"),[s,a]=await Promise.all([T(`/pipelines/${H}`),T(`/pipelines/${H}/boxes`)]),r=(Array.isArray(s.fields)?s.fields:[]).find(i=>i&&i.name===Bt),o=Array.isArray(a)?a.filter(i=>{var g;if(!r||!i.fields||!i.fields[r.key])return t.toLowerCase()==="not set";const c=i.fields[r.key],l=(g=r.dropdownSettings)==null?void 0:g.items,m=Array.isArray(l)?l.find(f=>f&&f.key===c):null;return(m?m.name:"Not Set").toLowerCase()===t.toLowerCase()}).length:0;return e.text(o.toString())}catch{return e.text("ERROR")}});L.get("/api/companies",async e=>{const t=Object.keys(ne).map(s=>({key:s,name:ne[s].name,url:ne[s].url}));return e.json({companies:t,count:t.length})});L.get("/api/sheets/:companyName/total",async e=>{try{const t=e.req.param("companyName").toLowerCase(),s=ne[t];if(!s)return e.text("COMPANY_NOT_FOUND");const a=await T(`/pipelines/${s.pipelineKey}/boxes`),n=Array.isArray(a)?a.length:0;return e.text(n.toString())}catch{return e.text("ERROR")}});L.get("/api/sheets/:companyName/month/:yearMonth/count",async e=>{try{const t=e.req.param("companyName").toLowerCase(),s=e.req.param("yearMonth"),a=ne[t];if(!a)return e.text("COMPANY_NOT_FOUND");const n=await T(`/pipelines/${a.pipelineKey}/boxes`),[r,o]=s.split("-").map(Number),i=Array.isArray(n)?n.filter(c=>{const l=new Date(c.creationTimestamp);return l.getFullYear()===r&&l.getMonth()+1===o}).length:0;return e.text(i.toString())}catch{return e.text("ERROR")}});L.get("/api/sheets/:companyName/week/count",async e=>{try{const t=e.req.param("companyName").toLowerCase(),s=ne[t];if(!s)return e.text("ERROR");const a=await T(`/pipelines/${s.pipelineKey}/boxes`);if(!Array.isArray(a))return e.text("0");const r=Date.now()-10080*60*1e3,o=a.filter(i=>(i.creationTimestamp||0)>=r).length;return e.text(o.toString())}catch{return e.text("ERROR")}});L.get("/api/sheets/:companyName/duration/total",async e=>{try{const t=e.req.param("companyName").toLowerCase(),s=ne[t];if(!s)return e.text("0");const a=await T(`/pipelines/${s.pipelineKey}/boxes`);if(!Array.isArray(a)||a.length===0)return e.text("0");const n=a.map(u=>u.creationTimestamp).filter(u=>u);if(n.length===0)return e.text("0");const r=Math.min(...n),o=new Date(r),i=new Date,c=i.getFullYear()-o.getFullYear(),l=i.getMonth()-o.getMonth(),m=c*12+l+1;return e.text(m.toString())}catch{return e.text("0")}});L.get("/api/sheets/:companyName/monthly-stats",async e=>{try{const t=e.req.param("companyName").toLowerCase(),s=ne[t];if(!s)return e.json({error:"Company not found"},404);const a=await T(`/pipelines/${s.pipelineKey}/boxes`),n=Array.isArray(a)?a:[],r=new Date,o=[];for(let m=11;m>=0;m--){const u=new Date(r.getFullYear(),r.getMonth()-m,1),g=u.getFullYear(),f=u.getMonth()+1,k=n.filter(b=>{const x=new Date(b.creationTimestamp);return x.getFullYear()===g&&x.getMonth()+1===f}).length,w=(k/10*100).toFixed(1);o.push({month:`${g}-${String(f).padStart(2,"0")}`,count:k,objective:10,percentage:parseFloat(w)})}const i=o.reduce((m,u)=>m+u.count,0),c=(i/12).toFixed(1),l=(parseFloat(c)/10*100).toFixed(1);return e.json({company:s.name,companyKey:t,objective:10,monthlyStats:o,summary:{totalLeads:i,average:parseFloat(c),averagePercentage:parseFloat(l)}})}catch(t){return e.json({error:t.message},500)}});L.get("/api/analytics",async e=>{try{const t=e.req.query("company")||"mabsilico",s=ne[t];if(!s)return e.json({error:"Invalid company key"},400);const a=s.pipelineKey,[n,r]=await Promise.all([T(`/pipelines/${a}`),T(`/pipelines/${a}/boxes`)]),o=Array.isArray(r)?r.length:0,i={},c={},l={},m={},u={},g={},f={"High (>0.5)":0,"Medium (0.2-0.5)":0,"Low (<0.2)":0},k=n.stageOrder||[],w=Array.isArray(k)?k.map(p=>{var N,G;return{key:p,name:((G=(N=n.stages)==null?void 0:N[p])==null?void 0:G.name)||"Unknown"}}):[],b=Array.isArray(n.fields)?n.fields:[],x=b.find(p=>p&&p.name==="Origin"),A=b.find(p=>p&&p.name===Ut),D=b.find(p=>p&&p.name===Bt),ee=b.find(p=>p&&p.name==="Est Start Date"),R=b.find(p=>p&&p.name==="Country"),te=b.find(p=>p&&p.name==="Language");Array.isArray(r)&&r.forEach(p=>{var K,se,ae,z,_;if(!p)return;const N=w.find(M=>M&&M.key===p.stageKey),G=N?N.name:"Unknown";if(i[G]=(i[G]||0)+1,x&&p.fields&&p.fields[x.key]){const M=p.fields[x.key],I=(K=x.dropdownSettings)==null?void 0:K.items,P=Array.isArray(I)?I.find(C=>C&&C.key===M):null,S=P?P.name:"Unknown";c[S]=(c[S]||0)+1}if(A&&p.fields&&p.fields[A.key]){const M=p.fields[A.key],I=(se=A.dropdownSettings)==null?void 0:se.items,P=Array.isArray(I)?I.find(C=>C&&C.key===M):null,S=P?P.name:"Not Set";l[S]=(l[S]||0)+1}else l["Not Set"]=(l["Not Set"]||0)+1;if(D&&p.fields&&p.fields[D.key]){const M=p.fields[D.key],I=(ae=D.dropdownSettings)==null?void 0:ae.items,P=Array.isArray(I)?I.find(C=>C&&C.key===M):null,S=P?P.name:"Not Set";m[S]=(m[S]||0)+1}else m["Not Set"]=(m["Not Set"]||0)+1;if(R&&p.fields&&p.fields[R.key]){const M=p.fields[R.key],I=(z=R.dropdownSettings)==null?void 0:z.items,P=Array.isArray(I)?I.find(C=>C&&C.key===M):null,S=P?P.name:"Unknown";u[S]=(u[S]||0)+1}else u.Unknown=(u.Unknown||0)+1;if(te&&p.fields&&p.fields[te.key]){const M=p.fields[te.key],I=(_=te.dropdownSettings)==null?void 0:_.items,P=Array.isArray(I)?I.find(C=>C&&C.key===M):null,S=P?P.name:"Unknown";g[S]=(g[S]||0)+1}else g.Unknown=(g.Unknown||0)+1;const Y=p.freshness||0;Y>.5?f["High (>0.5)"]++:Y>=.2?f["Medium (0.2-0.5)"]++:f["Low (<0.2)"]++});const Pe={};Object.keys(l).forEach(p=>{Pe[p]=o>0?(l[p]/o*100).toFixed(1):0});const de={};Object.keys(m).forEach(p=>{de[p]=o>0?(m[p]/o*100).toFixed(1):0});const B=new Date,je=[],$=10;for(let p=11;p>=0;p--){const N=new Date(B.getFullYear(),B.getMonth()-p,1),G=N.getFullYear(),Y=N.getMonth()+1,K=Array.isArray(r)?r.filter(ae=>{const z=new Date(ae.creationTimestamp);return z.getFullYear()===G&&z.getMonth()+1===Y}).length:0,se=(K/$*100).toFixed(1);je.push({month:`${G}-${String(Y).padStart(2,"0")}`,monthName:N.toLocaleString("en-US",{month:"short",year:"numeric"}),count:K,objective:$,percentage:parseFloat(se),status:K>=$?"achieved":"pending"})}const st=(je.reduce((p,N)=>p+N.count,0)/12).toFixed(1),Ht=(parseFloat(st)/$*100).toFixed(1);let lt=0,We=null;if(Array.isArray(r)&&r.length>0){const p=r.map(N=>N.creationTimestamp).filter(N=>N);if(p.length>0){const N=Math.min(...p);We=new Date(N);const G=B.getFullYear()-We.getFullYear(),Y=B.getMonth()-We.getMonth();lt=G*12+Y+1}}let ct=null;return s.networkSheetGid&&(ct=await Bs(s.networkSheetGid)),e.json({company:s.name,companyKey:t,totalBoxes:o,campaignDurationMonths:lt,firstLeadDate:We?We.toISOString():null,networkData:ct,stageDistribution:i,originDistribution:c,fitDistribution:l,fitPercentages:Pe,interestDistribution:m,interestPercentages:de,countryDistribution:u,languageDistribution:g,freshnessDistribution:f,monthlyLeads:je,leadObjective:$,averageLeadsPerMonth:parseFloat(st),averagePercentage:parseFloat(Ht),recentBoxes:Array.isArray(r)?r.filter(p=>{var se,ae;const N=A&&p.fields&&p.fields[A.key],G=D&&p.fields&&p.fields[D.key];let Y="Not Set";if(N){const z=p.fields[A.key],_=(se=A.dropdownSettings)==null?void 0:se.items,M=Array.isArray(_)?_.find(I=>I&&I.key===z):null;Y=M?M.name:"Not Set"}let K="Not Set";if(G){const z=p.fields[D.key],_=(ae=D.dropdownSettings)==null?void 0:ae.items,M=Array.isArray(_)?_.find(I=>I&&I.key===z):null;K=M?M.name:"Not Set"}return Y==="High"||K==="High"}).slice(0,10).map(p=>{var _,M,I,P;const N=w.find(S=>S&&S.key===p.stageKey);let G="Not Set";if(A&&p.fields&&p.fields[A.key]){const S=p.fields[A.key],C=(_=A.dropdownSettings)==null?void 0:_.items,Q=Array.isArray(C)?C.find(X=>X&&X.key===S):null;G=Q?Q.name:"Not Set"}let Y="Not Set";if(D&&p.fields&&p.fields[D.key]){const S=p.fields[D.key],C=(M=D.dropdownSettings)==null?void 0:M.items,Q=Array.isArray(C)?C.find(X=>X&&X.key===S):null;Y=Q?Q.name:"Not Set"}let K=null;ee&&p.fields&&p.fields[ee.key]&&(K=new Date(p.fields[ee.key]).toISOString());let se="Unknown";if(R&&p.fields&&p.fields[R.key]){const S=p.fields[R.key],C=(I=R.dropdownSettings)==null?void 0:I.items,Q=Array.isArray(C)?C.find(X=>X&&X.key===S):null;se=Q?Q.name:"Unknown"}let ae="Unknown";if(te&&p.fields&&p.fields[te.key]){const S=p.fields[te.key],C=(P=te.dropdownSettings)==null?void 0:P.items,Q=Array.isArray(C)?C.find(X=>X&&X.key===S):null;ae=Q?Q.name:"Unknown"}const z=p.freshness||0;return{name:p.name||"Unnamed",key:p.boxKey,stage:N?N.name:"Unknown",fit:G,interest:Y,dueDate:K,country:se,language:ae,freshness:z.toFixed(3),lastUpdated:new Date(p.lastUpdatedTimestamp).toISOString()}}):[]})}catch(t){return e.json({error:t.message},500)}});L.get("/admin",e=>e.html(`
+var Qt=Object.defineProperty;var ut=e=>{throw TypeError(e)};var Zt=(e,t,s)=>t in e?Qt(e,t,{enumerable:!0,configurable:!0,writable:!0,value:s}):e[t]=s;var x=(e,t,s)=>Zt(e,typeof t!="symbol"?t+"":t,s),at=(e,t,s)=>t.has(e)||ut("Cannot "+s);var c=(e,t,s)=>(at(e,t,"read from private field"),s?s.call(e):t.get(e)),v=(e,t,s)=>t.has(e)?ut("Cannot add the same private member more than once"):t instanceof WeakSet?t.add(e):t.set(e,s),y=(e,t,s,a)=>(at(e,t,"write to private field"),a?a.call(e,s):t.set(e,s),s),C=(e,t,s)=>(at(e,t,"access private method"),s);var gt=(e,t,s,a)=>({set _(n){y(e,t,n,s)},get _(){return c(e,t,a)}});var ht=(e,t,s)=>(a,n)=>{let r=-1;return o(0);async function o(i){if(i<=r)throw new Error("next() called multiple times");r=i;let d,l=!1,m;if(e[i]?(m=e[i][0][0],a.req.routeIndex=i):m=i===e.length&&n||void 0,m)try{d=await m(a,()=>o(i+1))}catch(p){if(p instanceof Error&&t)a.error=p,d=await t(p,a),l=!0;else throw p}else a.finalized===!1&&s&&(d=await s(a));return d&&(a.finalized===!1||l)&&(a.res=d),a}},Xt=Symbol(),qt=async(e,t=Object.create(null))=>{const{all:s=!1,dot:a=!1}=t,r=(e instanceof Rt?e.raw.headers:e.headers).get("Content-Type");return r!=null&&r.startsWith("multipart/form-data")||r!=null&&r.startsWith("application/x-www-form-urlencoded")?Jt(e,{all:s,dot:a}):{}};async function Jt(e,t){const s=await e.formData();return s?es(s,t):{}}function es(e,t){const s=Object.create(null);return e.forEach((a,n)=>{t.all||n.endsWith("[]")?ts(s,n,a):s[n]=a}),t.dot&&Object.entries(s).forEach(([a,n])=>{a.includes(".")&&(ss(s,a,n),delete s[a])}),s}var ts=(e,t,s)=>{e[t]!==void 0?Array.isArray(e[t])?e[t].push(s):e[t]=[e[t],s]:t.endsWith("[]")?e[t]=[s]:e[t]=s},ss=(e,t,s)=>{let a=e;const n=t.split(".");n.forEach((r,o)=>{o===n.length-1?a[r]=s:((!a[r]||typeof a[r]!="object"||Array.isArray(a[r])||a[r]instanceof File)&&(a[r]=Object.create(null)),a=a[r])})},It=e=>{const t=e.split("/");return t[0]===""&&t.shift(),t},as=e=>{const{groups:t,path:s}=ns(e),a=It(s);return rs(a,t)},ns=e=>{const t=[];return e=e.replace(/\{[^}]+\}/g,(s,a)=>{const n=`@${a}`;return t.push([n,s]),n}),{groups:t,path:e}},rs=(e,t)=>{for(let s=t.length-1;s>=0;s--){const[a]=t[s];for(let n=e.length-1;n>=0;n--)if(e[n].includes(a)){e[n]=e[n].replace(a,t[s][1]);break}}return e},Ze={},os=(e,t)=>{if(e==="*")return"*";const s=e.match(/^\:([^\{\}]+)(?:\{(.+)\})?$/);if(s){const a=`${e}#${t}`;return Ze[a]||(s[2]?Ze[a]=t&&t[0]!==":"&&t[0]!=="*"?[a,s[1],new RegExp(`^${s[2]}(?=/${t})`)]:[e,s[1],new RegExp(`^${s[2]}$`)]:Ze[a]=[e,s[1],!0]),Ze[a]}return null},it=(e,t)=>{try{return t(e)}catch{return e.replace(/(?:%[0-9A-Fa-f]{2})+/g,s=>{try{return t(s)}catch{return s}})}},is=e=>it(e,decodeURI),Nt=e=>{const t=e.url,s=t.indexOf("/",t.indexOf(":")+4);let a=s;for(;a<t.length;a++){const n=t.charCodeAt(a);if(n===37){const r=t.indexOf("?",a),o=t.slice(s,r===-1?void 0:r);return is(o.includes("%25")?o.replace(/%25/g,"%2525"):o)}else if(n===63)break}return t.slice(s,a)},ls=e=>{const t=Nt(e);return t.length>1&&t.at(-1)==="/"?t.slice(0,-1):t},Ne=(e,t,...s)=>(s.length&&(t=Ne(t,...s)),`${(e==null?void 0:e[0])==="/"?"":"/"}${e}${t==="/"?"":`${(e==null?void 0:e.at(-1))==="/"?"":"/"}${(t==null?void 0:t[0])==="/"?t.slice(1):t}`}`),Lt=e=>{if(e.charCodeAt(e.length-1)!==63||!e.includes(":"))return null;const t=e.split("/"),s=[];let a="";return t.forEach(n=>{if(n!==""&&!/\:/.test(n))a+="/"+n;else if(/\:/.test(n))if(/\?/.test(n)){s.length===0&&a===""?s.push("/"):s.push(a);const r=n.replace("?","");a+="/"+r,s.push(a)}else a+="/"+n}),s.filter((n,r,o)=>o.indexOf(n)===r)},nt=e=>/[%+]/.test(e)?(e.indexOf("+")!==-1&&(e=e.replace(/\+/g," ")),e.indexOf("%")!==-1?it(e,Tt):e):e,Mt=(e,t,s)=>{let a;if(!s&&t&&!/[%+]/.test(t)){let o=e.indexOf("?",8);if(o===-1)return;for(e.startsWith(t,o+1)||(o=e.indexOf(`&${t}`,o+1));o!==-1;){const i=e.charCodeAt(o+t.length+1);if(i===61){const d=o+t.length+2,l=e.indexOf("&",d);return nt(e.slice(d,l===-1?void 0:l))}else if(i==38||isNaN(i))return"";o=e.indexOf(`&${t}`,o+1)}if(a=/[%+]/.test(e),!a)return}const n={};a??(a=/[%+]/.test(e));let r=e.indexOf("?",8);for(;r!==-1;){const o=e.indexOf("&",r+1);let i=e.indexOf("=",r);i>o&&o!==-1&&(i=-1);let d=e.slice(r+1,i===-1?o===-1?void 0:o:i);if(a&&(d=nt(d)),r=o,d==="")continue;let l;i===-1?l="":(l=e.slice(i+1,o===-1?void 0:o),a&&(l=nt(l))),s?(n[d]&&Array.isArray(n[d])||(n[d]=[]),n[d].push(l)):n[d]??(n[d]=l)}return t?n[t]:n},ds=Mt,cs=(e,t)=>Mt(e,t,!0),Tt=decodeURIComponent,ft=e=>it(e,Tt),Te,Q,ce,Ot,Dt,ot,pe,wt,Rt=(wt=class{constructor(e,t="/",s=[[]]){v(this,ce);x(this,"raw");v(this,Te);v(this,Q);x(this,"routeIndex",0);x(this,"path");x(this,"bodyCache",{});v(this,pe,e=>{const{bodyCache:t,raw:s}=this,a=t[e];if(a)return a;const n=Object.keys(t)[0];return n?t[n].then(r=>(n==="json"&&(r=JSON.stringify(r)),new Response(r)[e]())):t[e]=s[e]()});this.raw=e,this.path=t,y(this,Q,s),y(this,Te,{})}param(e){return e?C(this,ce,Ot).call(this,e):C(this,ce,Dt).call(this)}query(e){return ds(this.url,e)}queries(e){return cs(this.url,e)}header(e){if(e)return this.raw.headers.get(e)??void 0;const t={};return this.raw.headers.forEach((s,a)=>{t[a]=s}),t}async parseBody(e){var t;return(t=this.bodyCache).parsedBody??(t.parsedBody=await qt(this,e))}json(){return c(this,pe).call(this,"text").then(e=>JSON.parse(e))}text(){return c(this,pe).call(this,"text")}arrayBuffer(){return c(this,pe).call(this,"arrayBuffer")}blob(){return c(this,pe).call(this,"blob")}formData(){return c(this,pe).call(this,"formData")}addValidatedData(e,t){c(this,Te)[e]=t}valid(e){return c(this,Te)[e]}get url(){return this.raw.url}get method(){return this.raw.method}get[Xt](){return c(this,Q)}get matchedRoutes(){return c(this,Q)[0].map(([[,e]])=>e)}get routePath(){return c(this,Q)[0].map(([[,e]])=>e)[this.routeIndex].path}},Te=new WeakMap,Q=new WeakMap,ce=new WeakSet,Ot=function(e){const t=c(this,Q)[0][this.routeIndex][1][e],s=C(this,ce,ot).call(this,t);return s&&/\%/.test(s)?ft(s):s},Dt=function(){const e={},t=Object.keys(c(this,Q)[0][this.routeIndex][1]);for(const s of t){const a=C(this,ce,ot).call(this,c(this,Q)[0][this.routeIndex][1][s]);a!==void 0&&(e[s]=/\%/.test(a)?ft(a):a)}return e},ot=function(e){return c(this,Q)[1]?c(this,Q)[1][e]:e},pe=new WeakMap,wt),ms={Stringify:1},Pt=async(e,t,s,a,n)=>{typeof e=="object"&&!(e instanceof String)&&(e instanceof Promise||(e=e.toString()),e instanceof Promise&&(e=await e));const r=e.callbacks;return r!=null&&r.length?(n?n[0]+=e:n=[e],Promise.all(r.map(i=>i({phase:t,buffer:n,context:a}))).then(i=>Promise.all(i.filter(Boolean).map(d=>Pt(d,t,!1,a,n))).then(()=>n[0]))):Promise.resolve(e)},ps="text/plain; charset=UTF-8",rt=(e,t)=>({"Content-Type":e,...t}),He,Ke,oe,Re,ie,W,Ve,Oe,De,ve,_e,ze,ue,Le,kt,us=(kt=class{constructor(e,t){v(this,ue);v(this,He);v(this,Ke);x(this,"env",{});v(this,oe);x(this,"finalized",!1);x(this,"error");v(this,Re);v(this,ie);v(this,W);v(this,Ve);v(this,Oe);v(this,De);v(this,ve);v(this,_e);v(this,ze);x(this,"render",(...e)=>(c(this,Oe)??y(this,Oe,t=>this.html(t)),c(this,Oe).call(this,...e)));x(this,"setLayout",e=>y(this,Ve,e));x(this,"getLayout",()=>c(this,Ve));x(this,"setRenderer",e=>{y(this,Oe,e)});x(this,"header",(e,t,s)=>{this.finalized&&y(this,W,new Response(c(this,W).body,c(this,W)));const a=c(this,W)?c(this,W).headers:c(this,ve)??y(this,ve,new Headers);t===void 0?a.delete(e):s!=null&&s.append?a.append(e,t):a.set(e,t)});x(this,"status",e=>{y(this,Re,e)});x(this,"set",(e,t)=>{c(this,oe)??y(this,oe,new Map),c(this,oe).set(e,t)});x(this,"get",e=>c(this,oe)?c(this,oe).get(e):void 0);x(this,"newResponse",(...e)=>C(this,ue,Le).call(this,...e));x(this,"body",(e,t,s)=>C(this,ue,Le).call(this,e,t,s));x(this,"text",(e,t,s)=>!c(this,ve)&&!c(this,Re)&&!t&&!s&&!this.finalized?new Response(e):C(this,ue,Le).call(this,e,t,rt(ps,s)));x(this,"json",(e,t,s)=>C(this,ue,Le).call(this,JSON.stringify(e),t,rt("application/json",s)));x(this,"html",(e,t,s)=>{const a=n=>C(this,ue,Le).call(this,n,t,rt("text/html; charset=UTF-8",s));return typeof e=="object"?Pt(e,ms.Stringify,!1,{}).then(a):a(e)});x(this,"redirect",(e,t)=>{const s=String(e);return this.header("Location",/[^\x00-\xFF]/.test(s)?encodeURI(s):s),this.newResponse(null,t??302)});x(this,"notFound",()=>(c(this,De)??y(this,De,()=>new Response),c(this,De).call(this,this)));y(this,He,e),t&&(y(this,ie,t.executionCtx),this.env=t.env,y(this,De,t.notFoundHandler),y(this,ze,t.path),y(this,_e,t.matchResult))}get req(){return c(this,Ke)??y(this,Ke,new Rt(c(this,He),c(this,ze),c(this,_e))),c(this,Ke)}get event(){if(c(this,ie)&&"respondWith"in c(this,ie))return c(this,ie);throw Error("This context has no FetchEvent")}get executionCtx(){if(c(this,ie))return c(this,ie);throw Error("This context has no ExecutionContext")}get res(){return c(this,W)||y(this,W,new Response(null,{headers:c(this,ve)??y(this,ve,new Headers)}))}set res(e){if(c(this,W)&&e){e=new Response(e.body,e);for(const[t,s]of c(this,W).headers.entries())if(t!=="content-type")if(t==="set-cookie"){const a=c(this,W).headers.getSetCookie();e.headers.delete("set-cookie");for(const n of a)e.headers.append("set-cookie",n)}else e.headers.set(t,s)}y(this,W,e),this.finalized=!0}get var(){return c(this,oe)?Object.fromEntries(c(this,oe)):{}}},He=new WeakMap,Ke=new WeakMap,oe=new WeakMap,Re=new WeakMap,ie=new WeakMap,W=new WeakMap,Ve=new WeakMap,Oe=new WeakMap,De=new WeakMap,ve=new WeakMap,_e=new WeakMap,ze=new WeakMap,ue=new WeakSet,Le=function(e,t,s){const a=c(this,W)?new Headers(c(this,W).headers):c(this,ve)??new Headers;if(typeof t=="object"&&"headers"in t){const r=t.headers instanceof Headers?t.headers:new Headers(t.headers);for(const[o,i]of r)o.toLowerCase()==="set-cookie"?a.append(o,i):a.set(o,i)}if(s)for(const[r,o]of Object.entries(s))if(typeof o=="string")a.set(r,o);else{a.delete(r);for(const i of o)a.append(r,i)}const n=typeof t=="number"?t:(t==null?void 0:t.status)??c(this,Re);return new Response(e,{status:n,headers:a})},kt),D="ALL",gs="all",hs=["get","post","put","delete","options","patch"],Ft="Can not add a route since the matcher is already built.",jt=class extends Error{},fs="__COMPOSED_HANDLER",ys=e=>e.text("404 Not Found",404),yt=(e,t)=>{if("getResponse"in e){const s=e.getResponse();return t.newResponse(s.body,s)}return console.error(e),t.text("Internal Server Error",500)},ee,P,$t,te,be,Xe,qe,Pe,bs=(Pe=class{constructor(t={}){v(this,P);x(this,"get");x(this,"post");x(this,"put");x(this,"delete");x(this,"options");x(this,"patch");x(this,"all");x(this,"on");x(this,"use");x(this,"router");x(this,"getPath");x(this,"_basePath","/");v(this,ee,"/");x(this,"routes",[]);v(this,te,ys);x(this,"errorHandler",yt);x(this,"onError",t=>(this.errorHandler=t,this));x(this,"notFound",t=>(y(this,te,t),this));x(this,"fetch",(t,...s)=>C(this,P,qe).call(this,t,s[1],s[0],t.method));x(this,"request",(t,s,a,n)=>t instanceof Request?this.fetch(s?new Request(t,s):t,a,n):(t=t.toString(),this.fetch(new Request(/^https?:\/\//.test(t)?t:`http://localhost${Ne("/",t)}`,s),a,n)));x(this,"fire",()=>{addEventListener("fetch",t=>{t.respondWith(C(this,P,qe).call(this,t.request,t,void 0,t.request.method))})});[...hs,gs].forEach(r=>{this[r]=(o,...i)=>(typeof o=="string"?y(this,ee,o):C(this,P,be).call(this,r,c(this,ee),o),i.forEach(d=>{C(this,P,be).call(this,r,c(this,ee),d)}),this)}),this.on=(r,o,...i)=>{for(const d of[o].flat()){y(this,ee,d);for(const l of[r].flat())i.map(m=>{C(this,P,be).call(this,l.toUpperCase(),c(this,ee),m)})}return this},this.use=(r,...o)=>(typeof r=="string"?y(this,ee,r):(y(this,ee,"*"),o.unshift(r)),o.forEach(i=>{C(this,P,be).call(this,D,c(this,ee),i)}),this);const{strict:a,...n}=t;Object.assign(this,n),this.getPath=a??!0?t.getPath??Nt:ls}route(t,s){const a=this.basePath(t);return s.routes.map(n=>{var o;let r;s.errorHandler===yt?r=n.handler:(r=async(i,d)=>(await ht([],s.errorHandler)(i,()=>n.handler(i,d))).res,r[fs]=n.handler),C(o=a,P,be).call(o,n.method,n.path,r)}),this}basePath(t){const s=C(this,P,$t).call(this);return s._basePath=Ne(this._basePath,t),s}mount(t,s,a){let n,r;a&&(typeof a=="function"?r=a:(r=a.optionHandler,a.replaceRequest===!1?n=d=>d:n=a.replaceRequest));const o=r?d=>{const l=r(d);return Array.isArray(l)?l:[l]}:d=>{let l;try{l=d.executionCtx}catch{}return[d.env,l]};n||(n=(()=>{const d=Ne(this._basePath,t),l=d==="/"?0:d.length;return m=>{const p=new URL(m.url);return p.pathname=p.pathname.slice(l)||"/",new Request(p,m)}})());const i=async(d,l)=>{const m=await s(n(d.req.raw),...o(d));if(m)return m;await l()};return C(this,P,be).call(this,D,Ne(t,"*"),i),this}},ee=new WeakMap,P=new WeakSet,$t=function(){const t=new Pe({router:this.router,getPath:this.getPath});return t.errorHandler=this.errorHandler,y(t,te,c(this,te)),t.routes=this.routes,t},te=new WeakMap,be=function(t,s,a){t=t.toUpperCase(),s=Ne(this._basePath,s);const n={basePath:this._basePath,path:s,method:t,handler:a};this.router.add(t,s,[a,n]),this.routes.push(n)},Xe=function(t,s){if(t instanceof Error)return this.errorHandler(t,s);throw t},qe=function(t,s,a,n){if(n==="HEAD")return(async()=>new Response(null,await C(this,P,qe).call(this,t,s,a,"GET")))();const r=this.getPath(t,{env:a}),o=this.router.match(n,r),i=new us(t,{path:r,matchResult:o,env:a,executionCtx:s,notFoundHandler:c(this,te)});if(o[0].length===1){let l;try{l=o[0][0][0][0](i,async()=>{i.res=await c(this,te).call(this,i)})}catch(m){return C(this,P,Xe).call(this,m,i)}return l instanceof Promise?l.then(m=>m||(i.finalized?i.res:c(this,te).call(this,i))).catch(m=>C(this,P,Xe).call(this,m,i)):l??c(this,te).call(this,i)}const d=ht(o[0],this.errorHandler,c(this,te));return(async()=>{try{const l=await d(i);if(!l.finalized)throw new Error("Context is not finalized. Did you forget to return a Response object or `await next()`?");return l.res}catch(l){return C(this,P,Xe).call(this,l,i)}})()},Pe),Ut=[];function xs(e,t){const s=this.buildAllMatchers(),a=((n,r)=>{const o=s[n]||s[D],i=o[2][r];if(i)return i;const d=r.match(o[0]);if(!d)return[[],Ut];const l=d.indexOf("",1);return[o[1][l],d]});return this.match=a,a(e,t)}var et="[^/]+",We=".*",Ge="(?:|/.*)",Me=Symbol(),vs=new Set(".\\+*[^]$()");function ws(e,t){return e.length===1?t.length===1?e<t?-1:1:-1:t.length===1||e===We||e===Ge?1:t===We||t===Ge?-1:e===et?1:t===et?-1:e.length===t.length?e<t?-1:1:t.length-e.length}var we,ke,se,Se,ks=(Se=class{constructor(){v(this,we);v(this,ke);v(this,se,Object.create(null))}insert(t,s,a,n,r){if(t.length===0){if(c(this,we)!==void 0)throw Me;if(r)return;y(this,we,s);return}const[o,...i]=t,d=o==="*"?i.length===0?["","",We]:["","",et]:o==="/*"?["","",Ge]:o.match(/^\:([^\{\}]+)(?:\{(.+)\})?$/);let l;if(d){const m=d[1];let p=d[2]||et;if(m&&d[2]&&(p===".*"||(p=p.replace(/^\((?!\?:)(?=[^)]+\)$)/,"(?:"),/\((?!\?:)/.test(p))))throw Me;if(l=c(this,se)[p],!l){if(Object.keys(c(this,se)).some(g=>g!==We&&g!==Ge))throw Me;if(r)return;l=c(this,se)[p]=new Se,m!==""&&y(l,ke,n.varIndex++)}!r&&m!==""&&a.push([m,c(l,ke)])}else if(l=c(this,se)[o],!l){if(Object.keys(c(this,se)).some(m=>m.length>1&&m!==We&&m!==Ge))throw Me;if(r)return;l=c(this,se)[o]=new Se}l.insert(i,s,a,n,r)}buildRegExpStr(){const s=Object.keys(c(this,se)).sort(ws).map(a=>{const n=c(this,se)[a];return(typeof c(n,ke)=="number"?`(${a})@${c(n,ke)}`:vs.has(a)?`\\${a}`:a)+n.buildRegExpStr()});return typeof c(this,we)=="number"&&s.unshift(`#${c(this,we)}`),s.length===0?"":s.length===1?s[0]:"(?:"+s.join("|")+")"}},we=new WeakMap,ke=new WeakMap,se=new WeakMap,Se),tt,Qe,Et,Es=(Et=class{constructor(){v(this,tt,{varIndex:0});v(this,Qe,new ks)}insert(e,t,s){const a=[],n=[];for(let o=0;;){let i=!1;if(e=e.replace(/\{[^}]+\}/g,d=>{const l=`@\\${o}`;return n[o]=[l,d],o++,i=!0,l}),!i)break}const r=e.match(/(?::[^\/]+)|(?:\/\*$)|./g)||[];for(let o=n.length-1;o>=0;o--){const[i]=n[o];for(let d=r.length-1;d>=0;d--)if(r[d].indexOf(i)!==-1){r[d]=r[d].replace(i,n[o][1]);break}}return c(this,Qe).insert(r,t,a,c(this,tt),s),a}buildRegExp(){let e=c(this,Qe).buildRegExpStr();if(e==="")return[/^$/,[],[]];let t=0;const s=[],a=[];return e=e.replace(/#(\d+)|@(\d+)|\.\*\$/g,(n,r,o)=>r!==void 0?(s[++t]=Number(r),"$()"):(o!==void 0&&(a[Number(o)]=++t),"")),[new RegExp(`^${e}`),s,a]}},tt=new WeakMap,Qe=new WeakMap,Et),Cs=[/^$/,[],Object.create(null)],Je=Object.create(null);function Bt(e){return Je[e]??(Je[e]=new RegExp(e==="*"?"":`^${e.replace(/\/\*$|([.\\+*[^\]$()])/g,(t,s)=>s?`\\${s}`:"(?:|/.*)")}$`))}function Ss(){Je=Object.create(null)}function As(e){var l;const t=new Es,s=[];if(e.length===0)return Cs;const a=e.map(m=>[!/\*|\/:/.test(m[0]),...m]).sort(([m,p],[g,h])=>m?1:g?-1:p.length-h.length),n=Object.create(null);for(let m=0,p=-1,g=a.length;m<g;m++){const[h,w,E]=a[m];h?n[w]=[E.map(([f])=>[f,Object.create(null)]),Ut]:p++;let b;try{b=t.insert(w,p,h)}catch(f){throw f===Me?new jt(w):f}h||(s[p]=E.map(([f,T])=>{const k=Object.create(null);for(T-=1;T>=0;T--){const[O,$]=b[T];k[O]=$}return[f,k]}))}const[r,o,i]=t.buildRegExp();for(let m=0,p=s.length;m<p;m++)for(let g=0,h=s[m].length;g<h;g++){const w=(l=s[m][g])==null?void 0:l[1];if(!w)continue;const E=Object.keys(w);for(let b=0,f=E.length;b<f;b++)w[E[b]]=i[w[E[b]]]}const d=[];for(const m in o)d[m]=s[o[m]];return[r,d,n]}function Ie(e,t){if(e){for(const s of Object.keys(e).sort((a,n)=>n.length-a.length))if(Bt(s).test(t))return[...e[s]]}}var ge,he,st,Wt,Ct,Is=(Ct=class{constructor(){v(this,st);x(this,"name","RegExpRouter");v(this,ge);v(this,he);x(this,"match",xs);y(this,ge,{[D]:Object.create(null)}),y(this,he,{[D]:Object.create(null)})}add(e,t,s){var i;const a=c(this,ge),n=c(this,he);if(!a||!n)throw new Error(Ft);a[e]||[a,n].forEach(d=>{d[e]=Object.create(null),Object.keys(d[D]).forEach(l=>{d[e][l]=[...d[D][l]]})}),t==="/*"&&(t="*");const r=(t.match(/\/:/g)||[]).length;if(/\*$/.test(t)){const d=Bt(t);e===D?Object.keys(a).forEach(l=>{var m;(m=a[l])[t]||(m[t]=Ie(a[l],t)||Ie(a[D],t)||[])}):(i=a[e])[t]||(i[t]=Ie(a[e],t)||Ie(a[D],t)||[]),Object.keys(a).forEach(l=>{(e===D||e===l)&&Object.keys(a[l]).forEach(m=>{d.test(m)&&a[l][m].push([s,r])})}),Object.keys(n).forEach(l=>{(e===D||e===l)&&Object.keys(n[l]).forEach(m=>d.test(m)&&n[l][m].push([s,r]))});return}const o=Lt(t)||[t];for(let d=0,l=o.length;d<l;d++){const m=o[d];Object.keys(n).forEach(p=>{var g;(e===D||e===p)&&((g=n[p])[m]||(g[m]=[...Ie(a[p],m)||Ie(a[D],m)||[]]),n[p][m].push([s,r-l+d+1]))})}}buildAllMatchers(){const e=Object.create(null);return Object.keys(c(this,he)).concat(Object.keys(c(this,ge))).forEach(t=>{e[t]||(e[t]=C(this,st,Wt).call(this,t))}),y(this,ge,y(this,he,void 0)),Ss(),e}},ge=new WeakMap,he=new WeakMap,st=new WeakSet,Wt=function(e){const t=[];let s=e===D;return[c(this,ge),c(this,he)].forEach(a=>{const n=a[e]?Object.keys(a[e]).map(r=>[r,a[e][r]]):[];n.length!==0?(s||(s=!0),t.push(...n)):e!==D&&t.push(...Object.keys(a[D]).map(r=>[r,a[D][r]]))}),s?As(t):null},Ct),fe,le,St,Ns=(St=class{constructor(e){x(this,"name","SmartRouter");v(this,fe,[]);v(this,le,[]);y(this,fe,e.routers)}add(e,t,s){if(!c(this,le))throw new Error(Ft);c(this,le).push([e,t,s])}match(e,t){if(!c(this,le))throw new Error("Fatal error");const s=c(this,fe),a=c(this,le),n=s.length;let r=0,o;for(;r<n;r++){const i=s[r];try{for(let d=0,l=a.length;d<l;d++)i.add(...a[d]);o=i.match(e,t)}catch(d){if(d instanceof jt)continue;throw d}this.match=i.match.bind(i),y(this,fe,[i]),y(this,le,void 0);break}if(r===n)throw new Error("Fatal error");return this.name=`SmartRouter + ${this.activeRouter.name}`,o}get activeRouter(){if(c(this,le)||c(this,fe).length!==1)throw new Error("No active router has been determined yet.");return c(this,fe)[0]}},fe=new WeakMap,le=new WeakMap,St),Be=Object.create(null),ye,U,Ee,Fe,j,de,xe,je,Ls=(je=class{constructor(t,s,a){v(this,de);v(this,ye);v(this,U);v(this,Ee);v(this,Fe,0);v(this,j,Be);if(y(this,U,a||Object.create(null)),y(this,ye,[]),t&&s){const n=Object.create(null);n[t]={handler:s,possibleKeys:[],score:0},y(this,ye,[n])}y(this,Ee,[])}insert(t,s,a){y(this,Fe,++gt(this,Fe)._);let n=this;const r=as(s),o=[];for(let i=0,d=r.length;i<d;i++){const l=r[i],m=r[i+1],p=os(l,m),g=Array.isArray(p)?p[0]:l;if(g in c(n,U)){n=c(n,U)[g],p&&o.push(p[1]);continue}c(n,U)[g]=new je,p&&(c(n,Ee).push(p),o.push(p[1])),n=c(n,U)[g]}return c(n,ye).push({[t]:{handler:a,possibleKeys:o.filter((i,d,l)=>l.indexOf(i)===d),score:c(this,Fe)}}),n}search(t,s){var d;const a=[];y(this,j,Be);let r=[this];const o=It(s),i=[];for(let l=0,m=o.length;l<m;l++){const p=o[l],g=l===m-1,h=[];for(let w=0,E=r.length;w<E;w++){const b=r[w],f=c(b,U)[p];f&&(y(f,j,c(b,j)),g?(c(f,U)["*"]&&a.push(...C(this,de,xe).call(this,c(f,U)["*"],t,c(b,j))),a.push(...C(this,de,xe).call(this,f,t,c(b,j)))):h.push(f));for(let T=0,k=c(b,Ee).length;T<k;T++){const O=c(b,Ee)[T],$=c(b,j)===Be?{}:{...c(b,j)};if(O==="*"){const _=c(b,U)["*"];_&&(a.push(...C(this,de,xe).call(this,_,t,c(b,j))),y(_,j,$),h.push(_));continue}const[K,Y,me]=O;if(!p&&!(me instanceof RegExp))continue;const V=c(b,U)[K],Ae=o.slice(l).join("/");if(me instanceof RegExp){const _=me.exec(Ae);if(_){if($[Y]=_[0],a.push(...C(this,de,xe).call(this,V,t,c(b,j),$)),Object.keys(c(V,U)).length){y(V,j,$);const re=((d=_[0].match(/\//))==null?void 0:d.length)??0;(i[re]||(i[re]=[])).push(V)}continue}}(me===!0||me.test(p))&&($[Y]=p,g?(a.push(...C(this,de,xe).call(this,V,t,$,c(b,j))),c(V,U)["*"]&&a.push(...C(this,de,xe).call(this,c(V,U)["*"],t,$,c(b,j)))):(y(V,j,$),h.push(V)))}}r=h.concat(i.shift()??[])}return a.length>1&&a.sort((l,m)=>l.score-m.score),[a.map(({handler:l,params:m})=>[l,m])]}},ye=new WeakMap,U=new WeakMap,Ee=new WeakMap,Fe=new WeakMap,j=new WeakMap,de=new WeakSet,xe=function(t,s,a,n){const r=[];for(let o=0,i=c(t,ye).length;o<i;o++){const d=c(t,ye)[o],l=d[s]||d[D],m={};if(l!==void 0&&(l.params=Object.create(null),r.push(l),a!==Be||n&&n!==Be))for(let p=0,g=l.possibleKeys.length;p<g;p++){const h=l.possibleKeys[p],w=m[l.score];l.params[h]=n!=null&&n[h]&&!w?n[h]:a[h]??(n==null?void 0:n[h]),m[l.score]=!0}}return r},je),Ce,At,Ms=(At=class{constructor(){x(this,"name","TrieRouter");v(this,Ce);y(this,Ce,new Ls)}add(e,t,s){const a=Lt(t);if(a){for(let n=0,r=a.length;n<r;n++)c(this,Ce).insert(e,a[n],s);return}c(this,Ce).insert(e,t,s)}match(e,t){return c(this,Ce).search(e,t)}},Ce=new WeakMap,At),Gt=class extends bs{constructor(e={}){super(e),this.router=e.router??new Ns({routers:[new Is,new Ms]})}},Ts=e=>{const s={...{origin:"*",allowMethods:["GET","HEAD","PUT","POST","DELETE","PATCH"],allowHeaders:[],exposeHeaders:[]},...e},a=(r=>typeof r=="string"?r==="*"?()=>r:o=>r===o?o:null:typeof r=="function"?r:o=>r.includes(o)?o:null)(s.origin),n=(r=>typeof r=="function"?r:Array.isArray(r)?()=>r:()=>[])(s.allowMethods);return async function(o,i){var m;function d(p,g){o.res.headers.set(p,g)}const l=await a(o.req.header("origin")||"",o);if(l&&d("Access-Control-Allow-Origin",l),s.credentials&&d("Access-Control-Allow-Credentials","true"),(m=s.exposeHeaders)!=null&&m.length&&d("Access-Control-Expose-Headers",s.exposeHeaders.join(",")),o.req.method==="OPTIONS"){s.origin!=="*"&&d("Vary","Origin"),s.maxAge!=null&&d("Access-Control-Max-Age",s.maxAge.toString());const p=await n(o.req.header("origin")||"",o);p.length&&d("Access-Control-Allow-Methods",p.join(","));let g=s.allowHeaders;if(!(g!=null&&g.length)){const h=o.req.header("Access-Control-Request-Headers");h&&(g=h.split(/\s*,\s*/))}return g!=null&&g.length&&(d("Access-Control-Allow-Headers",g.join(",")),o.res.headers.append("Vary","Access-Control-Request-Headers")),o.res.headers.delete("Content-Length"),o.res.headers.delete("Content-Type"),new Response(null,{headers:o.res.headers,status:204,statusText:"No Content"})}await i(),s.origin!=="*"&&o.header("Vary","Origin",{append:!0})}},Rs=/^\s*(?:text\/(?!event-stream(?:[;\s]|$))[^;\s]+|application\/(?:javascript|json|xml|xml-dtd|ecmascript|dart|postscript|rtf|tar|toml|vnd\.dart|vnd\.ms-fontobject|vnd\.ms-opentype|wasm|x-httpd-php|x-javascript|x-ns-proxy-autoconfig|x-sh|x-tar|x-virtualbox-hdd|x-virtualbox-ova|x-virtualbox-ovf|x-virtualbox-vbox|x-virtualbox-vdi|x-virtualbox-vhd|x-virtualbox-vmdk|x-www-form-urlencoded)|font\/(?:otf|ttf)|image\/(?:bmp|vnd\.adobe\.photoshop|vnd\.microsoft\.icon|vnd\.ms-dds|x-icon|x-ms-bmp)|message\/rfc822|model\/gltf-binary|x-shader\/x-fragment|x-shader\/x-vertex|[^;\s]+?\+(?:json|text|xml|yaml))(?:[;\s]|$)/i,bt=(e,t=Ds)=>{const s=/\.([a-zA-Z0-9]+?)$/,a=e.match(s);if(!a)return;let n=t[a[1]];return n&&n.startsWith("text")&&(n+="; charset=utf-8"),n},Os={aac:"audio/aac",avi:"video/x-msvideo",avif:"image/avif",av1:"video/av1",bin:"application/octet-stream",bmp:"image/bmp",css:"text/css",csv:"text/csv",eot:"application/vnd.ms-fontobject",epub:"application/epub+zip",gif:"image/gif",gz:"application/gzip",htm:"text/html",html:"text/html",ico:"image/x-icon",ics:"text/calendar",jpeg:"image/jpeg",jpg:"image/jpeg",js:"text/javascript",json:"application/json",jsonld:"application/ld+json",map:"application/json",mid:"audio/x-midi",midi:"audio/x-midi",mjs:"text/javascript",mp3:"audio/mpeg",mp4:"video/mp4",mpeg:"video/mpeg",oga:"audio/ogg",ogv:"video/ogg",ogx:"application/ogg",opus:"audio/opus",otf:"font/otf",pdf:"application/pdf",png:"image/png",rtf:"application/rtf",svg:"image/svg+xml",tif:"image/tiff",tiff:"image/tiff",ts:"video/mp2t",ttf:"font/ttf",txt:"text/plain",wasm:"application/wasm",webm:"video/webm",weba:"audio/webm",webmanifest:"application/manifest+json",webp:"image/webp",woff:"font/woff",woff2:"font/woff2",xhtml:"application/xhtml+xml",xml:"application/xml",zip:"application/zip","3gp":"video/3gpp","3g2":"video/3gpp2",gltf:"model/gltf+json",glb:"model/gltf-binary"},Ds=Os,Ps=(...e)=>{let t=e.filter(n=>n!=="").join("/");t=t.replace(new RegExp("(?<=\\/)\\/+","g"),"");const s=t.split("/"),a=[];for(const n of s)n===".."&&a.length>0&&a.at(-1)!==".."?a.pop():n!=="."&&a.push(n);return a.join("/")||"."},Yt={br:".br",zstd:".zst",gzip:".gz"},Fs=Object.keys(Yt),js="index.html",$s=e=>{const t=e.root??"./",s=e.path,a=e.join??Ps;return async(n,r)=>{var m,p,g,h;if(n.finalized)return r();let o;if(e.path)o=e.path;else try{if(o=decodeURIComponent(n.req.path),/(?:^|[\/\\])\.\.(?:$|[\/\\])/.test(o))throw new Error}catch{return await((m=e.onNotFound)==null?void 0:m.call(e,n.req.path,n)),r()}let i=a(t,!s&&e.rewriteRequestPath?e.rewriteRequestPath(o):o);e.isDir&&await e.isDir(i)&&(i=a(i,js));const d=e.getContent;let l=await d(i,n);if(l instanceof Response)return n.newResponse(l.body,l);if(l){const w=e.mimes&&bt(i,e.mimes)||bt(i);if(n.header("Content-Type",w||"application/octet-stream"),e.precompressed&&(!w||Rs.test(w))){const E=new Set((p=n.req.header("Accept-Encoding"))==null?void 0:p.split(",").map(b=>b.trim()));for(const b of Fs){if(!E.has(b))continue;const f=await d(i+Yt[b],n);if(f){l=f,n.header("Content-Encoding",b),n.header("Vary","Accept-Encoding",{append:!0});break}}}return await((g=e.onFound)==null?void 0:g.call(e,i,n)),n.body(l)}await((h=e.onNotFound)==null?void 0:h.call(e,i,n)),await r()}},Us=async(e,t)=>{let s;t&&t.manifest?typeof t.manifest=="string"?s=JSON.parse(t.manifest):s=t.manifest:typeof __STATIC_CONTENT_MANIFEST=="string"?s=JSON.parse(__STATIC_CONTENT_MANIFEST):s=__STATIC_CONTENT_MANIFEST;let a;t&&t.namespace?a=t.namespace:a=__STATIC_CONTENT;const n=s[e]||e;if(!n)return null;const r=await a.get(n,{type:"stream"});return r||null},Bs=e=>async function(s,a){return $s({...e,getContent:async r=>Us(r,{manifest:e.manifest,namespace:e.namespace?e.namespace:s.env?s.env.__STATIC_CONTENT:void 0})})(s,a)},Ws=e=>Bs(e);const S=new Gt;S.use("/api/*",Ts());S.use("/static/*",Ws({root:"./public"}));const Gs="e77554988b424c6498d85362b0367757",Ys="https://www.streak.com/api/v1",Ye={mabsilico:{name:"MabSilico",pipelineKey:"agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw",url:"https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw",networkSheetGid:"910674612",sources:{promote:"",network:"https://docs.google.com/spreadsheets/d/1NzUlKfHTW6v7i-S59GjtBFlzQwTX2AaeK4gQ4fVSAsw/edit?gid=910674612#gid=910674612",engage:"https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw"}},"finance-montreal":{name:"Finance Montreal (Steve)",pipelineKey:"agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgI7YkpykCQw",url:"https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgI7YkpykCQw"},"apm-music":{name:"APM Music",pipelineKey:"agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgIClnNb8gwsM",url:"https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgIClnNb8gwsM"},ducrocq:{name:"Ducrocq",pipelineKey:"agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgNaSl4OGCww",url:"https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgNaSl4OGCww"},milvue:{name:"Milvue",pipelineKey:"agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgMX-7baZCgw",url:"https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgMX-7baZCgw"},seekyo:{name:"Seekyo Therapeutics",pipelineKey:"agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgLnYo_uUCww",url:"https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgLnYo_uUCww"},altavia:{name:"Altavia",pipelineKey:"agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgICFz_elmwgM",url:"https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgICFz_elmwgM"},valos:{name:"Valos",pipelineKey:"agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgICF5ei7lgkM",url:"https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgICF5ei7lgkM"},"dab-embedded":{name:"DAB-Embedded",pipelineKey:"agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgKWyqIboCww",url:"https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgKWyqIboCww"},"finance-montreal-noza":{name:"Finance Montreal (Noza)",pipelineKey:"agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgKWVvvDkCgw",url:"https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgKWVvvDkCgw"}},G=Ye.mabsilico.pipelineKey,Ht="Fit",Kt="Interest",xt="1NzUlKfHTW6v7i-S59GjtBFlzQwTX2AaeK4gQ4fVSAsw";async function L(e){const t=btoa(`${Gs}:`),s=await fetch(`${Ys}${e}`,{headers:{Authorization:`Basic ${t}`,"Content-Type":"application/json"}});if(!s.ok)throw new Error(`Streak API error: ${s.statusText}`);return s.json()}function Hs(e){if(e.includes("docs.google.com")){const t=e.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/),s=e.match(/[?&#]gid=(\d+)/),a=t?t[1]:xt,n=s?s[1]:"0";return{sheetId:a,gid:n}}return{sheetId:xt,gid:e}}async function Ks(e){try{const{sheetId:t,gid:s}=Hs(e),a=`https://docs.google.com/spreadsheets/d/${t}/export?format=csv&gid=${s}`,n=await fetch(a);if(!n.ok)throw new Error(`Google Sheets error: ${n.statusText}`);const o=(await n.text()).split(`
+`).filter(f=>f.trim()),i=[];for(let f=1;f<o.length;f++){const k=o[f].split(",");if(k.length>=9&&k[3]&&k[3].trim()){const O=parseInt(k[3])||0,$=parseInt(k[4])||0,K=k[7]?k[7].replace("%","").trim():"0",Y=parseFloat(K)||0;i.push({week:k[0],from:k[1],to:k[2],invitations:O,messages:$,acceptance:Y,opportunities:parseInt(k[8])||0})}}const d=i.reduce((f,T)=>f+T.invitations,0),l=i.reduce((f,T)=>{const k=Math.min(T.acceptance,100);return f+Math.round(T.invitations*k/100)},0),m=i.map(f=>Math.min(f.acceptance,100)),p=m.length>0?m.reduce((f,T)=>f+T,0)/m.length:0,g=20,h=p>0?p/g*100:0,w=i.slice(-4),E=i[i.length-1]||{invitations:0,acceptance:0},b=i[i.length-2]||{invitations:0,acceptance:0};return{totalInvitations:d,totalAccepted:l,avgAcceptanceRate:Math.round(p*10)/10,networkObjective:g,objectiveAchievement:Math.round(h*10)/10,thisWeek:{invitations:E.invitations,acceptance:Math.min(E.acceptance,100)},lastWeek:{invitations:b.invitations,acceptance:Math.min(b.acceptance,100)},recentWeeks:w.map(f=>({...f,acceptance:Math.min(f.acceptance,100)})),allData:i}}catch(t){return console.error("Error fetching network data:",t),{totalInvitations:0,totalAccepted:0,avgAcceptanceRate:0,thisWeek:{invitations:0,acceptance:0},lastWeek:{invitations:0,acceptance:0},recentWeeks:[],allData:[]}}}S.get("/api/pipeline",async e=>{try{const t=await L(`/pipelines/${G}`);return e.json(t)}catch(t){return e.json({error:t.message},500)}});S.get("/api/boxes",async e=>{try{const t=await L(`/pipelines/${G}/boxes`);return e.json(t)}catch(t){return e.json({error:t.message},500)}});S.get("/api/boxes/:boxKey",async e=>{try{const t=e.req.param("boxKey"),s=await L(`/boxes/${t}`);return e.json(s)}catch(t){return e.json({error:t.message},500)}});S.get("/api/sheets/stage/:stageName/count",async e=>{try{const t=e.req.param("stageName"),[s,a]=await Promise.all([L(`/pipelines/${G}`),L(`/pipelines/${G}/boxes`)]),n=s.stageOrder||[],r=Array.isArray(n)?n.map(i=>{var d,l;return{key:i,name:((l=(d=s.stages)==null?void 0:d[i])==null?void 0:l.name)||"Unknown"}}):[],o=Array.isArray(a)?a.filter(i=>{const d=r.find(l=>l&&l.key===i.stageKey);return d&&d.name.toLowerCase()===t.toLowerCase()}).length:0;return e.text(o.toString())}catch{return e.text("ERROR")}});S.get("/api/sheets/priority/:priorityName/count",async e=>{try{const t=e.req.param("priorityName"),[s,a]=await Promise.all([L(`/pipelines/${G}`),L(`/pipelines/${G}/boxes`)]),r=(Array.isArray(s.fields)?s.fields:[]).find(i=>i&&i.name==="Priority"),o=Array.isArray(a)?a.filter(i=>{var g;if(!r||!i.fields||!i.fields[r.key])return t.toLowerCase()==="no priority";const d=i.fields[r.key],l=(g=r.dropdownSettings)==null?void 0:g.items,m=Array.isArray(l)?l.find(h=>h&&h.key===d):null;return(m?m.name:"No Priority").toLowerCase().includes(t.toLowerCase())}).length:0;return e.text(o.toString())}catch{return e.text("ERROR")}});S.get("/api/sheets/country/:countryName/count",async e=>{try{const t=e.req.param("countryName"),[s,a]=await Promise.all([L(`/pipelines/${G}`),L(`/pipelines/${G}/boxes`)]),r=(Array.isArray(s.fields)?s.fields:[]).find(i=>i&&i.name==="Country"),o=Array.isArray(a)?a.filter(i=>{var g;if(!r||!i.fields||!i.fields[r.key])return t.toLowerCase()==="unknown";const d=i.fields[r.key],l=(g=r.dropdownSettings)==null?void 0:g.items,m=Array.isArray(l)?l.find(h=>h&&h.key===d):null;return(m?m.name:"Unknown").toLowerCase()===t.toLowerCase()}).length:0;return e.text(o.toString())}catch{return e.text("ERROR")}});S.get("/api/sheets/total",async e=>{try{const t=await L(`/pipelines/${G}/boxes`),s=Array.isArray(t)?t.length:0;return e.text(s.toString())}catch{return e.text("ERROR")}});S.get("/api/sheets/freshness/:level/count",async e=>{try{const t=e.req.param("level").toLowerCase(),s=await L(`/pipelines/${G}/boxes`),a=Array.isArray(s)?s.filter(n=>{const r=n.freshness||0;return t==="high"?r>.5:t==="medium"?r>=.2&&r<=.5:t==="low"?r<.2:!1}).length:0;return e.text(a.toString())}catch{return e.text("ERROR")}});S.get("/api/sheets/fit/:fitLevel/count",async e=>{try{const t=e.req.param("fitLevel"),[s,a]=await Promise.all([L(`/pipelines/${G}`),L(`/pipelines/${G}/boxes`)]),r=(Array.isArray(s.fields)?s.fields:[]).find(i=>i&&i.name===Ht),o=Array.isArray(a)?a.filter(i=>{var g;if(!r||!i.fields||!i.fields[r.key])return t.toLowerCase()==="not set";const d=i.fields[r.key],l=(g=r.dropdownSettings)==null?void 0:g.items,m=Array.isArray(l)?l.find(h=>h&&h.key===d):null;return(m?m.name:"Not Set").toLowerCase()===t.toLowerCase()}).length:0;return e.text(o.toString())}catch{return e.text("ERROR")}});S.get("/api/sheets/interest/:interestLevel/count",async e=>{try{const t=e.req.param("interestLevel"),[s,a]=await Promise.all([L(`/pipelines/${G}`),L(`/pipelines/${G}/boxes`)]),r=(Array.isArray(s.fields)?s.fields:[]).find(i=>i&&i.name===Kt),o=Array.isArray(a)?a.filter(i=>{var g;if(!r||!i.fields||!i.fields[r.key])return t.toLowerCase()==="not set";const d=i.fields[r.key],l=(g=r.dropdownSettings)==null?void 0:g.items,m=Array.isArray(l)?l.find(h=>h&&h.key===d):null;return(m?m.name:"Not Set").toLowerCase()===t.toLowerCase()}).length:0;return e.text(o.toString())}catch{return e.text("ERROR")}});async function $e(e,t){const s=await e.get(`company:${t}`);if(s)return JSON.parse(s);if(Ye[t]){const a=Ye[t];return{key:t,name:a.name,pipelineKey:a.pipelineKey,url:a.url||"",networkSheetGid:a.networkSheetGid||"",sources:a.sources||{}}}return null}async function lt(e,t=!1){const s={};for(const r of Object.keys(Ye)){const o=Ye[r];s[r]={key:r,name:o.name,pipelineKey:o.pipelineKey,url:o.url||"",networkSheetGid:o.networkSheetGid||"",sources:o.sources||{},archived:!1}}const a=await e.list({prefix:"company:"});for(const r of a.keys){const o=await e.get(r.name);if(o){const i=JSON.parse(o);s[i.key]=i}}const n=Object.values(s);return t?n:n.filter(r=>!r.archived)}S.get("/api/companies",async e=>{const t=e.req.query("includeArchived")==="true",s=await lt(e.env.COMPANIES_KV,t);return e.json({companies:s,count:s.length})});S.post("/api/companies",async e=>{try{const t=await e.req.json(),{name:s,pipelineKey:a,networkUrl:n,promoteUrl:r,engageUrl:o,notionUrl:i,networkGid:d,key:l}=t;if(!s||!a)return e.json({error:"name and pipelineKey are required"},400);const m=l||s.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,""),p={key:m,name:s,pipelineKey:a,url:o||`https://www.streak.com/a/pipelines/${a}`,sources:{promote:r||"",network:n||"",engage:o||`https://www.streak.com/a/pipelines/${a}`,notion:i||""}};return d&&(p.networkSheetGid=d),await e.env.COMPANIES_KV.put(`company:${m}`,JSON.stringify(p)),e.json({success:!0,company:p})}catch{return e.json({error:"Failed to save company"},500)}});S.delete("/api/companies/:key",async e=>{try{const t=e.req.param("key");return await e.env.COMPANIES_KV.delete(`company:${t}`),e.json({success:!0})}catch{return e.json({error:"Failed to delete company"},500)}});S.put("/api/companies/:key",async e=>{var t,s,a;try{const n=e.req.param("key"),r=await e.req.json(),{name:o,pipelineKey:i,networkUrl:d,promoteUrl:l,engageUrl:m,networkGid:p}=r,h=(await lt(e.env.COMPANIES_KV,!0)).find(b=>b.key===n);if(!h)return e.json({error:"Company not found"},404);const{archived:w}=r,E={...h,key:n,name:o||h.name,pipelineKey:i||h.pipelineKey,sources:{promote:l!==void 0?l:((t=h.sources)==null?void 0:t.promote)||"",network:d!==void 0?d:((s=h.sources)==null?void 0:s.network)||"",engage:m!==void 0?m:((a=h.sources)==null?void 0:a.engage)||h.url||""}};return p!==void 0&&(p?E.networkSheetGid=p:delete E.networkSheetGid),m&&(E.url=m),w!==void 0&&(E.archived=w),await e.env.COMPANIES_KV.put(`company:${n}`,JSON.stringify(E)),e.json({success:!0,company:E})}catch{return e.json({error:"Failed to update company"},500)}});S.get("/api/sheets/:companyName/total",async e=>{try{const t=e.req.param("companyName").toLowerCase(),s=await $e(e.env.COMPANIES_KV,t);if(!s)return e.text("COMPANY_NOT_FOUND");const a=await L(`/pipelines/${s.pipelineKey}/boxes`),n=Array.isArray(a)?a.length:0;return e.text(n.toString())}catch{return e.text("ERROR")}});S.get("/api/sheets/:companyName/month/:yearMonth/count",async e=>{try{const t=e.req.param("companyName").toLowerCase(),s=e.req.param("yearMonth"),a=await $e(e.env.COMPANIES_KV,t);if(!a)return e.text("COMPANY_NOT_FOUND");const n=await L(`/pipelines/${a.pipelineKey}/boxes`),[r,o]=s.split("-").map(Number),i=Array.isArray(n)?n.filter(d=>{const l=new Date(d.creationTimestamp);return l.getFullYear()===r&&l.getMonth()+1===o}).length:0;return e.text(i.toString())}catch{return e.text("ERROR")}});S.get("/api/sheets/:companyName/week/count",async e=>{try{const t=e.req.param("companyName").toLowerCase(),s=await $e(e.env.COMPANIES_KV,t);if(!s)return e.text("ERROR");const a=await L(`/pipelines/${s.pipelineKey}/boxes`);if(!Array.isArray(a))return e.text("0");const r=Date.now()-10080*60*1e3,o=a.filter(i=>(i.creationTimestamp||0)>=r).length;return e.text(o.toString())}catch{return e.text("ERROR")}});S.get("/api/sheets/:companyName/duration/total",async e=>{try{const t=e.req.param("companyName").toLowerCase(),s=await $e(e.env.COMPANIES_KV,t);if(!s)return e.text("0");const a=await L(`/pipelines/${s.pipelineKey}/boxes`);if(!Array.isArray(a)||a.length===0)return e.text("0");const n=a.map(p=>p.creationTimestamp).filter(p=>p);if(n.length===0)return e.text("0");const r=Math.min(...n),o=new Date(r),i=new Date,d=i.getFullYear()-o.getFullYear(),l=i.getMonth()-o.getMonth(),m=d*12+l+1;return e.text(m.toString())}catch{return e.text("0")}});S.get("/api/sheets/:companyName/monthly-stats",async e=>{try{const t=e.req.param("companyName").toLowerCase(),s=await $e(e.env.COMPANIES_KV,t);if(!s)return e.json({error:"Company not found"},404);const a=await L(`/pipelines/${s.pipelineKey}/boxes`),n=Array.isArray(a)?a:[],r=new Date,o=[];for(let m=11;m>=0;m--){const p=new Date(r.getFullYear(),r.getMonth()-m,1),g=p.getFullYear(),h=p.getMonth()+1,w=n.filter(b=>{const f=new Date(b.creationTimestamp);return f.getFullYear()===g&&f.getMonth()+1===h}).length,E=(w/10*100).toFixed(1);o.push({month:`${g}-${String(h).padStart(2,"0")}`,count:w,objective:10,percentage:parseFloat(E)})}const i=o.reduce((m,p)=>m+p.count,0),d=(i/12).toFixed(1),l=(parseFloat(d)/10*100).toFixed(1);return e.json({company:s.name,companyKey:t,objective:10,monthlyStats:o,summary:{totalLeads:i,average:parseFloat(d),averagePercentage:parseFloat(l)}})}catch(t){return e.json({error:t.message},500)}});S.get("/api/analytics",async e=>{var t;try{const s=e.req.query("company")||"mabsilico",a=await $e(e.env.COMPANIES_KV,s);if(!a)return e.json({error:"Invalid company key"},400);const n=a.pipelineKey,[r,o]=await Promise.all([L(`/pipelines/${n}`),L(`/pipelines/${n}/boxes`)]),i=Array.isArray(o)?o.length:0,d={},l={},m={},p={},g={},h={},w={"High (>0.5)":0,"Medium (0.2-0.5)":0,"Low (<0.2)":0},E=r.stageOrder||[],b=Array.isArray(E)?E.map(u=>{var M,B;return{key:u,name:((B=(M=r.stages)==null?void 0:M[u])==null?void 0:B.name)||"Unknown"}}):[],f=Array.isArray(r.fields)?r.fields:[],T=f.find(u=>u&&u.name==="Origin"),k=f.find(u=>u&&u.name===Ht),O=f.find(u=>u&&u.name===Kt),$=f.find(u=>u&&u.name==="Est Start Date"),K=f.find(u=>u&&u.name==="Country"),Y=f.find(u=>u&&u.name==="Language");Array.isArray(o)&&o.forEach(u=>{var z,ae,ne,Z,X;if(!u)return;const M=b.find(R=>R&&R.key===u.stageKey),B=M?M.name:"Unknown";if(d[B]=(d[B]||0)+1,T&&u.fields&&u.fields[T.key]){const R=u.fields[T.key],N=(z=T.dropdownSettings)==null?void 0:z.items,F=Array.isArray(N)?N.find(A=>A&&A.key===R):null,I=F?F.name:"Unknown";l[I]=(l[I]||0)+1}if(k&&u.fields&&u.fields[k.key]){const R=u.fields[k.key],N=(ae=k.dropdownSettings)==null?void 0:ae.items,F=Array.isArray(N)?N.find(A=>A&&A.key===R):null,I=F?F.name:"Not Set";m[I]=(m[I]||0)+1}else m["Not Set"]=(m["Not Set"]||0)+1;if(O&&u.fields&&u.fields[O.key]){const R=u.fields[O.key],N=(ne=O.dropdownSettings)==null?void 0:ne.items,F=Array.isArray(N)?N.find(A=>A&&A.key===R):null,I=F?F.name:"Not Set";p[I]=(p[I]||0)+1}else p["Not Set"]=(p["Not Set"]||0)+1;if(K&&u.fields&&u.fields[K.key]){const R=u.fields[K.key],N=(Z=K.dropdownSettings)==null?void 0:Z.items,F=Array.isArray(N)?N.find(A=>A&&A.key===R):null,I=F?F.name:"Unknown";g[I]=(g[I]||0)+1}else g.Unknown=(g.Unknown||0)+1;if(Y&&u.fields&&u.fields[Y.key]){const R=u.fields[Y.key],N=(X=Y.dropdownSettings)==null?void 0:X.items,F=Array.isArray(N)?N.find(A=>A&&A.key===R):null,I=F?F.name:"Unknown";h[I]=(h[I]||0)+1}else h.Unknown=(h.Unknown||0)+1;const H=u.freshness||0;H>.5?w["High (>0.5)"]++:H>=.2?w["Medium (0.2-0.5)"]++:w["Low (<0.2)"]++});const me={};Object.keys(m).forEach(u=>{me[u]=i>0?(m[u]/i*100).toFixed(1):0});const V={};Object.keys(p).forEach(u=>{V[u]=i>0?(p[u]/i*100).toFixed(1):0});const Ae=new Date,_=[],re=10;for(let u=11;u>=0;u--){const M=new Date(Ae.getFullYear(),Ae.getMonth()-u,1),B=M.getFullYear(),H=M.getMonth()+1,z=Array.isArray(o)?o.filter(ne=>{const Z=new Date(ne.creationTimestamp);return Z.getFullYear()===B&&Z.getMonth()+1===H}).length:0,ae=(z/re*100).toFixed(1);_.push({month:`${B}-${String(H).padStart(2,"0")}`,monthName:M.toLocaleString("en-US",{month:"short",year:"numeric"}),count:z,objective:re,percentage:parseFloat(ae),status:z>=re?"achieved":"pending"})}const dt=(_.reduce((u,M)=>u+M.count,0)/12).toFixed(1),zt=(parseFloat(dt)/re*100).toFixed(1);let ct=0,Ue=null;if(Array.isArray(o)&&o.length>0){const u=o.map(M=>M.creationTimestamp).filter(M=>M);if(u.length>0){const M=Math.min(...u);Ue=new Date(M);const B=Ae.getFullYear()-Ue.getFullYear(),H=Ae.getMonth()-Ue.getMonth();ct=B*12+H+1}}let mt=null;const pt=a.networkSheetGid||((t=a.sources)==null?void 0:t.network);return pt&&(mt=await Ks(pt)),e.json({company:a.name,companyKey:s,totalBoxes:i,campaignDurationMonths:ct,firstLeadDate:Ue?Ue.toISOString():null,networkData:mt,stageDistribution:d,originDistribution:l,fitDistribution:m,fitPercentages:me,interestDistribution:p,interestPercentages:V,countryDistribution:g,languageDistribution:h,freshnessDistribution:w,monthlyLeads:_,leadObjective:re,averageLeadsPerMonth:parseFloat(dt),averagePercentage:parseFloat(zt),recentBoxes:Array.isArray(o)?o.filter(u=>{var ae,ne;const M=k&&u.fields&&u.fields[k.key],B=O&&u.fields&&u.fields[O.key];let H="Not Set";if(M){const Z=u.fields[k.key],X=(ae=k.dropdownSettings)==null?void 0:ae.items,R=Array.isArray(X)?X.find(N=>N&&N.key===Z):null;H=R?R.name:"Not Set"}let z="Not Set";if(B){const Z=u.fields[O.key],X=(ne=O.dropdownSettings)==null?void 0:ne.items,R=Array.isArray(X)?X.find(N=>N&&N.key===Z):null;z=R?R.name:"Not Set"}return H==="High"||z==="High"}).slice(0,10).map(u=>{var X,R,N,F;const M=b.find(I=>I&&I.key===u.stageKey);let B="Not Set";if(k&&u.fields&&u.fields[k.key]){const I=u.fields[k.key],A=(X=k.dropdownSettings)==null?void 0:X.items,q=Array.isArray(A)?A.find(J=>J&&J.key===I):null;B=q?q.name:"Not Set"}let H="Not Set";if(O&&u.fields&&u.fields[O.key]){const I=u.fields[O.key],A=(R=O.dropdownSettings)==null?void 0:R.items,q=Array.isArray(A)?A.find(J=>J&&J.key===I):null;H=q?q.name:"Not Set"}let z=null;$&&u.fields&&u.fields[$.key]&&(z=new Date(u.fields[$.key]).toISOString());let ae="Unknown";if(K&&u.fields&&u.fields[K.key]){const I=u.fields[K.key],A=(N=K.dropdownSettings)==null?void 0:N.items,q=Array.isArray(A)?A.find(J=>J&&J.key===I):null;ae=q?q.name:"Unknown"}let ne="Unknown";if(Y&&u.fields&&u.fields[Y.key]){const I=u.fields[Y.key],A=(F=Y.dropdownSettings)==null?void 0:F.items,q=Array.isArray(A)?A.find(J=>J&&J.key===I):null;ne=q?q.name:"Unknown"}const Z=u.freshness||0;return{name:u.name||"Unnamed",key:u.boxKey,stage:M?M.name:"Unknown",fit:B,interest:H,dueDate:z,country:ae,language:ne,freshness:Z.toFixed(3),lastUpdated:new Date(u.lastUpdatedTimestamp).toISOString()}}):[]})}catch(s){return e.json({error:s.message},500)}});S.get("/api/overview",async e=>{try{const t=e.req.query("period")||"this-month",s=Date.now(),a=new Date;let n=0,r=s;t==="week"?n=s-10080*60*1e3:t==="last-month"?(n=new Date(a.getFullYear(),a.getMonth()-1,1).getTime(),r=new Date(a.getFullYear(),a.getMonth(),1).getTime()):t==="this-month"?n=new Date(a.getFullYear(),a.getMonth(),1).getTime():t==="year"&&(n=new Date(a.getFullYear(),0,1).getTime());const o=await lt(e.env.COMPANIES_KV),i=await Promise.all(o.map(async d=>{try{const l=await L(`/pipelines/${d.pipelineKey}/boxes`),m=Array.isArray(l)?l:[],p=m.length,g=m.filter(E=>{const b=E.creationTimestamp||0;return b>=n&&b<r}).length,h=10;let w=h;if(t==="week")w=Math.round(h/30*7);else if(t==="year")w=h*12;else if(t==="all"){const E=m.map(b=>b.creationTimestamp).filter(Boolean);if(E.length>0){const b=new Date(Math.min(...E)),f=(a.getFullYear()-b.getFullYear())*12+(a.getMonth()-b.getMonth())+1;w=h*Math.max(f,1)}}return{key:d.key,name:d.name,periodLeads:g,totalLeads:p,goalPct:w>0?Math.round(g/w*100):0,error:!1}}catch{return{key:d.key,name:d.name,periodLeads:0,totalLeads:0,goalPct:0,error:!0}}}));return i.sort((d,l)=>l.periodLeads-d.periodLeads),e.json({period:t,totalPeriodLeads:i.reduce((d,l)=>d+l.periodLeads,0),totalAllLeads:i.reduce((d,l)=>d+l.totalLeads,0),companies:i})}catch(t){return e.json({error:t.message},500)}});S.get("/admin",e=>e.html(`
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -25,7 +25,7 @@ var Yt=Object.defineProperty;var dt=e=>{throw TypeError(e)};var Kt=(e,t,s)=>t in
                         <h1 class="text-2xl font-bold text-gray-800">Company Management</h1>
                     </div>
                     <div class="flex items-center space-x-4">
-                        <span class="text-sm text-gray-600">Version <strong>1.0.0</strong></span>
+                        <span class="text-sm text-gray-600">Version <strong>1.1.0</strong></span>
                         <a href="/" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-all">
                             <i class="fas fa-arrow-left mr-2"></i>
                             Back to Dashboard
@@ -84,100 +84,73 @@ var Yt=Object.defineProperty;var dt=e=>{throw TypeError(e)};var Kt=(e,t,s)=>t in
                 
                 <form id="add-company-form" class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <!-- Company Name -->
-                    <div>
+                    <div class="md:col-span-2">
                         <label class="block text-sm font-semibold text-gray-700 mb-2">
                             Company Name <span class="text-red-500">*</span>
                         </label>
-                        <input 
-                            type="text" 
-                            id="company-name" 
+                        <input
+                            type="text"
+                            id="company-name"
                             placeholder="e.g., Acme Corporation"
                             class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             required
                         />
                     </div>
 
-                    <!-- Company Key -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            Company Key <span class="text-red-500">*</span>
-                        </label>
-                        <input 
-                            type="text" 
-                            id="company-key" 
-                            placeholder="e.g., acme-corp"
-                            pattern="[a-z0-9-]+"
-                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono"
-                            required
-                        />
-                        <p class="text-xs text-gray-500 mt-1">Lowercase letters, numbers, and hyphens only</p>
-                    </div>
-
-                    <!-- Streak Pipeline Key -->
+                    <!-- Streak Pipeline Key (ENGAGE) -->
                     <div class="md:col-span-2">
                         <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            Streak Pipeline Key <span class="text-red-500">*</span>
+                            <i class="fas fa-handshake text-green-600 mr-1"></i>
+                            ENGAGE — Streak API Key <span class="text-red-500">*</span>
                         </label>
-                        <textarea 
-                            id="pipeline-key" 
+                        <textarea
+                            id="pipeline-key"
                             rows="2"
                             placeholder="e.g., agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlh..."
-                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 font-mono text-sm"
                             required
                         ></textarea>
                     </div>
 
-                    <!-- ENGAGE URL -->
+                    <!-- NETWORK URL -->
                     <div class="md:col-span-2">
                         <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            ENGAGE URL (Streak Pipeline) <span class="text-red-500">*</span>
+                            <i class="fas fa-users text-blue-600 mr-1"></i>
+                            NETWORK — Google Sheets Link
                         </label>
-                        <input 
-                            type="url" 
-                            id="engage-url" 
-                            placeholder="https://www.streak.com/a/pipelines/..."
-                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 font-mono text-sm"
-                            required
-                        />
-                    </div>
-
-                    <!-- NETWORK URL -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            NETWORK URL (Google Sheets)
-                        </label>
-                        <input 
-                            type="url" 
-                            id="network-url" 
+                        <input
+                            type="url"
+                            id="network-url"
                             placeholder="https://docs.google.com/spreadsheets/..."
                             class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
                         />
                     </div>
 
-                    <!-- Network GID -->
+                    <!-- PROMOTE URL -->
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            Network Sheet GID
+                            <i class="fas fa-bullhorn text-yellow-600 mr-1"></i>
+                            PROMOTE URL
                         </label>
-                        <input 
-                            type="text" 
-                            id="network-gid" 
-                            placeholder="e.g., 608600451"
-                            pattern="[0-9]*"
-                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono"
+                        <input
+                            type="url"
+                            id="promote-url"
+                            placeholder="https://..."
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 font-mono text-sm"
                         />
                     </div>
 
-                    <!-- PROMOTE URL -->
-                    <div class="md:col-span-2">
+                    <!-- Notion OnBoarding -->
+                    <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            PROMOTE URL
+                            <i class="fas fa-book text-purple-600 mr-1"></i>
+                            OnBoarding — Notion Link
                         </label>
-                        <input 
-                            type="url" 
-                            id="promote-url" 
-                            placeholder="https://..."
-                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 font-mono text-sm"
+                        <input
+                            type="url"
+                            id="notion-url"
+                            placeholder="https://notion.so/..."
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-mono text-sm"
                         />
                     </div>
 
@@ -224,7 +197,7 @@ var Yt=Object.defineProperty;var dt=e=>{throw TypeError(e)};var Kt=(e,t,s)=>t in
 
             async function loadCompanies() {
                 try {
-                    const response = await fetch('/api/companies');
+                    const response = await fetch('/api/companies?includeArchived=true');
                     const data = await response.json();
                     companies = {};
                     
@@ -258,112 +231,152 @@ var Yt=Object.defineProperty;var dt=e=>{throw TypeError(e)};var Kt=(e,t,s)=>t in
                 }
             }
 
+            function companyCard(company, isArchived) {
+                const sources = company.sources || {};
+                const cardStyle = isArchived ? 'border-gray-200 bg-gray-50 opacity-75' : 'border-gray-200 hover:shadow-lg';
+                const nameBadge = isArchived ? '<span class="ml-2 text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full font-normal">Archived</span>' : '';
+                const iconColor = isArchived ? 'text-gray-400' : 'text-blue-600';
+                return \`
+                <div class="border rounded-lg p-6 transition-all \${cardStyle}">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="flex-1">
+                            <h3 class="text-lg font-bold text-gray-800 mb-3">
+                                <i class="fas fa-building \${iconColor} mr-2"></i>
+                                \${company.name}\${nameBadge}
+                            </h3>
+                            <div class="mb-3">
+                                <span class="text-gray-600 font-medium text-sm">Key:</span>
+                                <code class="ml-2 bg-gray-100 px-2 py-1 rounded text-xs font-mono">\${company.key}</code>
+                            </div>
+                            <div class="space-y-2 mt-4">
+                                <h4 class="text-sm font-semibold text-gray-700 mb-2">Data Sources:</h4>
+                                <div class="flex items-start space-x-2 text-sm">
+                                    <i class="fas fa-bullhorn text-yellow-600 mt-0.5"></i>
+                                    <div class="flex-1"><span class="font-medium text-gray-700">PROMOTE:</span>
+                                        \${sources.promote ? \`<a href="\${sources.promote}" target="_blank" class="text-blue-600 hover:underline text-xs ml-2 break-all">\${sources.promote.substring(0,50)}...</a>\` : '<span class="text-gray-400 text-xs ml-2">Not configured</span>'}
+                                    </div>
+                                </div>
+                                <div class="flex items-start space-x-2 text-sm">
+                                    <i class="fas fa-users text-blue-600 mt-0.5"></i>
+                                    <div class="flex-1"><span class="font-medium text-gray-700">NETWORK:</span>
+                                        \${sources.network ? \`<a href="\${sources.network}" target="_blank" class="text-blue-600 hover:underline text-xs ml-2 break-all">\${sources.network.substring(0,50)}...</a>\` : '<span class="text-gray-400 text-xs ml-2">Not configured</span>'}
+                                        \${company.networkSheetGid ? \`<span class="text-gray-500 text-xs ml-2">(GID: \${company.networkSheetGid})</span>\` : ''}
+                                    </div>
+                                </div>
+                                <div class="flex items-start space-x-2 text-sm">
+                                    <i class="fas fa-handshake text-green-600 mt-0.5"></i>
+                                    <div class="flex-1"><span class="font-medium text-gray-700">ENGAGE:</span>
+                                        \${sources.engage || company.url ? \`<a href="\${sources.engage || company.url}" target="_blank" class="text-blue-600 hover:underline text-xs ml-2 break-all">\${(sources.engage || company.url).substring(0,50)}...</a>\` : '<span class="text-gray-400 text-xs ml-2">Not configured</span>'}
+                                    </div>
+                                </div>
+                                <div class="flex items-start space-x-2 text-sm">
+                                    <i class="fas fa-key text-purple-600 mt-0.5"></i>
+                                    <div class="flex-1"><span class="font-medium text-gray-700">Pipeline Key:</span>
+                                        <code class="text-xs ml-2 bg-gray-100 px-2 py-1 rounded break-all">\${company.pipelineKey || 'Not set'}</code>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="ml-6 flex flex-col space-y-2">
+                            \${!isArchived ? \`
+                            <a href="/?company=\${company.key}" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all text-sm text-center whitespace-nowrap">
+                                <i class="fas fa-external-link-alt mr-1"></i>View Dashboard
+                            </a>
+                            <button onclick="archiveCompany('\${company.key}', '\${company.name}')" class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-all text-sm whitespace-nowrap">
+                                <i class="fas fa-archive mr-1"></i>Archive
+                            </button>
+                            \` : \`
+                            <button onclick="restoreCompany('\${company.key}', '\${company.name}')" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all text-sm whitespace-nowrap">
+                                <i class="fas fa-undo mr-1"></i>Restore
+                            </button>
+                            \`}
+                        </div>
+                    </div>
+                </div>\`;
+            }
+
             function displayCompanies(companiesList) {
                 const container = document.getElementById('companies-list');
-                if (companiesList.length === 0) {
+                const active = companiesList.filter(c => !c.archived);
+                const archived = companiesList.filter(c => c.archived);
+
+                let html = '';
+
+                if (active.length === 0 && archived.length === 0) {
                     container.innerHTML = '<p class="text-gray-500 text-center py-8">No companies found</p>';
                     return;
                 }
 
-                container.innerHTML = companiesList.map(company => {
-                    const sources = company.sources || {};
-                    return \`
-                    <div class="border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-all">
-                        <div class="flex items-start justify-between mb-4">
-                            <div class="flex-1">
-                                <h3 class="text-lg font-bold text-gray-800 mb-3">
-                                    <i class="fas fa-building text-blue-600 mr-2"></i>
-                                    \${company.name}
-                                </h3>
-                                
-                                <!-- Company Key -->
-                                <div class="mb-3">
-                                    <span class="text-gray-600 font-medium text-sm">Key:</span>
-                                    <code class="ml-2 bg-gray-100 px-2 py-1 rounded text-xs font-mono">\${company.key}</code>
-                                </div>
-                                
-                                <!-- Data Sources -->
-                                <div class="space-y-2 mt-4">
-                                    <h4 class="text-sm font-semibold text-gray-700 mb-2">Data Sources:</h4>
-                                    
-                                    <!-- PROMOTE -->
-                                    <div class="flex items-start space-x-2 text-sm">
-                                        <i class="fas fa-bullhorn text-yellow-600 mt-0.5"></i>
-                                        <div class="flex-1">
-                                            <span class="font-medium text-gray-700">PROMOTE:</span>
-                                            \${sources.promote ? 
-                                                \`<a href="\${sources.promote}" target="_blank" class="text-blue-600 hover:underline text-xs ml-2 break-all">\${sources.promote.substring(0, 50)}...</a>\` : 
-                                                '<span class="text-gray-400 text-xs ml-2">Not configured</span>'
-                                            }
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- NETWORK -->
-                                    <div class="flex items-start space-x-2 text-sm">
-                                        <i class="fas fa-users text-blue-600 mt-0.5"></i>
-                                        <div class="flex-1">
-                                            <span class="font-medium text-gray-700">NETWORK:</span>
-                                            \${sources.network ? 
-                                                \`<a href="\${sources.network}" target="_blank" class="text-blue-600 hover:underline text-xs ml-2 break-all">\${sources.network.substring(0, 50)}...</a>\` : 
-                                                '<span class="text-gray-400 text-xs ml-2">Not configured</span>'
-                                            }
-                                            \${company.networkSheetGid ? \`<span class="text-gray-500 text-xs ml-2">(GID: \${company.networkSheetGid})</span>\` : ''}
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- ENGAGE -->
-                                    <div class="flex items-start space-x-2 text-sm">
-                                        <i class="fas fa-handshake text-green-600 mt-0.5"></i>
-                                        <div class="flex-1">
-                                            <span class="font-medium text-gray-700">ENGAGE:</span>
-                                            \${sources.engage || company.url ? 
-                                                \`<a href="\${sources.engage || company.url}" target="_blank" class="text-blue-600 hover:underline text-xs ml-2 break-all">\${(sources.engage || company.url).substring(0, 50)}...</a>\` : 
-                                                '<span class="text-gray-400 text-xs ml-2">Not configured</span>'
-                                            }
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Pipeline Key -->
-                                    <div class="flex items-start space-x-2 text-sm">
-                                        <i class="fas fa-key text-purple-600 mt-0.5"></i>
-                                        <div class="flex-1">
-                                            <span class="font-medium text-gray-700">Pipeline Key:</span>
-                                            <code class="text-xs ml-2 bg-gray-100 px-2 py-1 rounded break-all">\${company.pipelineKey || 'Not set'}</code>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Action Buttons -->
-                            <div class="ml-6 flex flex-col space-y-2">
-                                <a href="/?company=\${company.key}" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all text-sm text-center whitespace-nowrap">
-                                    <i class="fas fa-external-link-alt mr-1"></i>
-                                    View Dashboard
-                                </a>
-                                <button onclick="deleteCompany('\${company.key}', '\${company.name}')" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all text-sm whitespace-nowrap">
-                                    <i class="fas fa-trash-alt mr-1"></i>
-                                    Delete
-                                </button>
-                            </div>
+                // Active section
+                html += \`<div class="mb-2">
+                    <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                        <i class="fas fa-circle text-green-500 mr-2 text-xs"></i>Active Clients (\${active.length})
+                    </h3>
+                    <div class="space-y-4">\${active.map(c => companyCard(c, false)).join('')}</div>
+                </div>\`;
+
+                // Archived section (collapsible)
+                if (archived.length > 0) {
+                    html += \`<div class="mt-8">
+                        <button onclick="toggleArchived()" class="flex items-center text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 hover:text-gray-700">
+                            <i class="fas fa-circle text-gray-400 mr-2 text-xs"></i>
+                            Archived Clients (\${archived.length})
+                            <i id="archived-chevron" class="fas fa-chevron-down ml-2 text-xs transition-transform"></i>
+                        </button>
+                        <div id="archived-section" class="hidden space-y-4">
+                            \${archived.map(c => companyCard(c, true)).join('')}
                         </div>
-                    </div>
-                \`;
-                }).join('');
+                    </div>\`;
+                }
+
+                container.innerHTML = html;
             }
 
-            // Delete Company Function
-            function deleteCompany(companyKey, companyName) {
-                if (!confirm(\`Are you sure you want to delete "\${companyName}"?\\n\\nThis action cannot be undone and will only affect this session.\`)) {
-                    return;
+            function toggleArchived() {
+                const section = document.getElementById('archived-section');
+                const chevron = document.getElementById('archived-chevron');
+                const hidden = section.classList.toggle('hidden');
+                chevron.style.transform = hidden ? '' : 'rotate(180deg)';
+            }
+
+            // Archive Company Function
+            async function archiveCompany(companyKey, companyName) {
+                if (!confirm(\`Archive "\${companyName}"?\\n\\nThe client will be hidden from the dashboard and overview but all data is preserved. You can restore them at any time.\`)) return;
+                try {
+                    const response = await fetch(\`/api/companies/\${companyKey}\`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ archived: true })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        showMessage('success', \`"\${companyName}" archived. They are hidden from the dashboard but data is intact.\`);
+                    } else {
+                        showMessage('error', data.error || 'Failed to archive company');
+                    }
+                } catch (err) {
+                    showMessage('error', 'Network error: ' + err.message);
                 }
-                
-                // Remove from companies object
-                delete companies[companyKey];
-                
-                // Show success message
-                showMessage('success', \`Company "\${companyName}" has been deleted successfully! Note: This is session-only. Refresh the page to restore.\`);
-                
-                // Reload companies list
+                loadCompanies();
+            }
+
+            // Restore Company Function
+            async function restoreCompany(companyKey, companyName) {
+                try {
+                    const response = await fetch(\`/api/companies/\${companyKey}\`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ archived: false })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        showMessage('success', \`"\${companyName}" restored and visible in the dashboard again.\`);
+                    } else {
+                        showMessage('error', data.error || 'Failed to restore company');
+                    }
+                } catch (err) {
+                    showMessage('error', 'Network error: ' + err.message);
+                }
                 loadCompanies();
             }
 
@@ -372,51 +385,29 @@ var Yt=Object.defineProperty;var dt=e=>{throw TypeError(e)};var Kt=(e,t,s)=>t in
                 e.preventDefault();
 
                 const name = document.getElementById('company-name').value.trim();
-                const key = document.getElementById('company-key').value.trim();
                 const pipelineKey = document.getElementById('pipeline-key').value.trim();
-                const engageUrl = document.getElementById('engage-url').value.trim();
                 const networkUrl = document.getElementById('network-url').value.trim();
-                const networkGid = document.getElementById('network-gid').value.trim();
                 const promoteUrl = document.getElementById('promote-url').value.trim();
+                const notionUrl = document.getElementById('notion-url').value.trim();
 
-                // Validate
-                if (!/^[a-z0-9-]+$/.test(key)) {
-                    showMessage('error', 'Company Key must contain only lowercase letters, numbers, and hyphens');
-                    return;
-                }
-
-                if (companies[key]) {
-                    showMessage('error', \`Company key "\${key}" already exists\`);
-                    return;
-                }
-
-                // Success
-                showMessage('success', \`Company "\${name}" added successfully! Note: This is session-only. To persist, add to source code.\`);
-                
-                // Add to local list
-                const newCompany = {
-                    key,
-                    name,
-                    url: engageUrl,
-                    sources: {
-                        promote: promoteUrl || '',
-                        network: networkUrl || '',
-                        engage: engageUrl
+                try {
+                    const response = await fetch('/api/companies', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name, pipelineKey, networkUrl, promoteUrl, notionUrl })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        showMessage('success', \`Company "\${name}" added successfully!\`);
+                        loadCompanies();
+                        e.target.reset();
+                        document.getElementById('form-message').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    } else {
+                        showMessage('error', data.error || 'Failed to add company');
                     }
-                };
-                if (networkGid) {
-                    newCompany.networkSheetGid = networkGid;
+                } catch (err) {
+                    showMessage('error', 'Network error: ' + err.message);
                 }
-                companies[key] = newCompany;
-
-                // Reload display
-                loadCompanies();
-
-                // Reset form
-                e.target.reset();
-
-                // Scroll to message
-                document.getElementById('form-message').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             });
 
             function showMessage(type, message) {
@@ -454,7 +445,207 @@ var Yt=Object.defineProperty;var dt=e=>{throw TypeError(e)};var Kt=(e,t,s)=>t in
         <\/script>
     </body>
     </html>
-  `));L.get("/",e=>e.html(`
+  `));S.get("/overview",e=>e.html(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Overview — Gershon CRM</title>
+        <script src="https://cdn.tailwindcss.com"><\/script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <style>
+            body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+            .skeleton { animation: pulse 1.5s cubic-bezier(0.4,0,0.6,1) infinite; background-color: #e5e7eb; border-radius: 0.375rem; }
+            @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+            .period-btn { transition: all 0.15s ease; cursor: pointer; }
+            .period-btn.active { background: white; color: #4338ca; box-shadow: 0 1px 4px rgba(0,0,0,0.15); font-weight: 700; }
+        </style>
+    </head>
+    <body class="bg-gray-50 min-h-screen">
+        <div class="container mx-auto px-4 py-8 max-w-7xl">
+
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-lg shadow-xl p-8 mb-8 text-white">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-4xl font-bold mb-4">
+                            <i class="fas fa-th-large mr-3"></i>
+                            Gershon CRM — Client Overview
+                        </h1>
+                        <div class="flex items-center space-x-3">
+                            <a href="/" class="bg-blue-500 hover:bg-blue-400 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors shadow-md">
+                                <i class="fas fa-arrow-left mr-2"></i>Dashboard
+                            </a>
+                            <a href="/admin" class="bg-purple-500 hover:bg-purple-400 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors shadow-md">
+                                <i class="fas fa-shield-alt mr-2"></i>Admin Panel
+                            </a>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <span class="inline-block bg-white text-indigo-700 font-bold text-sm px-3 py-1 rounded-full shadow-md tracking-wide mb-3">
+                            v1.1.0
+                        </span>
+                        <p class="text-blue-100 text-sm">
+                            <i class="fas fa-building mr-1"></i>All active client pipelines
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Period filter bar -->
+            <div class="bg-white rounded-lg shadow p-4 mb-6 flex flex-wrap items-center gap-3">
+                <span class="text-gray-500 text-sm font-medium">
+                    <i class="fas fa-calendar-alt mr-1"></i>Period:
+                </span>
+                <div class="flex bg-gray-100 rounded-lg p-1 gap-1">
+                    <button class="period-btn active px-4 py-2 rounded-md text-sm" data-period="week">Last Week</button>
+                    <button class="period-btn px-4 py-2 rounded-md text-sm text-gray-600" data-period="last-month">Last Month</button>
+                    <button class="period-btn px-4 py-2 rounded-md text-sm text-gray-600" data-period="this-month">This Month</button>
+                    <button class="period-btn px-4 py-2 rounded-md text-sm text-gray-600" data-period="year">This Year</button>
+                    <button class="period-btn px-4 py-2 rounded-md text-sm text-gray-600" data-period="all">All Time</button>
+                </div>
+                <button onclick="loadOverview(currentPeriod)" class="ml-auto bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors">
+                    <i class="fas fa-sync-alt mr-2"></i>Refresh
+                </button>
+            </div>
+
+            <!-- Summary row -->
+            <div id="summary-row" class="bg-white rounded-lg shadow p-5 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div class="flex gap-8">
+                    <div><div class="skeleton h-4 w-32 mb-2"></div><div class="skeleton h-8 w-16"></div></div>
+                    <div><div class="skeleton h-4 w-32 mb-2"></div><div class="skeleton h-8 w-16"></div></div>
+                    <div><div class="skeleton h-4 w-32 mb-2"></div><div class="skeleton h-8 w-16"></div></div>
+                </div>
+            </div>
+
+            <!-- Cards grid -->
+            <div id="cards-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="bg-white rounded-lg shadow p-6"><div class="skeleton h-6 w-3/4 mb-4"></div><div class="skeleton h-14 w-20 mb-3"></div><div class="skeleton h-3 w-full mb-2"></div><div class="skeleton h-3 w-2/3 mb-4"></div><div class="skeleton h-2 w-full mb-4"></div><div class="skeleton h-10 w-full"></div></div>
+                <div class="bg-white rounded-lg shadow p-6"><div class="skeleton h-6 w-3/4 mb-4"></div><div class="skeleton h-14 w-20 mb-3"></div><div class="skeleton h-3 w-full mb-2"></div><div class="skeleton h-3 w-2/3 mb-4"></div><div class="skeleton h-2 w-full mb-4"></div><div class="skeleton h-10 w-full"></div></div>
+                <div class="bg-white rounded-lg shadow p-6"><div class="skeleton h-6 w-3/4 mb-4"></div><div class="skeleton h-14 w-20 mb-3"></div><div class="skeleton h-3 w-full mb-2"></div><div class="skeleton h-3 w-2/3 mb-4"></div><div class="skeleton h-2 w-full mb-4"></div><div class="skeleton h-10 w-full"></div></div>
+            </div>
+
+            <!-- Error state -->
+            <div id="error-state" class="hidden bg-red-50 border border-red-200 rounded-lg p-6 mt-4">
+                <div class="flex items-center">
+                    <i class="fas fa-exclamation-circle text-red-500 text-2xl mr-3"></i>
+                    <div>
+                        <h3 class="text-red-800 font-semibold">Error Loading Overview</h3>
+                        <p id="error-message" class="text-red-600 text-sm mt-1"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            let currentPeriod = 'week';
+
+            document.querySelectorAll('.period-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.period-btn').forEach(b => {
+                        b.classList.remove('active');
+                        b.classList.add('text-gray-600');
+                    });
+                    btn.classList.add('active');
+                    btn.classList.remove('text-gray-600');
+                    currentPeriod = btn.dataset.period;
+                    loadOverview(currentPeriod);
+                });
+            });
+
+            function goalColor(pct) {
+                if (pct >= 100) return { bar: 'bg-green-500', text: 'text-green-700', badge: 'bg-green-100 text-green-700 border-green-200' };
+                if (pct >= 50)  return { bar: 'bg-yellow-400', text: 'text-yellow-700', badge: 'bg-yellow-100 text-yellow-700 border-yellow-200' };
+                return { bar: 'bg-red-400', text: 'text-red-600', badge: 'bg-red-100 text-red-600 border-red-200' };
+            }
+
+            function periodLabel(p) {
+                return { week:'Last Week', 'last-month':'Last Month', 'this-month':'This Month', year:'This Year', all:'All Time' }[p] || p;
+            }
+
+            function renderSummary(data) {
+                document.getElementById('summary-row').innerHTML = \`
+                    <div class="flex flex-wrap gap-8">
+                        <div>
+                            <p class="text-xs text-gray-500 uppercase font-semibold tracking-wide mb-1">Leads — \${periodLabel(data.period)}</p>
+                            <p class="text-4xl font-extrabold text-gray-900">\${data.totalPeriodLeads}</p>
+                        </div>
+                        <div class="border-l border-gray-200 pl-8">
+                            <p class="text-xs text-gray-500 uppercase font-semibold tracking-wide mb-1">All-Time Leads</p>
+                            <p class="text-4xl font-extrabold text-gray-900">\${data.totalAllLeads}</p>
+                        </div>
+                        <div class="border-l border-gray-200 pl-8">
+                            <p class="text-xs text-gray-500 uppercase font-semibold tracking-wide mb-1">Active Clients</p>
+                            <p class="text-4xl font-extrabold text-gray-900">\${data.companies.length}</p>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2 sm:mt-0">
+                        <i class="fas fa-clock mr-1"></i>Updated \${new Date().toLocaleTimeString()}
+                    </p>
+                \`;
+            }
+
+            function renderCards(companies) {
+                const grid = document.getElementById('cards-grid');
+                if (!companies.length) {
+                    grid.innerHTML = '<p class="col-span-3 text-center text-gray-400 py-16 text-lg">No company data available.</p>';
+                    return;
+                }
+                grid.innerHTML = companies.map(co => {
+                    const pct = Math.min(co.goalPct, 100);
+                    const colors = goalColor(co.goalPct);
+                    const errBadge = co.error ? '<span class="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full ml-2">API Error</span>' : '';
+                    return \`
+                    <div class="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-lg transition-shadow flex flex-col">
+                        <div class="flex items-start justify-between mb-3">
+                            <h3 class="text-lg font-bold text-gray-800 leading-tight">\${co.name}\${errBadge}</h3>
+                            <span class="ml-2 flex-shrink-0 border text-xs font-semibold px-2 py-0.5 rounded-full \${colors.badge}">\${co.goalPct}% of goal</span>
+                        </div>
+                        <p class="text-5xl font-extrabold text-gray-900 mb-0.5">\${co.periodLeads}</p>
+                        <p class="text-xs text-gray-400 mb-1">leads this period</p>
+                        <p class="text-sm text-gray-500 mb-4"><i class="fas fa-database mr-1 text-gray-300"></i>\${co.totalLeads} total all time</p>
+                        <div class="mb-5">
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-gray-400">Goal progress</span>
+                                <span class="font-semibold \${colors.text}">\${co.goalPct}%</span>
+                            </div>
+                            <div class="w-full bg-gray-100 rounded-full h-2">
+                                <div class="\${colors.bar} h-2 rounded-full transition-all duration-700" style="width:\${pct}%"></div>
+                            </div>
+                        </div>
+                        <div class="mt-auto">
+                            <a href="/?company=\${co.key}" class="block w-full text-center bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg px-4 py-2.5 text-sm font-semibold transition-all shadow">
+                                <i class="fas fa-chart-line mr-2"></i>View Dashboard
+                            </a>
+                        </div>
+                    </div>\`;
+                }).join('');
+            }
+
+            async function loadOverview(period) {
+                document.getElementById('error-state').classList.add('hidden');
+                document.getElementById('summary-row').innerHTML = '<div class="flex gap-8"><div><div class="skeleton h-4 w-32 mb-2"></div><div class="skeleton h-8 w-16"></div></div><div><div class="skeleton h-4 w-32 mb-2"></div><div class="skeleton h-8 w-16"></div></div><div><div class="skeleton h-4 w-32 mb-2"></div><div class="skeleton h-8 w-16"></div></div></div>';
+                document.getElementById('cards-grid').innerHTML = '<div class="bg-white rounded-lg shadow p-6"><div class="skeleton h-6 w-3/4 mb-4"></div><div class="skeleton h-14 w-20 mb-3"></div><div class="skeleton h-3 w-full mb-2"></div><div class="skeleton h-2 w-full mb-4"></div><div class="skeleton h-10 w-full"></div></div>'.repeat(6);
+                try {
+                    const res = await fetch('/api/overview?period=' + period);
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    const data = await res.json();
+                    renderSummary(data);
+                    renderCards(data.companies);
+                } catch (err) {
+                    document.getElementById('error-message').textContent = err.message;
+                    document.getElementById('error-state').classList.remove('hidden');
+                    document.getElementById('summary-row').innerHTML = '';
+                    document.getElementById('cards-grid').innerHTML = '';
+                }
+            }
+
+            loadOverview(currentPeriod);
+        <\/script>
+    </body>
+    </html>
+  `));S.get("/",e=>e.html(`
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -489,7 +680,6 @@ var Yt=Object.defineProperty;var dt=e=>{throw TypeError(e)};var Kt=(e,t,s)=>t in
                         <h1 class="text-4xl font-bold mb-3">
                             <i class="fas fa-chart-line mr-3"></i>
                             Gershon CRM - Client Dashboard
-                            <span class="text-sm font-normal text-blue-200 ml-3">v1.0.2</span>
                         </h1>
                         <!-- Company Selector -->
                         <div class="flex items-center space-x-3">
@@ -511,12 +701,20 @@ var Yt=Object.defineProperty;var dt=e=>{throw TypeError(e)};var Kt=(e,t,s)=>t in
                             <button onclick="refreshDashboard()" class="bg-blue-500 hover:bg-blue-400 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors shadow-md">
                                 <i class="fas fa-sync-alt mr-2"></i>Refresh
                             </button>
+                            <a href="/overview" class="bg-indigo-500 hover:bg-indigo-400 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors shadow-md">
+                                <i class="fas fa-th-large mr-2"></i>Overview
+                            </a>
                             <a href="/admin" class="bg-purple-500 hover:bg-purple-400 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors shadow-md">
                                 <i class="fas fa-shield-alt mr-2"></i>Admin Panel
                             </a>
                         </div>
                     </div>
                     <div class="text-right">
+                        <div class="mb-3">
+                            <span class="inline-block bg-white text-indigo-700 font-bold text-sm px-3 py-1 rounded-full shadow-md tracking-wide">
+                                v1.1.0
+                            </span>
+                        </div>
                         <p class="text-blue-100 text-sm mb-2">
                             <i class="fas fa-sync-alt mr-2"></i>
                             Last Updated: <span id="last-updated" class="font-semibold">Loading...</span>
@@ -830,15 +1028,15 @@ var Yt=Object.defineProperty;var dt=e=>{throw TypeError(e)};var Kt=(e,t,s)=>t in
                     <form id="edit-sources-form" class="space-y-6" onsubmit="return false;">
                         <!-- PROMOTE Source -->
                         <div class="p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
-                            <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-                                <i class="fas fa-bullhorn text-yellow-600 mr-2"></i>
-                                PROMOTE Data Source
+                            <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center justify-between">
+                                <span><i class="fas fa-bullhorn text-yellow-600 mr-2"></i>PROMOTE Data Source</span>
+                                <span id="status-promote" class="hidden text-xs font-semibold px-2 py-1 rounded-full bg-green-100 text-green-700"><i class="fas fa-check-circle mr-1"></i>URL saved</span>
                             </h3>
                             <div class="space-y-2">
                                 <label class="text-sm font-medium text-gray-700">Source URL:</label>
-                                <input 
-                                    type="url" 
-                                    id="edit-promote-url" 
+                                <input
+                                    type="url"
+                                    id="edit-promote-url"
                                     placeholder="https://..."
                                     class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 font-mono text-sm"
                                 />
@@ -851,25 +1049,25 @@ var Yt=Object.defineProperty;var dt=e=>{throw TypeError(e)};var Kt=(e,t,s)=>t in
 
                         <!-- NETWORK Source -->
                         <div class="p-6 bg-blue-50 border border-blue-200 rounded-lg">
-                            <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-                                <i class="fas fa-users text-blue-600 mr-2"></i>
-                                NETWORK Data Source
+                            <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center justify-between">
+                                <span><i class="fas fa-users text-blue-600 mr-2"></i>NETWORK Data Source</span>
+                                <span id="status-network" class="hidden text-xs font-semibold px-2 py-1 rounded-full bg-green-100 text-green-700"><i class="fas fa-check-circle mr-1"></i>URL saved</span>
                             </h3>
                             <div class="space-y-3">
                                 <div>
                                     <label class="text-sm font-medium text-gray-700">Google Sheets URL:</label>
-                                    <input 
-                                        type="url" 
-                                        id="edit-network-url" 
+                                    <input
+                                        type="url"
+                                        id="edit-network-url"
                                         placeholder="https://docs.google.com/spreadsheets/d/..."
                                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
                                     />
                                 </div>
                                 <div>
-                                    <label class="text-sm font-medium text-gray-700">Sheet GID (optional):</label>
-                                    <input 
-                                        type="text" 
-                                        id="edit-network-gid" 
+                                    <label class="text-sm font-medium text-gray-700">Sheet GID (optional — extracted from URL automatically):</label>
+                                    <input
+                                        type="text"
+                                        id="edit-network-gid"
                                         placeholder="e.g., 608600451"
                                         pattern="[0-9]*"
                                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
@@ -877,22 +1075,22 @@ var Yt=Object.defineProperty;var dt=e=>{throw TypeError(e)};var Kt=(e,t,s)=>t in
                                 </div>
                                 <p class="text-xs text-gray-500">
                                     <i class="fas fa-table mr-1"></i>
-                                    LinkedIn networking data from Google Sheets
+                                    LinkedIn networking data from Google Sheets — paste the full URL, GID is auto-extracted
                                 </p>
                             </div>
                         </div>
 
                         <!-- ENGAGE Source -->
                         <div class="p-6 bg-green-50 border border-green-200 rounded-lg">
-                            <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-                                <i class="fas fa-handshake text-green-600 mr-2"></i>
-                                ENGAGE Data Source
+                            <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center justify-between">
+                                <span><i class="fas fa-handshake text-green-600 mr-2"></i>ENGAGE Data Source</span>
+                                <span id="status-engage" class="hidden text-xs font-semibold px-2 py-1 rounded-full bg-green-100 text-green-700"><i class="fas fa-check-circle mr-1"></i>URL saved</span>
                             </h3>
                             <div class="space-y-2">
                                 <label class="text-sm font-medium text-gray-700">Streak Pipeline URL:</label>
-                                <input 
-                                    type="url" 
-                                    id="edit-engage-url" 
+                                <input
+                                    type="url"
+                                    id="edit-engage-url"
                                     placeholder="https://www.streak.com/a/pipelines/..."
                                     class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 font-mono text-sm"
                                 />
@@ -2345,19 +2543,38 @@ var Yt=Object.defineProperty;var dt=e=>{throw TypeError(e)};var Kt=(e,t,s)=>t in
                     '=IMPORTDATA("' + baseUrl + '/api/sheets/' + currentCompany + '/month/2025-12/count")';
             }
 
+            // Update the green check badges for saved URLs
+            function updateSourceStatusBadges(sources, company) {
+                const badges = {
+                    'status-promote': sources.promote,
+                    'status-network': sources.network,
+                    'status-engage': sources.engage || company.url
+                };
+                for (const [id, value] of Object.entries(badges)) {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        if (value) { el.classList.remove('hidden'); }
+                        else { el.classList.add('hidden'); }
+                    }
+                }
+            }
+
             function updateSettingsView() {
                 const company = COMPANIES[currentCompany];
                 const sources = company.sources || { promote: '', network: '', engage: '' };
-                
+
                 // Update company name in settings header
                 document.getElementById('settings-company-name').textContent = company.name;
-                
+
                 // Populate input fields with current values
                 document.getElementById('edit-promote-url').value = sources.promote || '';
                 document.getElementById('edit-network-url').value = sources.network || '';
                 document.getElementById('edit-network-gid').value = company.networkSheetGid || '';
                 document.getElementById('edit-engage-url').value = sources.engage || company.url || '';
-                
+
+                // Show green badges for already-saved URLs
+                updateSourceStatusBadges(sources, company);
+
                 // Hide any previous messages
                 const messageEl = document.getElementById('edit-sources-message');
                 if (messageEl) {
@@ -2366,9 +2583,9 @@ var Yt=Object.defineProperty;var dt=e=>{throw TypeError(e)};var Kt=(e,t,s)=>t in
             }
 
             // Save Source URLs Function
-            function saveSourceURLs() {
+            async function saveSourceURLs() {
                 const company = COMPANIES[currentCompany];
-                
+
                 // Get values from input fields
                 const promoteUrl = document.getElementById('edit-promote-url').value.trim();
                 const networkUrl = document.getElementById('edit-network-url').value.trim();
@@ -2393,32 +2610,30 @@ var Yt=Object.defineProperty;var dt=e=>{throw TypeError(e)};var Kt=(e,t,s)=>t in
                     return;
                 }
 
-                // Update company sources
-                if (!company.sources) {
-                    company.sources = {};
-                }
-                
-                company.sources.promote = promoteUrl;
-                company.sources.network = networkUrl;
-                company.sources.engage = engageUrl || company.url;
-                
-                // Update network GID if provided
-                if (networkGid) {
-                    company.networkSheetGid = networkGid;
-                } else {
-                    delete company.networkSheetGid;
-                }
-                
-                // Also update the main URL to match engage URL if provided
-                if (engageUrl) {
-                    company.url = engageUrl;
-                }
+                try {
+                    const res = await fetch(\`/api/companies/\${currentCompany}\`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ promoteUrl, networkUrl, networkGid, engageUrl })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || 'Save failed');
 
-                // Show success message
-                showEditMessage('success', \`Source URLs for \${company.name} have been saved successfully! The changes are active for this session.\`);
+                    // Update local object so dashboard reflects immediately
+                    if (!company.sources) company.sources = {};
+                    company.sources.promote = promoteUrl;
+                    company.sources.network = networkUrl;
+                    company.sources.engage = engageUrl || company.url;
+                    if (networkGid) { company.networkSheetGid = networkGid; } else { delete company.networkSheetGid; }
+                    if (engageUrl) company.url = engageUrl;
 
-                // Reload dashboard to reflect changes
-                loadDashboard();
+                    // Refresh status badges
+                    updateSourceStatusBadges(company.sources, company);
+                    showEditMessage('success', \`Source URLs for \${company.name} saved and persisted successfully!\`);
+                    loadDashboard();
+                } catch (err) {
+                    showEditMessage('error', \`Failed to save: \${err.message}\`);
+                }
             }
 
             // Validate URL
@@ -2467,7 +2682,7 @@ var Yt=Object.defineProperty;var dt=e=>{throw TypeError(e)};var Kt=(e,t,s)=>t in
             }
 
             // Add New Company Function
-            function addNewCompany() {
+            async function addNewCompany() {
                 // Get form values
                 const name = document.getElementById('new-company-name').value.trim();
                 const key = document.getElementById('new-company-key').value.trim();
@@ -2512,33 +2727,39 @@ var Yt=Object.defineProperty;var dt=e=>{throw TypeError(e)};var Kt=(e,t,s)=>t in
                     newCompany.networkSheetGid = networkGid;
                 }
 
-                // Add company to COMPANIES object
-                COMPANIES[key] = newCompany;
+                try {
+                    const res = await fetch('/api/companies', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name, pipelineKey, networkUrl, promoteUrl, engageUrl, networkGid, key })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || 'Failed to add company');
 
-                // Add to dropdown
-                const selector = document.getElementById('company-selector');
-                const option = document.createElement('option');
-                option.value = key;
-                option.textContent = name;
-                selector.appendChild(option);
+                    // Add company to local COMPANIES object
+                    COMPANIES[key] = newCompany;
 
-                // Switch to the new company
-                currentCompany = key;
-                selector.value = key;
+                    // Add to dropdown
+                    const selector = document.getElementById('company-selector');
+                    const option = document.createElement('option');
+                    option.value = key;
+                    option.textContent = name;
+                    selector.appendChild(option);
 
-                // Update UI
-                updateSheetsFormulas();
-                updateSettingsView();
-                loadDashboard();
+                    // Switch to the new company
+                    currentCompany = key;
+                    selector.value = key;
 
-                // Show success message
-                showMessage('success', \`Company "\${name}" has been added successfully! Switched to this company.\`);
+                    updateSheetsFormulas();
+                    updateSettingsView();
+                    loadDashboard();
 
-                // Reset form
-                resetAddCompanyForm();
-
-                // Scroll to top
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+                    showMessage('success', \`Company "\${name}" added and saved permanently!\`);
+                    resetAddCompanyForm();
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                } catch (err) {
+                    showMessage('error', \`Failed to add company: \${err.message}\`);
+                }
             }
 
             // Reset Add Company Form
@@ -2593,12 +2814,42 @@ var Yt=Object.defineProperty;var dt=e=>{throw TypeError(e)};var Kt=(e,t,s)=>t in
                 }
             }
 
+            // Load KV companies on startup and merge into COMPANIES + dropdown
+            async function loadKVCompanies() {
+                try {
+                    const res = await fetch('/api/companies');
+                    const data = await res.json();
+                    if (!data.companies) return;
+                    const selector = document.getElementById('company-selector');
+                    data.companies.forEach(company => {
+                        // Merge into COMPANIES object
+                        if (!COMPANIES[company.key]) {
+                            COMPANIES[company.key] = company;
+                            // Add to dropdown if not already there
+                            if (selector && !selector.querySelector(\`option[value="\${company.key}"]\`)) {
+                                const option = document.createElement('option');
+                                option.value = company.key;
+                                option.textContent = company.name;
+                                selector.appendChild(option);
+                            }
+                        } else {
+                            // Override hardcoded entry with KV version (has saved URLs)
+                            COMPANIES[company.key] = { ...COMPANIES[company.key], ...company };
+                        }
+                    });
+                } catch (e) {
+                    console.warn('Could not load KV companies:', e);
+                }
+            }
+
             // Load dashboard on page load and setup auto-refresh
-            updateSheetsFormulas(); // Initialize Google Sheets formulas
-            updateSettingsView(); // Initialize Settings view
-            loadDashboard();
+            loadKVCompanies().then(() => {
+                updateSheetsFormulas();
+                updateSettingsView();
+                loadDashboard();
+            });
             setupAutoRefresh();
         <\/script>
     </body>
     </html>
-  `));const ht=new Wt,$s=Object.assign({"/src/index.tsx":L});let $t=!1;for(const[,e]of Object.entries($s))e&&(ht.route("/",e),ht.notFound(e.notFoundHandler),$t=!0);if(!$t)throw new Error("Can't import modules from ['/src/index.tsx','/app/server.ts']");export{ht as default};
+  `));const vt=new Gt,Vs=Object.assign({"/src/index.tsx":S});let Vt=!1;for(const[,e]of Object.entries(Vs))e&&(vt.route("/",e),vt.notFound(e.notFoundHandler),Vt=!0);if(!Vt)throw new Error("Can't import modules from ['/src/index.tsx','/app/server.ts']");export{vt as default};
