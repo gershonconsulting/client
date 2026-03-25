@@ -24,6 +24,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Pull latest to avoid push conflicts when developer and CI both update package.json
+          git pull --rebase origin main
           npm version patch --no-git-tag-version
           git add package.json
           git commit -m "chore: bump version to $(node -p "require('./package.json').version") [skip ci]"
