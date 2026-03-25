@@ -1027,6 +1027,123 @@ app.get('/api/analytics', async (c) => {
   }
 })
 
+// ── Promote Data ─────────────────────────────────────────────────────────────
+async function fetchPromoteData(promoteUrl: string) {
+  const { sheetId, gid } = parseSheetUrl(promoteUrl)
+  const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`
+  const response = await fetch(csvUrl)
+  if (!response.ok) throw new Error(`Google Sheets error: ${response.statusText}`)
+
+  const csvText = await response.text()
+  const lines = csvText.split('\n').filter(l => l.trim())
+  if (lines.length < 2) return { platforms: {} }
+
+  // Parse header row
+  const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g, '_'))
+  const idx = (name: string) => headers.indexOf(name)
+
+  const rows: any[] = []
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(',')
+    if (cols.length < 5) continue
+    rows.push({
+      date:        cols[idx('date')]?.trim() || '',
+      platform:    (cols[idx('platform')]?.trim() || 'linkedin').toLowerCase(),
+      followers:   parseInt(cols[idx('follower_count')]) || 0,
+      impressions: parseFloat(cols[idx('impressions')]) || 0,
+      reach:       parseInt(cols[idx('reach')]) || 0,
+      likes:       parseInt(cols[idx('like_count')]) || 0,
+      comments:    parseInt(cols[idx('comment_count')]) || 0,
+      shares:      parseInt(cols[idx('share_count')]) || 0,
+      clicks:      parseInt(cols[idx('click_count')]) || 0,
+      engagements: parseInt(cols[idx('overall_engagements')]) || 0,
+      engRate:     parseFloat(cols[idx('engagement_rate')]) || 0,
+      netGrowth:   parseInt(cols[idx('net_audience_growth')]) || 0,
+      posts:       parseInt(cols[idx('post_count')]) || 0,
+    })
+  }
+
+  // Group by platform
+  const byPlatform: Record<string, any[]> = {}
+  rows.forEach(r => {
+    if (!byPlatform[r.platform]) byPlatform[r.platform] = []
+    byPlatform[r.platform].push(r)
+  })
+
+  const result: Record<string, any> = {}
+
+  for (const [platform, data] of Object.entries(byPlatform)) {
+    const sorted = [...data].sort((a, b) => a.date.localeCompare(b.date))
+    const followersStart = sorted[0].followers
+    const followersEnd   = sorted[sorted.length - 1].followers
+    const followersGrowth = followersEnd - followersStart
+    const followersGrowthPct = followersStart > 0
+      ? +((followersGrowth / followersStart) * 100).toFixed(1) : 0
+
+    const totalPosts       = sorted.reduce((s, r) => s + r.posts, 0)
+    const totalImpressions = Math.round(sorted.reduce((s, r) => s + r.impressions, 0))
+    const totalReach       = sorted.reduce((s, r) => s + r.reach, 0)
+    const totalEngagements = sorted.reduce((s, r) => s + r.engagements, 0)
+    const totalLikes       = sorted.reduce((s, r) => s + r.likes, 0)
+    const totalComments    = sorted.reduce((s, r) => s + r.comments, 0)
+    const totalShares      = sorted.reduce((s, r) => s + r.shares, 0)
+
+    // Avg engagement rate — skip zero-impression days
+    const validRates = sorted.filter(r => r.impressions > 0 && r.engRate > 0).map(r => r.engRate)
+    const avgEngRate = validRates.length > 0
+      ? +(validRates.reduce((a, b) => a + b, 0) / validRates.length * 100).toFixed(2) : 0
+
+    // Weekly breakdown — ISO week starting Monday
+    const weeksMap: Record<string, any> = {}
+    sorted.forEach(r => {
+      const d = new Date(r.date)
+      const day = d.getDay()
+      const monday = new Date(d)
+      monday.setDate(d.getDate() - (day === 0 ? 6 : day - 1))
+      const wk = monday.toISOString().split('T')[0]
+      if (!weeksMap[wk]) weeksMap[wk] = { week: wk, posts: 0, impressions: 0, engagements: 0, reach: 0, netGrowth: 0 }
+      weeksMap[wk].posts       += r.posts
+      weeksMap[wk].impressions += Math.round(r.impressions)
+      weeksMap[wk].engagements += r.engagements
+      weeksMap[wk].reach       += r.reach
+      weeksMap[wk].netGrowth   += r.netGrowth
+    })
+    const weeklyBreakdown = Object.values(weeksMap).sort((a: any, b: any) => a.week.localeCompare(b.week))
+    const weeksCount = weeklyBreakdown.length || 1
+    const avgPostsPerWeek = +(totalPosts / weeksCount).toFixed(1)
+
+    // Daily series for charts
+    const dailyData = sorted.map(r => ({
+      date: r.date, followers: r.followers, posts: r.posts,
+      impressions: Math.round(r.impressions), engagements: r.engagements, reach: r.reach
+    }))
+
+    result[platform] = {
+      followersStart, followersEnd, followersGrowth, followersGrowthPct,
+      totalPosts, avgPostsPerWeek, totalImpressions, totalReach,
+      totalEngagements, totalLikes, totalComments, totalShares,
+      avgEngRate, weeklyBreakdown, dailyData,
+      dateRange: { from: sorted[0].date, to: sorted[sorted.length - 1].date }
+    }
+  }
+
+  return { platforms: result }
+}
+
+app.get('/api/promote', async (c) => {
+  try {
+    const companyKey = c.req.query('company') || 'mabsilico'
+    const company = await getCompany(c.env.COMPANIES_KV, companyKey)
+    if (!company) return c.json({ error: 'Company not found' }, 404)
+    const promoteUrl = company.sources?.promote || ''
+    if (!promoteUrl) return c.json({ error: 'No promote URL configured for this company' }, 404)
+    const data = await fetchPromoteData(promoteUrl)
+    return c.json(data)
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
 // Overview API — stats for ALL companies for a given time period
 app.get('/api/overview', async (c) => {
   try {
@@ -2019,15 +2136,127 @@ app.get('/', (c) => {
                     </div>
                 </div>
 
-                <!-- PROMOTE View (Coming Soon) -->
+                <!-- PROMOTE View -->
                 <div id="view-promote" class="view-content hidden">
-                    <div class="bg-yellow-50 border-l-4 border-yellow-500 p-8 rounded-lg">
-                        <div class="flex items-center mb-4">
-                            <i class="fas fa-bullhorn text-yellow-600 text-4xl mr-4"></i>
-                            <div>
-                                <h2 class="text-2xl font-bold text-gray-800">PROMOTE Section</h2>
-                                <p class="text-gray-600 mt-2">Marketing campaigns and promotional activities coming soon...</p>
+                    <!-- Platform tabs -->
+                    <div class="flex space-x-2 mb-6">
+                        <button onclick="switchPlatform('linkedin')" id="ptab-linkedin"
+                            class="platform-tab flex items-center px-5 py-2.5 rounded-lg text-sm font-semibold border-2 border-blue-600 bg-blue-600 text-white transition-all">
+                            <i class="fab fa-linkedin mr-2"></i>LinkedIn
+                        </button>
+                        <button onclick="switchPlatform('twitter')" id="ptab-twitter"
+                            class="platform-tab flex items-center px-5 py-2.5 rounded-lg text-sm font-semibold border-2 border-gray-300 text-gray-400 bg-white cursor-not-allowed transition-all" disabled>
+                            <i class="fab fa-x-twitter mr-2"></i>Twitter / X
+                            <span class="ml-2 text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">Soon</span>
+                        </button>
+                        <button onclick="switchPlatform('gmb')" id="ptab-gmb"
+                            class="platform-tab flex items-center px-5 py-2.5 rounded-lg text-sm font-semibold border-2 border-gray-300 text-gray-400 bg-white cursor-not-allowed transition-all" disabled>
+                            <i class="fab fa-google mr-2"></i>Google My Business
+                            <span class="ml-2 text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">Soon</span>
+                        </button>
+                    </div>
+
+                    <!-- Loading / Error states -->
+                    <div id="promote-loading" class="hidden text-center py-16">
+                        <i class="fas fa-spinner fa-spin text-4xl text-blue-500 mb-4"></i>
+                        <p class="text-gray-500">Loading promote data...</p>
+                    </div>
+                    <div id="promote-error" class="hidden bg-red-50 border-l-4 border-red-500 p-6 rounded-lg">
+                        <p class="font-semibold text-red-800"><i class="fas fa-exclamation-circle mr-2"></i>Could not load promote data</p>
+                        <p id="promote-error-msg" class="text-red-600 text-sm mt-1"></p>
+                        <p class="text-xs text-red-500 mt-2">Make sure the PROMOTE URL is set in Settings for this company.</p>
+                    </div>
+
+                    <!-- LinkedIn content -->
+                    <div id="promote-linkedin" class="hidden">
+                        <!-- KPI highlight cards -->
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                            <!-- Followers -->
+                            <div class="bg-white rounded-xl shadow p-5 border-t-4 border-blue-500">
+                                <p class="text-xs font-semibold text-gray-500 uppercase mb-1">Followers Now</p>
+                                <p id="p-followers-now" class="text-3xl font-bold text-gray-800">—</p>
+                                <p id="p-followers-growth" class="text-sm text-green-600 font-medium mt-1">—</p>
+                                <p id="p-followers-start" class="text-xs text-gray-400 mt-0.5">—</p>
                             </div>
+                            <!-- Posts / week -->
+                            <div class="bg-white rounded-xl shadow p-5 border-t-4 border-yellow-500">
+                                <p class="text-xs font-semibold text-gray-500 uppercase mb-1">Avg Posts / Week</p>
+                                <p id="p-posts-per-week" class="text-3xl font-bold text-gray-800">—</p>
+                                <div id="p-posts-goal-bar" class="mt-2"></div>
+                                <p id="p-posts-total" class="text-xs text-gray-400 mt-1">—</p>
+                            </div>
+                            <!-- Engagement rate -->
+                            <div class="bg-white rounded-xl shadow p-5 border-t-4 border-purple-500">
+                                <p class="text-xs font-semibold text-gray-500 uppercase mb-1">Avg Engagement</p>
+                                <p id="p-eng-rate" class="text-3xl font-bold text-gray-800">—</p>
+                                <p id="p-eng-total" class="text-sm text-gray-500 mt-1">—</p>
+                                <p id="p-eng-breakdown" class="text-xs text-gray-400 mt-0.5">—</p>
+                            </div>
+                            <!-- Impressions -->
+                            <div class="bg-white rounded-xl shadow p-5 border-t-4 border-green-500">
+                                <p class="text-xs font-semibold text-gray-500 uppercase mb-1">Total Impressions</p>
+                                <p id="p-impressions" class="text-3xl font-bold text-gray-800">—</p>
+                                <p id="p-reach" class="text-sm text-gray-500 mt-1">—</p>
+                                <p id="p-date-range" class="text-xs text-gray-400 mt-0.5">—</p>
+                            </div>
+                        </div>
+
+                        <!-- Charts row 1 -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                            <!-- Followers growth -->
+                            <div class="bg-white rounded-xl shadow p-5">
+                                <h3 class="text-sm font-bold text-gray-700 mb-4 flex items-center">
+                                    <i class="fas fa-user-plus text-blue-500 mr-2"></i>Follower Growth
+                                </h3>
+                                <div class="relative h-48">
+                                    <canvas id="p-chart-followers"></canvas>
+                                </div>
+                            </div>
+                            <!-- Weekly posts vs goal -->
+                            <div class="bg-white rounded-xl shadow p-5">
+                                <h3 class="text-sm font-bold text-gray-700 mb-1 flex items-center">
+                                    <i class="fas fa-calendar-check text-yellow-500 mr-2"></i>Weekly Posts vs Goal
+                                    <span class="ml-auto text-xs font-normal text-gray-400">Goal: 5/week</span>
+                                </h3>
+                                <div class="relative h-48 mt-3">
+                                    <canvas id="p-chart-posts"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Charts row 2 -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                            <!-- Weekly engagements -->
+                            <div class="bg-white rounded-xl shadow p-5">
+                                <h3 class="text-sm font-bold text-gray-700 mb-4 flex items-center">
+                                    <i class="fas fa-heart text-purple-500 mr-2"></i>Weekly Engagements
+                                </h3>
+                                <div class="relative h-48">
+                                    <canvas id="p-chart-engagements"></canvas>
+                                </div>
+                            </div>
+                            <!-- Weekly impressions -->
+                            <div class="bg-white rounded-xl shadow p-5">
+                                <h3 class="text-sm font-bold text-gray-700 mb-4 flex items-center">
+                                    <i class="fas fa-eye text-green-500 mr-2"></i>Weekly Impressions &amp; Reach
+                                </h3>
+                                <div class="relative h-48">
+                                    <canvas id="p-chart-impressions"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Weekly posting consistency table -->
+                        <div class="bg-white rounded-xl shadow p-5">
+                            <h3 class="text-sm font-bold text-gray-700 mb-4 flex items-center">
+                                <i class="fas fa-table text-indigo-500 mr-2"></i>Weekly Publishing Consistency
+                                <span class="ml-auto text-xs font-normal text-gray-400">
+                                    <span class="inline-block w-3 h-3 rounded-full bg-green-400 mr-1"></span>≥5
+                                    <span class="inline-block w-3 h-3 rounded-full bg-yellow-400 mr-1 ml-2"></span>3–4
+                                    <span class="inline-block w-3 h-3 rounded-full bg-red-400 mr-1 ml-2"></span>&lt;3
+                                </span>
+                            </h3>
+                            <div id="p-weekly-table" class="overflow-x-auto"></div>
                         </div>
                     </div>
                 </div>
@@ -2932,7 +3161,10 @@ app.get('/', (c) => {
             // Switch to a different company
             function switchCompany(companyKey) {
                 currentCompany = companyKey;
-                console.log('Switching to company:', COMPANIES[companyKey].name);
+                // Reset promote cache so new company loads fresh data
+                promoteDataCache = null;
+                Object.values(promoteCharts).forEach((c: any) => c.destroy());
+                promoteCharts = {};
                 
                 // Show loading state
                 document.getElementById('dashboard').classList.add('hidden');
@@ -3026,8 +3258,256 @@ app.get('/', (c) => {
                         renderView(viewName, currentData);
                     } else if (viewName === 'onboarding') {
                         updateOnboardingView();
+                    } else if (viewName === 'promote') {
+                        loadPromoteData();
                     }
                 }
+            }
+
+            // ── PROMOTE Section ───────────────────────────────────────────────
+            let promoteCharts = {};
+            let currentPlatform = 'linkedin';
+            let promoteDataCache = null;
+
+            function switchPlatform(platform) {
+                currentPlatform = platform;
+                // Update tab styles
+                ['linkedin','twitter','gmb'].forEach(p => {
+                    const tab = document.getElementById('ptab-' + p);
+                    if (!tab) return;
+                    if (p === platform) {
+                        tab.classList.add('border-blue-600','bg-blue-600','text-white');
+                        tab.classList.remove('border-gray-300','text-gray-400','bg-white');
+                    } else {
+                        tab.classList.remove('border-blue-600','bg-blue-600','text-white');
+                        tab.classList.add('border-gray-300','text-gray-400','bg-white');
+                    }
+                });
+                if (promoteDataCache) renderPromoteData(promoteDataCache);
+            }
+
+            async function loadPromoteData() {
+                if (promoteDataCache) { renderPromoteData(promoteDataCache); return; }
+                document.getElementById('promote-loading').classList.remove('hidden');
+                document.getElementById('promote-error').classList.add('hidden');
+                document.getElementById('promote-linkedin').classList.add('hidden');
+                try {
+                    const res = await fetch(\`/api/promote?company=\${currentCompany}\`);
+                    if (!res.ok) {
+                        const e = await res.json();
+                        throw new Error(e.error || 'Failed to load');
+                    }
+                    promoteDataCache = await res.json();
+                    renderPromoteData(promoteDataCache);
+                } catch(err) {
+                    document.getElementById('promote-loading').classList.add('hidden');
+                    document.getElementById('promote-error').classList.remove('hidden');
+                    document.getElementById('promote-error-msg').textContent = err.message;
+                }
+            }
+
+            function fmtNum(n) {
+                if (n >= 1000000) return (n/1000000).toFixed(1) + 'M';
+                if (n >= 1000) return (n/1000).toFixed(1) + 'K';
+                return n.toString();
+            }
+
+            function renderPromoteData(data) {
+                document.getElementById('promote-loading').classList.add('hidden');
+                const pd = data.platforms && data.platforms[currentPlatform];
+
+                if (!pd) {
+                    document.getElementById('promote-linkedin').classList.add('hidden');
+                    document.getElementById('promote-error').classList.remove('hidden');
+                    document.getElementById('promote-error-msg').textContent =
+                        currentPlatform === 'linkedin'
+                        ? 'No LinkedIn data in this sheet.'
+                        : 'No data available for this platform yet.';
+                    return;
+                }
+
+                document.getElementById('promote-error').classList.add('hidden');
+                document.getElementById('promote-linkedin').classList.remove('hidden');
+
+                // KPI cards
+                const growthSign = pd.followersGrowth >= 0 ? '+' : '';
+                document.getElementById('p-followers-now').textContent = fmtNum(pd.followersEnd);
+                document.getElementById('p-followers-growth').innerHTML =
+                    \`<i class="fas fa-\${pd.followersGrowth >= 0 ? 'arrow-up text-green-600' : 'arrow-down text-red-500'}"></i> \${growthSign}\${pd.followersGrowth} (\${growthSign}\${pd.followersGrowthPct}%)\`;
+                document.getElementById('p-followers-start').textContent =
+                    \`Started at \${fmtNum(pd.followersStart)} · \${pd.dateRange.from} → \${pd.dateRange.to}\`;
+
+                const postColor = pd.avgPostsPerWeek >= 5 ? 'text-green-600' : pd.avgPostsPerWeek >= 3 ? 'text-yellow-600' : 'text-red-500';
+                document.getElementById('p-posts-per-week').innerHTML =
+                    \`<span class="\${postColor}">\${pd.avgPostsPerWeek}</span><span class="text-base font-normal text-gray-400"> / 5</span>\`;
+                const goalPct = Math.min(100, (pd.avgPostsPerWeek / 5) * 100);
+                const barColor = pd.avgPostsPerWeek >= 5 ? 'bg-green-500' : pd.avgPostsPerWeek >= 3 ? 'bg-yellow-400' : 'bg-red-400';
+                document.getElementById('p-posts-goal-bar').innerHTML =
+                    \`<div class="w-full bg-gray-100 rounded-full h-2"><div class="\${barColor} h-2 rounded-full" style="width:\${goalPct}%"></div></div>\`;
+                document.getElementById('p-posts-total').textContent = \`\${pd.totalPosts} posts total · \${pd.weeklyBreakdown.length} weeks\`;
+
+                document.getElementById('p-eng-rate').textContent = pd.avgEngRate + '%';
+                document.getElementById('p-eng-total').textContent = fmtNum(pd.totalEngagements) + ' total engagements';
+                document.getElementById('p-eng-breakdown').textContent =
+                    \`\${fmtNum(pd.totalLikes)} likes · \${fmtNum(pd.totalComments)} comments · \${fmtNum(pd.totalShares)} shares\`;
+
+                document.getElementById('p-impressions').textContent = fmtNum(pd.totalImpressions);
+                document.getElementById('p-reach').textContent = fmtNum(pd.totalReach) + ' unique reach';
+                document.getElementById('p-date-range').textContent = \`\${pd.dateRange.from} → \${pd.dateRange.to}\`;
+
+                // Destroy old charts
+                Object.values(promoteCharts).forEach((c: any) => c.destroy());
+                promoteCharts = {};
+
+                const weeks = pd.weeklyBreakdown;
+                const weekLabels = weeks.map((w: any) => {
+                    const d = new Date(w.week);
+                    return \`\${d.getDate()}/\${d.getMonth()+1}\`;
+                });
+
+                // Chart 1 — Follower Growth
+                const followerDates = pd.dailyData.map((d: any) => {
+                    const dt = new Date(d.date);
+                    return \`\${dt.getDate()}/\${dt.getMonth()+1}\`;
+                });
+                promoteCharts.followers = new Chart(document.getElementById('p-chart-followers'), {
+                    type: 'line',
+                    data: {
+                        labels: followerDates,
+                        datasets: [{
+                            label: 'Followers',
+                            data: pd.dailyData.map((d: any) => d.followers),
+                            borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)',
+                            fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { display: false }, datalabels: { display: false } },
+                        scales: {
+                            x: { ticks: { maxTicksLimit: 8, font: { size: 10 } }, grid: { display: false } },
+                            y: { ticks: { font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.05)' } }
+                        }
+                    }
+                });
+
+                // Chart 2 — Weekly Posts vs Goal
+                const postColors = weeks.map((w: any) =>
+                    w.posts >= 5 ? 'rgba(34,197,94,0.8)' : w.posts >= 3 ? 'rgba(234,179,8,0.8)' : 'rgba(239,68,68,0.8)');
+                promoteCharts.posts = new Chart(document.getElementById('p-chart-posts'), {
+                    type: 'bar',
+                    data: {
+                        labels: weekLabels,
+                        datasets: [
+                            {
+                                label: 'Posts',
+                                data: weeks.map((w: any) => w.posts),
+                                backgroundColor: postColors, borderRadius: 4
+                            },
+                            {
+                                label: 'Goal (5)',
+                                data: weeks.map(() => 5),
+                                type: 'line' as any,
+                                borderColor: '#ef4444', borderDash: [6,3],
+                                borderWidth: 2, pointRadius: 0,
+                                backgroundColor: 'transparent'
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { display: false }, datalabels: { display: false } },
+                        scales: {
+                            x: { ticks: { font: { size: 10 } }, grid: { display: false } },
+                            y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.05)' } }
+                        }
+                    }
+                });
+
+                // Chart 3 — Weekly Engagements
+                promoteCharts.eng = new Chart(document.getElementById('p-chart-engagements'), {
+                    type: 'bar',
+                    data: {
+                        labels: weekLabels,
+                        datasets: [{
+                            label: 'Engagements',
+                            data: weeks.map((w: any) => w.engagements),
+                            backgroundColor: 'rgba(168,85,247,0.7)', borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { display: false }, datalabels: { display: false } },
+                        scales: {
+                            x: { ticks: { font: { size: 10 } }, grid: { display: false } },
+                            y: { beginAtZero: true, ticks: { font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.05)' } }
+                        }
+                    }
+                });
+
+                // Chart 4 — Impressions & Reach
+                promoteCharts.imp = new Chart(document.getElementById('p-chart-impressions'), {
+                    type: 'line',
+                    data: {
+                        labels: weekLabels,
+                        datasets: [
+                            {
+                                label: 'Impressions',
+                                data: weeks.map((w: any) => w.impressions),
+                                borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)',
+                                fill: true, tension: 0.3, pointRadius: 3, borderWidth: 2
+                            },
+                            {
+                                label: 'Reach',
+                                data: weeks.map((w: any) => w.reach),
+                                borderColor: '#f59e0b', backgroundColor: 'transparent',
+                                tension: 0.3, pointRadius: 3, borderWidth: 2, borderDash: [4,3]
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'bottom' as any, labels: { font: { size: 10 }, boxWidth: 12 } },
+                            datalabels: { display: false }
+                        },
+                        scales: {
+                            x: { ticks: { font: { size: 10 } }, grid: { display: false } },
+                            y: { beginAtZero: true, ticks: { font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.05)' } }
+                        }
+                    }
+                });
+
+                // Weekly consistency table
+                const tableRows = weeks.map((w: any) => {
+                    const dot = w.posts >= 5
+                        ? '<span class="inline-block w-3 h-3 rounded-full bg-green-400 mr-2"></span>'
+                        : w.posts >= 3
+                        ? '<span class="inline-block w-3 h-3 rounded-full bg-yellow-400 mr-2"></span>'
+                        : '<span class="inline-block w-3 h-3 rounded-full bg-red-400 mr-2"></span>';
+                    const bgRow = w.posts >= 5 ? 'bg-green-50' : w.posts >= 3 ? 'bg-yellow-50' : 'bg-red-50';
+                    const d = new Date(w.week);
+                    const weekLabel = \`Week of \${d.toLocaleDateString('en-US',{month:'short',day:'numeric'})}\`;
+                    return \`<tr class="\${bgRow}">
+                        <td class="px-4 py-2 text-sm font-medium text-gray-700">\${dot}\${weekLabel}</td>
+                        <td class="px-4 py-2 text-center font-bold \${w.posts >= 5 ? 'text-green-700' : w.posts >= 3 ? 'text-yellow-700' : 'text-red-600'}">\${w.posts} / 5</td>
+                        <td class="px-4 py-2 text-center text-sm text-gray-600">\${fmtNum(w.impressions)}</td>
+                        <td class="px-4 py-2 text-center text-sm text-gray-600">\${fmtNum(w.engagements)}</td>
+                        <td class="px-4 py-2 text-center text-sm text-gray-600">\${fmtNum(w.reach)}</td>
+                    </tr>\`;
+                }).join('');
+
+                document.getElementById('p-weekly-table').innerHTML = \`
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead><tr class="border-b border-gray-200">
+                            <th class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase">Week</th>
+                            <th class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase text-center">Posts</th>
+                            <th class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase text-center">Impressions</th>
+                            <th class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase text-center">Engagements</th>
+                            <th class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase text-center">Reach</th>
+                        </tr></thead>
+                        <tbody>\${tableRows}</tbody>
+                    </table>\`;
             }
 
             // Update Onboarding View
