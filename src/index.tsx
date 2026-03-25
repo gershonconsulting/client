@@ -1587,11 +1587,7 @@ app.get('/admin', (c) => {
                 document.getElementById('edit-modal').classList.add('hidden');
             }
 
-            document.getElementById('edit-modal').addEventListener('click', function(e) {
-                if (e.target === this) closeEditModal();
-            });
-
-            document.getElementById('edit-modal-form').addEventListener('submit', async function(e) {
+            async function saveEditModal(e) {
                 e.preventDefault();
                 const key = document.getElementById('modal-edit-key').value;
                 const name = document.getElementById('modal-edit-name').value.trim();
@@ -1599,11 +1595,9 @@ app.get('/admin', (c) => {
                 const promoteUrl = document.getElementById('modal-edit-promote').value.trim();
                 const networkUrl = document.getElementById('modal-edit-network').value.trim();
                 const engageUrl = document.getElementById('modal-edit-engage').value.trim();
-
                 const btn = document.getElementById('modal-save-btn');
                 btn.disabled = true;
                 btn.textContent = 'Saving...';
-
                 try {
                     const res = await fetch(\`/api/companies/\${key}\`, {
                         method: 'PUT',
@@ -1612,7 +1606,6 @@ app.get('/admin', (c) => {
                     });
                     const data = await res.json();
                     if (data.success) {
-                        // Update local state immediately
                         companies[key] = { ...companies[key], name, pipelineKey, sources: { promote: promoteUrl, network: networkUrl, engage: engageUrl } };
                         displayCompanies(Object.values(companies));
                         closeEditModal();
@@ -1630,14 +1623,14 @@ app.get('/admin', (c) => {
                     btn.disabled = false;
                     btn.textContent = 'Save Changes';
                 }
-            });
+            }
 
             // Load on page load
             loadCompanies();
         </script>
 
-        <!-- Edit Company Modal -->
-        <div id="edit-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <!-- Edit Company Modal — placed after script so onclick handlers can reference functions defined above -->
+        <div id="edit-modal" onclick="if(event.target===this)closeEditModal()" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
             <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg">
                 <div class="flex items-center justify-between px-6 py-4 border-b">
                     <h3 class="text-lg font-bold text-gray-800 flex items-center">
@@ -1646,14 +1639,12 @@ app.get('/admin', (c) => {
                     </h3>
                     <button onclick="closeEditModal()" class="text-gray-400 hover:text-gray-600 text-xl font-bold">&times;</button>
                 </div>
-                <form id="edit-modal-form" class="px-6 py-5 space-y-4">
+                <form onsubmit="saveEditModal(event)" class="px-6 py-5 space-y-4">
                     <input type="hidden" id="modal-edit-key" />
-
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Company Name</label>
                         <input id="modal-edit-name" type="text" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-400" />
                     </div>
-
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">
                             <i class="fas fa-key text-purple-500 mr-1"></i>Streak Pipeline Key
@@ -1661,33 +1652,24 @@ app.get('/admin', (c) => {
                         <input id="modal-edit-pipeline" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-purple-400" placeholder="agxzfm1haWxmb29n..." />
                         <p class="text-xs text-gray-500 mt-1">Found in your Streak pipeline URL. Required for CRM data to load.</p>
                     </div>
-
                     <div class="border-t pt-3">
                         <p class="text-xs font-semibold text-gray-500 uppercase mb-3">Data Source URLs</p>
                         <div class="space-y-3">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    <i class="fas fa-bullhorn text-yellow-500 mr-1"></i>PROMOTE URL
-                                </label>
+                                <label class="block text-sm font-medium text-gray-700 mb-1"><i class="fas fa-bullhorn text-yellow-500 mr-1"></i>PROMOTE URL</label>
                                 <input id="modal-edit-promote" type="url" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-yellow-400" placeholder="https://docs.google.com/spreadsheets/..." />
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    <i class="fas fa-users text-blue-500 mr-1"></i>NETWORK URL
-                                </label>
+                                <label class="block text-sm font-medium text-gray-700 mb-1"><i class="fas fa-users text-blue-500 mr-1"></i>NETWORK URL</label>
                                 <input id="modal-edit-network" type="url" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-blue-400" placeholder="https://docs.google.com/spreadsheets/..." />
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    <i class="fas fa-handshake text-green-500 mr-1"></i>ENGAGE URL
-                                </label>
+                                <label class="block text-sm font-medium text-gray-700 mb-1"><i class="fas fa-handshake text-green-500 mr-1"></i>ENGAGE URL</label>
                                 <input id="modal-edit-engage" type="url" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-green-400" placeholder="https://..." />
                             </div>
                         </div>
                     </div>
-
                     <p id="modal-msg" class="hidden text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2"></p>
-
                     <div class="flex justify-end space-x-3 pt-2">
                         <button type="button" onclick="closeEditModal()" class="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
                         <button type="submit" id="modal-save-btn" class="px-5 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold">Save Changes</button>
