@@ -160,7 +160,9 @@ async function fetchNetworkData(urlOrGid: string) {
     
     // Calculate metrics
     const totalInvitations = data.reduce((sum, row) => sum + row.invitations, 0)
-    
+    const totalMessages = data.reduce((sum, row) => sum + row.messages, 0)
+    const campaignStartDate = data.length > 0 ? (data[0].from?.trim() || null) : null
+
     // Calculate total accepted - the acceptance rate represents messages/invitations ratio
     // So if acceptance is 75%, it means 75 messages were received from 100 invitations
     // We want to calculate actual accepted connections, not messages
@@ -188,6 +190,8 @@ async function fetchNetworkData(urlOrGid: string) {
     
     return {
       totalInvitations,
+      totalMessages,
+      campaignStartDate,
       totalAccepted,
       avgAcceptanceRate: Math.round(avgAcceptanceRate * 10) / 10, // Round to 1 decimal
       networkObjective,
@@ -1195,16 +1199,73 @@ app.get('/api/overview', async (c) => {
             }
           }
 
+          // Calculate avg leads/month and campaign duration from all boxes
+          let campaignDurationMonths = 0
+          let avgLeadsPerMonth = 0
+          if (allBoxes.length > 0) {
+            const timestamps = allBoxes.map((b: any) => b.creationTimestamp).filter(Boolean)
+            if (timestamps.length > 0) {
+              const earliest = new Date(Math.min(...timestamps))
+              const yd = nowDate.getFullYear() - earliest.getFullYear()
+              const md = nowDate.getMonth() - earliest.getMonth()
+              campaignDurationMonths = Math.max(1, (yd * 12) + md + 1)
+              avgLeadsPerMonth = Math.round((totalLeads / campaignDurationMonths) * 10) / 10
+            }
+          }
+
+          // Fetch promote and network summaries in parallel (non-blocking)
+          const [promoteSummary, networkSummary] = await Promise.all([
+            (async () => {
+              const promoteUrl = company.sources?.promote || ''
+              if (!promoteUrl) return { configured: false }
+              try {
+                const pd = await fetchPromoteData(promoteUrl)
+                const linkedin = pd.platforms?.linkedin
+                if (!linkedin) return { configured: true, error: true }
+                const dr = linkedin.dateRange
+                const totalDays = dr
+                  ? Math.max(1, Math.ceil((new Date(dr.to).getTime() - new Date(dr.from).getTime()) / 86400000) + 1)
+                  : 1
+                const avgPostsPerDay = Math.round((linkedin.totalPosts / totalDays) * 100) / 100
+                return {
+                  configured: true,
+                  totalPosts: linkedin.totalPosts,
+                  avgPostsPerDay,
+                  postsGoalPct: Math.min(200, Math.round(avgPostsPerDay * 100)),
+                  dateRange: dr
+                }
+              } catch (_) { return { configured: true, error: true } }
+            })(),
+            (async () => {
+              const networkSource = company.networkSheetGid || company.sources?.network
+              if (!networkSource) return { configured: false }
+              try {
+                const nd = await fetchNetworkData(networkSource)
+                return {
+                  configured: true,
+                  avgAcceptanceRate: nd.avgAcceptanceRate,
+                  totalInvitations: nd.totalInvitations,
+                  totalMessages: nd.totalMessages,
+                  campaignStartDate: nd.campaignStartDate
+                }
+              } catch (_) { return { configured: true, error: true } }
+            })()
+          ])
+
           return {
             key: company.key,
             name: company.name,
             periodLeads,
             totalLeads,
             goalPct: periodGoal > 0 ? Math.round((periodLeads / periodGoal) * 100) : 0,
+            campaignDurationMonths,
+            avgLeadsPerMonth,
+            promote: promoteSummary,
+            network: networkSummary,
             error: false
           }
         } catch (_err) {
-          return { key: company.key, name: company.name, periodLeads: 0, totalLeads: 0, goalPct: 0, error: true }
+          return { key: company.key, name: company.name, periodLeads: 0, totalLeads: 0, goalPct: 0, campaignDurationMonths: 0, avgLeadsPerMonth: 0, promote: { configured: false }, network: { configured: false }, error: true }
         }
       })
     )
@@ -1942,6 +2003,12 @@ app.get('/overview', (c) => {
                 \`;
             }
 
+            function pillarBadge(pct, naText) {
+                if (pct === null || pct === undefined) return \`<span class="text-xs text-gray-400">\${naText || 'N/A'}</span>\`;
+                const c = pct >= 100 ? 'bg-green-100 text-green-700' : pct >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-600';
+                return \`<span class="text-xs font-bold px-2 py-0.5 rounded-full \${c}">\${pct}%</span>\`;
+            }
+
             function renderCards(companies) {
                 const grid = document.getElementById('cards-grid');
                 if (!companies.length) {
@@ -1952,26 +2019,102 @@ app.get('/overview', (c) => {
                     const pct = Math.min(co.goalPct, 100);
                     const colors = goalColor(co.goalPct);
                     const errBadge = co.error ? '<span class="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full ml-2">API Error</span>' : '';
+
+                    // Promote pillar
+                    const pr = co.promote || {};
+                    let promoteHtml = '';
+                    if (!pr.configured) {
+                        promoteHtml = '<p class="text-xs text-gray-400 italic">Not configured</p>';
+                    } else if (pr.error) {
+                        promoteHtml = '<p class="text-xs text-red-400">Error loading</p>';
+                    } else {
+                        const postColor = pr.postsGoalPct >= 80 ? 'text-green-600' : pr.postsGoalPct >= 50 ? 'text-yellow-600' : 'text-red-500';
+                        const barColor = pr.postsGoalPct >= 80 ? 'bg-green-500' : pr.postsGoalPct >= 50 ? 'bg-yellow-400' : 'bg-red-400';
+                        promoteHtml = \`
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-xs text-gray-500">Posts/day</span>
+                                <span class="text-sm font-bold \${postColor}">\${pr.avgPostsPerDay} <span class="font-normal text-gray-400">/ 1</span></span>
+                            </div>
+                            <div class="w-full bg-gray-100 rounded-full h-1.5 mb-1">
+                                <div class="\${barColor} h-1.5 rounded-full" style="width:\${Math.min(pr.postsGoalPct,100)}%"></div>
+                            </div>
+                            <p class="text-xs text-gray-400">\${pr.totalPosts} total posts</p>\`;
+                    }
+
+                    // Network pillar
+                    const nw = co.network || {};
+                    let networkHtml = '';
+                    if (!nw.configured) {
+                        networkHtml = '<p class="text-xs text-gray-400 italic">Not configured</p>';
+                    } else if (nw.error) {
+                        networkHtml = '<p class="text-xs text-red-400">Error loading</p>';
+                    } else {
+                        const accColor = nw.avgAcceptanceRate >= 20 ? 'text-green-600' : nw.avgAcceptanceRate >= 15 ? 'text-yellow-600' : 'text-red-500';
+                        const accBar = nw.avgAcceptanceRate >= 20 ? 'bg-green-500' : nw.avgAcceptanceRate >= 15 ? 'bg-yellow-400' : 'bg-red-400';
+                        const startLabel = nw.campaignStartDate ? \`Since \${nw.campaignStartDate}\` : '';
+                        networkHtml = \`
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-xs text-gray-500">Acceptance</span>
+                                <span class="text-sm font-bold \${accColor}">\${nw.avgAcceptanceRate}% <span class="font-normal text-gray-400">/ 20%</span></span>
+                            </div>
+                            <div class="w-full bg-gray-100 rounded-full h-1.5 mb-1">
+                                <div class="\${accBar} h-1.5 rounded-full" style="width:\${Math.min((nw.avgAcceptanceRate/20)*100,100)}%"></div>
+                            </div>
+                            <p class="text-xs text-gray-400">\${nw.totalInvitations.toLocaleString()} invitations\${startLabel ? ' · ' + startLabel : ''}</p>\`;
+                    }
+
+                    // Engage pillar
+                    const engageGoalPct = co.goalPct || 0;
+                    const engColors = goalColor(engageGoalPct);
+                    const engageHtml = \`
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-xs text-gray-500">Avg leads/mo</span>
+                            <span class="text-sm font-bold \${engColors.text}">\${co.avgLeadsPerMonth || '—'} <span class="font-normal text-gray-400">/ 10</span></span>
+                        </div>
+                        <div class="w-full bg-gray-100 rounded-full h-1.5 mb-1">
+                            <div class="\${engColors.bar} h-1.5 rounded-full" style="width:\${pct}%"></div>
+                        </div>
+                        <p class="text-xs text-gray-400">\${co.totalLeads} total · \${co.campaignDurationMonths || '?'} months</p>\`;
+
                     return \`
-                    <div class="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-lg transition-shadow flex flex-col">
-                        <div class="flex items-start justify-between mb-3">
-                            <h3 class="text-lg font-bold text-gray-800 leading-tight">\${co.name}\${errBadge}</h3>
-                            <span class="ml-2 flex-shrink-0 border text-xs font-semibold px-2 py-0.5 rounded-full \${colors.badge}">\${co.goalPct}% of goal</span>
-                        </div>
-                        <p class="text-5xl font-extrabold text-gray-900 mb-0.5">\${co.periodLeads}</p>
-                        <p class="text-xs text-gray-400 mb-1">leads this period</p>
-                        <p class="text-sm text-gray-500 mb-4"><i class="fas fa-database mr-1 text-gray-300"></i>\${co.totalLeads} total all time</p>
-                        <div class="mb-5">
-                            <div class="flex justify-between text-xs mb-1">
-                                <span class="text-gray-400">Goal progress</span>
-                                <span class="font-semibold \${colors.text}">\${co.goalPct}%</span>
+                    <div class="bg-white rounded-xl shadow-md border border-gray-100 hover:shadow-lg transition-shadow flex flex-col">
+                        <!-- Card header -->
+                        <div class="px-5 pt-5 pb-3 border-b border-gray-50">
+                            <div class="flex items-start justify-between">
+                                <h3 class="text-base font-bold text-gray-800 leading-tight">\${co.name}\${errBadge}</h3>
+                                <span class="ml-2 flex-shrink-0 border text-xs font-semibold px-2 py-0.5 rounded-full \${colors.badge}">\${co.goalPct}%</span>
                             </div>
-                            <div class="w-full bg-gray-100 rounded-full h-2">
-                                <div class="\${colors.bar} h-2 rounded-full transition-all duration-700" style="width:\${pct}%"></div>
+                            <p class="text-3xl font-extrabold text-gray-900 mt-1">\${co.periodLeads} <span class="text-sm font-normal text-gray-400">leads this period</span></p>
+                        </div>
+
+                        <!-- 3 pillars -->
+                        <div class="grid grid-cols-3 divide-x divide-gray-100 flex-1">
+                            <!-- Promote -->
+                            <div class="px-3 py-3">
+                                <p class="text-xs font-semibold text-yellow-600 uppercase tracking-wide mb-2 flex items-center">
+                                    <i class="fas fa-bullhorn mr-1"></i>Promote
+                                </p>
+                                \${promoteHtml}
+                            </div>
+                            <!-- Network -->
+                            <div class="px-3 py-3">
+                                <p class="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-2 flex items-center">
+                                    <i class="fas fa-users mr-1"></i>Network
+                                </p>
+                                \${networkHtml}
+                            </div>
+                            <!-- Engage -->
+                            <div class="px-3 py-3">
+                                <p class="text-xs font-semibold text-green-600 uppercase tracking-wide mb-2 flex items-center">
+                                    <i class="fas fa-handshake mr-1"></i>Engage
+                                </p>
+                                \${engageHtml}
                             </div>
                         </div>
-                        <div class="mt-auto">
-                            <a href="/?company=\${co.key}" class="block w-full text-center bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg px-4 py-2.5 text-sm font-semibold transition-all shadow">
+
+                        <!-- CTA -->
+                        <div class="px-5 pb-4 pt-3">
+                            <a href="/?company=\${co.key}" class="block w-full text-center bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg px-4 py-2 text-sm font-semibold transition-all shadow">
                                 <i class="fas fa-chart-line mr-2"></i>View Dashboard
                             </a>
                         </div>
@@ -2113,26 +2256,108 @@ app.get('/', (c) => {
                 <!-- View Tabs -->
                 <div class="bg-white rounded-lg shadow mb-8">
                     <div class="border-b border-gray-200">
-                        <nav class="flex -mb-px">
-                            <button onclick="switchView('promote')" id="tab-promote" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                        <nav class="flex -mb-px overflow-x-auto">
+                            <button onclick="switchView('campaign')" id="tab-campaign" class="view-tab active border-b-2 border-blue-500 py-4 px-6 text-sm font-medium text-blue-600 whitespace-nowrap">
+                                <i class="fas fa-flag mr-2"></i>CAMPAIGN
+                            </button>
+                            <button onclick="switchView('promote')" id="tab-promote" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap">
                                 <i class="fas fa-bullhorn mr-2"></i>PROMOTE
                             </button>
-                            <button onclick="switchView('network')" id="tab-network" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                            <button onclick="switchView('network')" id="tab-network" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap">
                                 <i class="fas fa-users mr-2"></i>NETWORK
                             </button>
-                            <button onclick="switchView('engage')" id="tab-engage" class="view-tab active border-b-2 border-blue-500 py-4 px-6 text-sm font-medium text-blue-600">
+                            <button onclick="switchView('engage')" id="tab-engage" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap">
                                 <i class="fas fa-handshake mr-2"></i>ENGAGE
                             </button>
-                            <button onclick="switchView('print')" id="tab-print" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                            <button onclick="switchView('print')" id="tab-print" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap">
                                 <i class="fas fa-print mr-2"></i>Print Report
                             </button>
-                            <button onclick="switchView('settings')" id="tab-settings" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                            <button onclick="switchView('settings')" id="tab-settings" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap">
                                 <i class="fas fa-cog mr-2"></i>Settings
                             </button>
-                            <button onclick="switchView('onboarding')" id="tab-onboarding" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                            <button onclick="switchView('onboarding')" id="tab-onboarding" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap">
                                 <i class="fas fa-rocket mr-2"></i>Onboarding
                             </button>
                         </nav>
+                    </div>
+                </div>
+
+                <!-- CAMPAIGN View -->
+                <div id="view-campaign" class="view-content">
+                    <div id="campaign-loading" class="text-center py-8">
+                        <i class="fas fa-spinner fa-spin text-3xl text-blue-500 mb-3"></i>
+                        <p class="text-gray-500">Loading campaign data...</p>
+                    </div>
+                    <div id="campaign-content" class="hidden">
+                        <!-- Campaign header banner -->
+                        <div class="bg-gradient-to-r from-indigo-600 to-blue-600 rounded-xl p-5 mb-6 text-white flex items-center justify-between">
+                            <div>
+                                <h2 id="campaign-title" class="text-xl font-bold mb-1">Campaign Overview</h2>
+                                <p id="campaign-meta" class="text-blue-100 text-sm"></p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-blue-200 text-xs uppercase tracking-wide font-semibold mb-1">Objective</p>
+                                <p class="text-white text-sm font-medium">10 leads/month · 1 post/day · 20% acceptance</p>
+                            </div>
+                        </div>
+
+                        <!-- 3 Pillar Cards -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+
+                            <!-- PROMOTE Pillar -->
+                            <div class="bg-white rounded-xl shadow border-t-4 border-yellow-400 p-6 flex flex-col">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-base font-bold text-gray-800 flex items-center">
+                                        <i class="fas fa-bullhorn text-yellow-500 mr-2"></i>PROMOTE
+                                    </h3>
+                                    <span id="campaign-promote-badge" class="text-xs font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">—</span>
+                                </div>
+                                <div id="campaign-promote-body">
+                                    <p class="text-gray-400 text-sm italic">Loading...</p>
+                                </div>
+                                <div class="mt-auto pt-4">
+                                    <button onclick="switchView('promote')" class="w-full text-center text-xs font-semibold text-yellow-600 hover:text-yellow-800 border border-yellow-200 hover:border-yellow-400 rounded-lg py-1.5 transition-all">
+                                        View full PROMOTE →
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- NETWORK Pillar -->
+                            <div class="bg-white rounded-xl shadow border-t-4 border-blue-400 p-6 flex flex-col">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-base font-bold text-gray-800 flex items-center">
+                                        <i class="fas fa-users text-blue-500 mr-2"></i>NETWORK
+                                    </h3>
+                                    <span id="campaign-network-badge" class="text-xs font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">—</span>
+                                </div>
+                                <div id="campaign-network-body">
+                                    <p class="text-gray-400 text-sm italic">Loading...</p>
+                                </div>
+                                <div class="mt-auto pt-4">
+                                    <button onclick="switchView('network')" class="w-full text-center text-xs font-semibold text-blue-600 hover:text-blue-800 border border-blue-200 hover:border-blue-400 rounded-lg py-1.5 transition-all">
+                                        View full NETWORK →
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- ENGAGE Pillar -->
+                            <div class="bg-white rounded-xl shadow border-t-4 border-green-400 p-6 flex flex-col">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-base font-bold text-gray-800 flex items-center">
+                                        <i class="fas fa-handshake text-green-500 mr-2"></i>ENGAGE
+                                    </h3>
+                                    <span id="campaign-engage-badge" class="text-xs font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">—</span>
+                                </div>
+                                <div id="campaign-engage-body">
+                                    <p class="text-gray-400 text-sm italic">Loading...</p>
+                                </div>
+                                <div class="mt-auto pt-4">
+                                    <button onclick="switchView('engage')" class="w-full text-center text-xs font-semibold text-green-600 hover:text-green-800 border border-green-200 hover:border-green-400 rounded-lg py-1.5 transition-all">
+                                        View full ENGAGE →
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -2268,7 +2493,7 @@ app.get('/', (c) => {
                     </div>
                 </div>
 
-                <!-- ENGAGE View (formerly Overview) --><div id="view-engage" class="view-content">
+                <!-- ENGAGE View (formerly Overview) --><div id="view-engage" class="view-content hidden">
                 <!-- Campaign Performance Summary Cards -->
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                     <!-- Total Leads Card -->
@@ -3104,10 +3329,11 @@ app.get('/', (c) => {
         <script>
             // Register Chart.js datalabels plugin
             Chart.register(ChartDataLabels);
-            
+
             let stageChart, fitChart;
             let currentData = null;
             let currentCompany = 'mabsilico'; // Default company
+            let campaignPromoteLoaded = false;
 
             // Company configuration
             const COMPANIES = {
@@ -3163,6 +3389,7 @@ app.get('/', (c) => {
                 currentCompany = companyKey;
                 // Reset promote cache so new company loads fresh data
                 promoteDataCache = null;
+                campaignPromoteLoaded = false;
                 Object.values(promoteCharts).forEach((c: any) => c.destroy());
                 promoteCharts = {};
                 
@@ -3217,9 +3444,14 @@ app.get('/', (c) => {
                     document.getElementById('loading').classList.add('hidden');
                     document.getElementById('dashboard').classList.remove('hidden');
                     updateTimestamp();
-                    
+
                     // Update summary cards and charts
                     updateDashboard(data);
+
+                    // Render campaign tab (default view)
+                    renderCampaignEngage(data);
+                    renderCampaignNetwork(data.networkData);
+                    loadCampaignPromote();
                     
                 } catch (error) {
                     console.error('Error fetching company data:', error);
@@ -3235,21 +3467,21 @@ app.get('/', (c) => {
                 document.querySelectorAll('.view-content').forEach(view => {
                     view.classList.add('hidden');
                 });
-                
+
                 // Remove active class from all tabs
                 document.querySelectorAll('.view-tab').forEach(tab => {
                     tab.classList.remove('active', 'border-blue-500', 'text-blue-600');
                     tab.classList.add('border-transparent', 'text-gray-500');
                 });
-                
+
                 // Show selected view
                 document.getElementById('view-' + viewName).classList.remove('hidden');
-                
+
                 // Add active class to selected tab
                 const activeTab = document.getElementById('tab-' + viewName);
                 activeTab.classList.add('active', 'border-blue-500', 'text-blue-600');
                 activeTab.classList.remove('border-transparent', 'text-gray-500');
-                
+
                 // Render view-specific content
                 if (currentData) {
                     if (viewName === 'print') {
@@ -3260,7 +3492,192 @@ app.get('/', (c) => {
                         updateOnboardingView();
                     } else if (viewName === 'promote') {
                         loadPromoteData();
+                    } else if (viewName === 'campaign') {
+                        renderCampaignEngage(currentData);
+                        renderCampaignNetwork(currentData.networkData);
+                        loadCampaignPromote();
                     }
+                }
+            }
+
+            // ── CAMPAIGN Section ──────────────────────────────────────────────
+
+            function campaignBadgeClass(pct) {
+                if (pct === null || pct === undefined) return 'bg-gray-100 text-gray-500';
+                return pct >= 80 ? 'bg-green-100 text-green-700' : pct >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-600';
+            }
+
+            function campaignBar(pct, color) {
+                const barColors = { green: 'bg-green-500', yellow: 'bg-yellow-400', red: 'bg-red-400', blue: 'bg-blue-500' };
+                const barColor = pct >= 80 ? barColors.green : pct >= 50 ? barColors.yellow : barColors.red;
+                return \`<div class="w-full bg-gray-100 rounded-full h-2 mt-1">
+                    <div class="\${barColor} h-2 rounded-full transition-all duration-700" style="width:\${Math.min(pct,100)}%"></div>
+                </div>\`;
+            }
+
+            function renderCampaignEngage(data) {
+                // Show content, hide loading
+                document.getElementById('campaign-loading').classList.add('hidden');
+                document.getElementById('campaign-content').classList.remove('hidden');
+
+                const companyName = data.company || (COMPANIES[currentCompany] && COMPANIES[currentCompany].name) || currentCompany;
+                document.getElementById('campaign-title').textContent = companyName + ' — Campaign Overview';
+
+                const startDate = data.firstLeadDate
+                    ? new Date(data.firstLeadDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+                    : null;
+                const meta = [
+                    startDate ? 'Started ' + startDate : null,
+                    data.campaignDurationMonths ? data.campaignDurationMonths + ' months running' : null,
+                    data.totalBoxes ? data.totalBoxes + ' total leads' : null
+                ].filter(Boolean).join(' · ');
+                document.getElementById('campaign-meta').textContent = meta;
+
+                // Engage pillar
+                const avgPct = Math.round((data.averageLeadsPerMonth || 0) / 10 * 100);
+                document.getElementById('campaign-engage-badge').textContent = avgPct + '%';
+                document.getElementById('campaign-engage-badge').className = 'text-xs font-bold px-2 py-0.5 rounded-full ' + campaignBadgeClass(avgPct);
+
+                // Build monthly performance mini-table (last 3 months)
+                const recentMonths = (data.monthlyLeads || []).slice(-3);
+                const monthRows = recentMonths.map(m => {
+                    const mPct = Math.round(m.percentage);
+                    const pClass = mPct >= 100 ? 'text-green-600' : mPct >= 50 ? 'text-yellow-600' : 'text-red-500';
+                    return \`<div class="flex items-center justify-between py-1 border-b border-gray-50 last:border-0">
+                        <span class="text-xs text-gray-500">\${m.monthName}</span>
+                        <span class="text-sm font-bold \${pClass}">\${m.count} <span class="font-normal text-gray-400">/ 10</span></span>
+                    </div>\`;
+                }).join('');
+
+                document.getElementById('campaign-engage-body').innerHTML = \`
+                    <div class="mb-3">
+                        <div class="flex items-end justify-between">
+                            <div>
+                                <p class="text-3xl font-extrabold text-gray-900">\${data.averageLeadsPerMonth || '0.0'}</p>
+                                <p class="text-xs text-gray-400">avg leads / month</p>
+                            </div>
+                            <p class="text-sm text-gray-500 mb-1">Goal: <strong>10 / mo</strong></p>
+                        </div>
+                        \${campaignBar(avgPct, 'green')}
+                    </div>
+                    <div class="mt-3 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Last 3 months</div>
+                    \${monthRows || '<p class="text-xs text-gray-400">No monthly data</p>'}
+                \`;
+            }
+
+            function renderCampaignNetwork(networkData) {
+                if (!networkData || !networkData.allData || networkData.allData.length === 0) {
+                    document.getElementById('campaign-network-badge').textContent = 'N/A';
+                    document.getElementById('campaign-network-body').innerHTML = \`
+                        <p class="text-sm text-gray-400 italic">No network data configured.</p>
+                        <p class="text-xs text-gray-400 mt-1">Set a NETWORK Google Sheet URL in Settings.</p>
+                    \`;
+                    return;
+                }
+                const accRate = networkData.avgAcceptanceRate;
+                const accPct = Math.round((accRate / 20) * 100);
+                document.getElementById('campaign-network-badge').textContent = accRate + '%';
+                document.getElementById('campaign-network-badge').className = 'text-xs font-bold px-2 py-0.5 rounded-full ' + campaignBadgeClass(accPct);
+
+                const startLabel = networkData.campaignStartDate
+                    ? \`<div class="flex items-center justify-between py-1">
+                        <span class="text-xs text-gray-500">Campaign start</span>
+                        <span class="text-xs font-semibold text-gray-700">\${networkData.campaignStartDate}</span>
+                       </div>\`
+                    : '';
+
+                document.getElementById('campaign-network-body').innerHTML = \`
+                    <div class="mb-3">
+                        <div class="flex items-end justify-between">
+                            <div>
+                                <p class="text-3xl font-extrabold text-gray-900">\${accRate}%</p>
+                                <p class="text-xs text-gray-400">acceptance rate</p>
+                            </div>
+                            <p class="text-sm text-gray-500 mb-1">Goal: <strong>20%</strong></p>
+                        </div>
+                        \${campaignBar(accPct, 'blue')}
+                    </div>
+                    <div class="mt-3 space-y-0.5">
+                        <div class="flex items-center justify-between py-1 border-b border-gray-50">
+                            <span class="text-xs text-gray-500">Invitations sent</span>
+                            <span class="text-sm font-bold text-gray-800">\${networkData.totalInvitations.toLocaleString()}</span>
+                        </div>
+                        <div class="flex items-center justify-between py-1 border-b border-gray-50">
+                            <span class="text-xs text-gray-500">Messages sent</span>
+                            <span class="text-sm font-bold text-gray-800">\${(networkData.totalMessages || 0).toLocaleString()}</span>
+                        </div>
+                        \${startLabel}
+                    </div>
+                \`;
+            }
+
+            async function loadCampaignPromote() {
+                if (campaignPromoteLoaded) return;
+                const company = COMPANIES[currentCompany] || {};
+                const promoteUrl = company.sources?.promote || '';
+                if (!promoteUrl) {
+                    document.getElementById('campaign-promote-badge').textContent = 'N/A';
+                    document.getElementById('campaign-promote-body').innerHTML = \`
+                        <p class="text-sm text-gray-400 italic">No promote data configured.</p>
+                        <p class="text-xs text-gray-400 mt-1">Set a PROMOTE Google Sheet URL in Settings.</p>
+                    \`;
+                    campaignPromoteLoaded = true;
+                    return;
+                }
+                document.getElementById('campaign-promote-body').innerHTML =
+                    '<div class="flex items-center space-x-2"><i class="fas fa-spinner fa-spin text-gray-400"></i><span class="text-xs text-gray-400">Loading...</span></div>';
+                try {
+                    const res = await fetch(\`/api/promote?company=\${currentCompany}\`);
+                    if (!res.ok) throw new Error('No promote data');
+                    const data = await res.json();
+                    const pd = data.platforms?.linkedin;
+                    if (!pd) throw new Error('No LinkedIn data');
+
+                    const dr = pd.dateRange;
+                    const totalDays = dr
+                        ? Math.max(1, Math.ceil((new Date(dr.to).getTime() - new Date(dr.from).getTime()) / 86400000) + 1)
+                        : 1;
+                    const avgPerDay = Math.round((pd.totalPosts / totalDays) * 100) / 100;
+                    const postPct = Math.min(200, Math.round(avgPerDay * 100));
+                    const postColor = postPct >= 80 ? 'text-green-600' : postPct >= 50 ? 'text-yellow-600' : 'text-red-500';
+
+                    document.getElementById('campaign-promote-badge').textContent = postPct + '%';
+                    document.getElementById('campaign-promote-badge').className = 'text-xs font-bold px-2 py-0.5 rounded-full ' + campaignBadgeClass(postPct);
+
+                    // Last 3 weeks
+                    const recentWeeks = pd.weeklyBreakdown.slice(-3);
+                    const weekRows = recentWeeks.map(w => {
+                        const wDate = new Date(w.week);
+                        const label = \`\${wDate.getDate()}/\${wDate.getMonth()+1}\`;
+                        const wPct = Math.round((w.posts / 7) * 100);
+                        const wClass = wPct >= 80 ? 'text-green-600' : wPct >= 50 ? 'text-yellow-600' : 'text-red-500';
+                        return \`<div class="flex items-center justify-between py-1 border-b border-gray-50 last:border-0">
+                            <span class="text-xs text-gray-500">Wk \${label}</span>
+                            <span class="text-sm font-bold \${wClass}">\${w.posts} <span class="font-normal text-gray-400">/ 7</span></span>
+                        </div>\`;
+                    }).join('');
+
+                    document.getElementById('campaign-promote-body').innerHTML = \`
+                        <div class="mb-3">
+                            <div class="flex items-end justify-between">
+                                <div>
+                                    <p class="text-3xl font-extrabold \${postColor}">\${avgPerDay}</p>
+                                    <p class="text-xs text-gray-400">posts / day avg</p>
+                                </div>
+                                <p class="text-sm text-gray-500 mb-1">Goal: <strong>1 / day</strong></p>
+                            </div>
+                            \${campaignBar(postPct, 'yellow')}
+                        </div>
+                        <div class="mt-3 space-y-0.5">
+                            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Last 3 weeks</div>
+                            \${weekRows || '<p class="text-xs text-gray-400">No weekly data</p>'}
+                        </div>
+                        <p class="text-xs text-gray-400 mt-2">\${pd.totalPosts} posts · \${dr ? dr.from + ' → ' + dr.to : ''}</p>
+                    \`;
+                    campaignPromoteLoaded = true;
+                } catch(err) {
+                    document.getElementById('campaign-promote-body').innerHTML =
+                        \`<p class="text-sm text-red-400 italic">Could not load promote data.</p><p class="text-xs text-gray-400 mt-1">\${err.message}</p>\`;
                 }
             }
 
