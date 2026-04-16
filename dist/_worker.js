@@ -26,7 +26,7 @@ var Xt=Object.defineProperty;var ft=e=>{throw TypeError(e)};var Jt=(e,t,s)=>t in
                         <h1 class="text-2xl font-bold text-gray-800">Company Management</h1>
                     </div>
                     <div class="flex items-center space-x-4">
-                        <span class="text-sm text-gray-600">Version <strong>1.1.7</strong></span>
+                        <span class="text-sm text-gray-600">Version <strong>1.1.8</strong></span>
                         <a href="/" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-all">
                             <i class="fas fa-arrow-left mr-2"></i>
                             Back to Dashboard
@@ -611,7 +611,7 @@ var Xt=Object.defineProperty;var ft=e=>{throw TypeError(e)};var Jt=(e,t,s)=>t in
                     </div>
                     <div class="text-right">
                         <span class="inline-block bg-white text-indigo-700 font-bold text-sm px-3 py-1 rounded-full shadow-md tracking-wide mb-3">
-                            v1.1.7
+                            v1.1.8
                         </span>
                         <p class="text-blue-100 text-sm">
                             <i class="fas fa-building mr-1"></i>All active client pipelines
@@ -921,7 +921,7 @@ var Xt=Object.defineProperty;var ft=e=>{throw TypeError(e)};var Jt=(e,t,s)=>t in
                     <div class="text-right">
                         <div class="mb-3">
                             <span class="inline-block bg-white text-indigo-700 font-bold text-sm px-3 py-1 rounded-full shadow-md tracking-wide">
-                                v1.1.7
+                                v1.1.8
                             </span>
                         </div>
                         <p class="text-blue-100 text-sm mb-2">
