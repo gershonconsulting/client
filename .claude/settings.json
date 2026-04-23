@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/user/client/.claude/release.sh",
+            "timeout": 120,
+            "statusMessage": "Versioning, building & deploying to client.gershonCRM.com..."
+          }
+        ]
+      }
+    ]
+  }
+}
