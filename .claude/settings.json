@@ -8,7 +8,7 @@
             "type": "command",
             "command": "bash /home/user/client/.claude/release.sh",
             "timeout": 120,
-            "statusMessage": "Versioning, building & deploying to client.gershonCRM.com..."
+            "statusMessage": "Releasing new version to client.gershonCRM.com..."
           }
         ]
       }
