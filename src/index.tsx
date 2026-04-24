@@ -4,6 +4,7 @@ import { serveStatic } from 'hono/cloudflare-workers'
 
 type Bindings = {
   COMPANIES_KV: KVNamespace
+  STREAK_API_KEY: string
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -11,11 +12,17 @@ const app = new Hono<{ Bindings: Bindings }>()
 // Enable CORS for frontend-backend communication
 app.use('/api/*', cors())
 
+// Load Streak API key from environment
+app.use('*', async (c, next) => {
+  streakApiKey = c.env.STREAK_API_KEY
+  await next()
+})
+
 // Serve static files
 app.use('/static/*', serveStatic({ root: './public' }))
 
 // Streak API configuration
-const STREAK_API_KEY = 'e77554988b424c6498d85362b0367757'
+let streakApiKey: string = ''
 const STREAK_API_BASE = 'https://www.streak.com/api/v1'
 
 // Multi-Company Pipeline Configuration
@@ -90,7 +97,7 @@ const GOOGLE_SHEET_BASE_URL = `https://docs.google.com/spreadsheets/d/${GOOGLE_S
 
 // Helper function to make Streak API calls
 async function callStreakAPI(endpoint: string) {
-  const auth = btoa(`${STREAK_API_KEY}:`)
+  const auth = btoa(`${streakApiKey}:`)
   const response = await fetch(`${STREAK_API_BASE}${endpoint}`, {
     headers: {
       'Authorization': `Basic ${auth}`,
