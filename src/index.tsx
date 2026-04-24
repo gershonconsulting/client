@@ -3170,7 +3170,7 @@ app.get('/', (c) => {
                 currentCompany = companyKey;
                 // Reset promote cache so new company loads fresh data
                 promoteDataCache = null;
-                Object.values(promoteCharts).forEach((c: any) => c.destroy());
+                Object.values(promoteCharts).forEach((c) => c.destroy());
                 promoteCharts = {};
                 
                 // Show loading state
@@ -3363,17 +3363,17 @@ app.get('/', (c) => {
                 document.getElementById('p-date-range').textContent = \`\${pd.dateRange.from} → \${pd.dateRange.to}\`;
 
                 // Destroy old charts
-                Object.values(promoteCharts).forEach((c: any) => c.destroy());
+                Object.values(promoteCharts).forEach((c) => c.destroy());
                 promoteCharts = {};
 
                 const weeks = pd.weeklyBreakdown;
-                const weekLabels = weeks.map((w: any) => {
+                const weekLabels = weeks.map((w) => {
                     const d = new Date(w.week);
                     return \`\${d.getDate()}/\${d.getMonth()+1}\`;
                 });
 
                 // Chart 1 — Follower Growth
-                const followerDates = pd.dailyData.map((d: any) => {
+                const followerDates = pd.dailyData.map((d) => {
                     const dt = new Date(d.date);
                     return \`\${dt.getDate()}/\${dt.getMonth()+1}\`;
                 });
@@ -3383,7 +3383,7 @@ app.get('/', (c) => {
                         labels: followerDates,
                         datasets: [{
                             label: 'Followers',
-                            data: pd.dailyData.map((d: any) => d.followers),
+                            data: pd.dailyData.map((d) => d.followers),
                             borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)',
                             fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2
                         }]
@@ -3399,7 +3399,7 @@ app.get('/', (c) => {
                 });
 
                 // Chart 2 — Weekly Posts vs Goal
-                const postColors = weeks.map((w: any) =>
+                const postColors = weeks.map((w) =>
                     w.posts >= 5 ? 'rgba(34,197,94,0.8)' : w.posts >= 3 ? 'rgba(234,179,8,0.8)' : 'rgba(239,68,68,0.8)');
                 promoteCharts.posts = new Chart(document.getElementById('p-chart-posts'), {
                     type: 'bar',
@@ -3408,13 +3408,13 @@ app.get('/', (c) => {
                         datasets: [
                             {
                                 label: 'Posts',
-                                data: weeks.map((w: any) => w.posts),
+                                data: weeks.map((w) => w.posts),
                                 backgroundColor: postColors, borderRadius: 4
                             },
                             {
                                 label: 'Goal (5)',
                                 data: weeks.map(() => 5),
-                                type: 'line' as any,
+                                type: 'line',
                                 borderColor: '#ef4444', borderDash: [6,3],
                                 borderWidth: 2, pointRadius: 0,
                                 backgroundColor: 'transparent'
@@ -3438,7 +3438,7 @@ app.get('/', (c) => {
                         labels: weekLabels,
                         datasets: [{
                             label: 'Engagements',
-                            data: weeks.map((w: any) => w.engagements),
+                            data: weeks.map((w) => w.engagements),
                             backgroundColor: 'rgba(168,85,247,0.7)', borderRadius: 4
                         }]
                     },
@@ -3460,13 +3460,13 @@ app.get('/', (c) => {
                         datasets: [
                             {
                                 label: 'Impressions',
-                                data: weeks.map((w: any) => w.impressions),
+                                data: weeks.map((w) => w.impressions),
                                 borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)',
                                 fill: true, tension: 0.3, pointRadius: 3, borderWidth: 2
                             },
                             {
                                 label: 'Reach',
-                                data: weeks.map((w: any) => w.reach),
+                                data: weeks.map((w) => w.reach),
                                 borderColor: '#f59e0b', backgroundColor: 'transparent',
                                 tension: 0.3, pointRadius: 3, borderWidth: 2, borderDash: [4,3]
                             }
@@ -3475,7 +3475,7 @@ app.get('/', (c) => {
                     options: {
                         responsive: true, maintainAspectRatio: false,
                         plugins: {
-                            legend: { position: 'bottom' as any, labels: { font: { size: 10 }, boxWidth: 12 } },
+                            legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12 } },
                             datalabels: { display: false }
                         },
                         scales: {
@@ -3486,7 +3486,7 @@ app.get('/', (c) => {
                 });
 
                 // Weekly consistency table
-                const tableRows = weeks.map((w: any) => {
+                const tableRows = weeks.map((w) => {
                     const dot = w.posts >= 5
                         ? '<span class="inline-block w-3 h-3 rounded-full bg-green-400 mr-2"></span>'
                         : w.posts >= 3
