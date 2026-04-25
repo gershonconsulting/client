@@ -212,28 +212,43 @@ async function fetchNetworkData(urlOrGid: string) {
     
     const csvText = await response.text()
     const lines = csvText.split('\n').filter(line => line.trim())
-    
-    // Parse CSV (skip header)
+
+    // Parse CSV — auto-detect column layout from header row
+    // Format A (9+ cols): W, From, To, Invitations, Messages, Inmails, Follow ups, Acceptance, Opportunities
+    // Format B (8 cols):  From, To, Invitations, Messages, Inmails, Follow ups, Acceptance, Opportunities
     const data = []
+    if (lines.length < 2) return { totalInvitations: 0, totalAccepted: 0, avgAcceptanceRate: 0, thisWeek: { invitations: 0, acceptance: 0 }, lastWeek: { invitations: 0, acceptance: 0 }, recentWeeks: [], allData: [] }
+
+    const headerCols = lines[0].split(',').map(h => h.trim().toLowerCase())
+    const hasWeekCol = headerCols[0] === 'w' || headerCols[0] === 'week'
+    const offset = hasWeekCol ? 0 : -1  // shift column indices when W column is missing
+
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i]
       const cols = line.split(',')
-      
-      // Extract data: W, From, To, Invitations, Messages, Inmails, Follow ups, Acceptance, Opportunities
-      if (cols.length >= 9 && cols[3] && cols[3].trim()) {
-        const invitations = parseInt(cols[3]) || 0
-        const messages = parseInt(cols[4]) || 0
-        const acceptance = cols[7] ? cols[7].replace('%', '').trim() : '0'
+
+      // Invitations is at index 3 (with W) or 2 (without W)
+      const invIdx = 3 + offset
+      const msgIdx = 4 + offset
+      const accIdx = 7 + offset
+      const oppIdx = 8 + offset
+      const fromIdx = 1 + offset
+      const toIdx = 2 + offset
+
+      if (cols.length >= (hasWeekCol ? 9 : 8) && cols[invIdx] && cols[invIdx].trim()) {
+        const invitations = parseInt(cols[invIdx]) || 0
+        const messages = parseInt(cols[msgIdx]) || 0
+        const acceptance = cols[accIdx] ? cols[accIdx].replace('%', '').trim() : '0'
         const acceptanceRate = parseFloat(acceptance) || 0
-        
+
         data.push({
-          week: cols[0],
-          from: cols[1],
-          to: cols[2],
+          week: hasWeekCol ? cols[0] : String(i),
+          from: cols[fromIdx],
+          to: cols[toIdx],
           invitations,
           messages,
           acceptance: acceptanceRate,
-          opportunities: parseInt(cols[8]) || 0
+          opportunities: (oppIdx < cols.length) ? (parseInt(cols[oppIdx]) || 0) : 0
         })
       }
     }
@@ -513,6 +528,22 @@ app.get('/api/sheets/interest/:interestLevel/count', async (c) => {
 })
 
 // Helper: look up a single company by key — checks hardcoded first, then KV
+// Auto-extract pipeline key from Streak URL, or fix if user pasted a strk_ API key
+function resolvePipelineKey(pipelineKey: string, engageUrl?: string): string {
+  // If pipelineKey looks like a Streak API key (strk_...) instead of a pipeline key,
+  // try to extract the real pipeline key from the engage URL
+  if (pipelineKey && pipelineKey.startsWith('strk_') && engageUrl) {
+    const match = engageUrl.match(/\/pipelines\/([a-zA-Z0-9_-]{20,})/)
+    if (match) return match[1]
+  }
+  // If pipelineKey is a full URL, extract the key part
+  if (pipelineKey && pipelineKey.includes('/pipelines/')) {
+    const match = pipelineKey.match(/\/pipelines\/([a-zA-Z0-9_-]{20,})/)
+    if (match) return match[1]
+  }
+  return pipelineKey
+}
+
 async function getCompany(kv: KVNamespace, key: string): Promise<any | null> {
   // Hardcoded companies have priority (they may be overridden via KV)
   const kvRaw = await kv.get(`company:${key}`)
@@ -566,10 +597,13 @@ app.post('/api/companies', async (c) => {
     // Use provided key or auto-generate from name
     const key = providedKey || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
+    // Auto-fix pipeline key if user pasted a strk_ API key or full URL
+    const resolvedPipelineKey = resolvePipelineKey(pipelineKey, engageUrl)
+
     const company: any = {
       key,
       name,
-      pipelineKey,
+      pipelineKey: resolvedPipelineKey,
       url: engageUrl || `https://www.streak.com/a/pipelines/${pipelineKey}`,
       sources: {
         promote: promoteUrl || '',
@@ -612,11 +646,13 @@ app.put('/api/companies/:key', async (c) => {
     }
 
     const { archived } = body
+    // Auto-fix pipeline key if user pasted a strk_ API key or full URL
+    const resolvedPK = pipelineKey ? resolvePipelineKey(pipelineKey, engageUrl || existing.url) : existing.pipelineKey
     const updated: any = {
       ...existing,
       key,
       name: name || existing.name,
-      pipelineKey: pipelineKey || existing.pipelineKey,
+      pipelineKey: resolvedPK,
       sources: {
         promote: promoteUrl !== undefined ? promoteUrl : (existing.sources?.promote || ''),
         network: networkUrl !== undefined ? networkUrl : (existing.sources?.network || ''),
@@ -1224,40 +1260,78 @@ app.get('/api/promote', async (c) => {
   }
 })
 
-// Overview API — stats for ALL companies for a given time period
+// Overview API — stats for ALL companies with comparison data
 app.get('/api/overview', async (c) => {
   try {
     const period = c.req.query('period') || 'this-month'
     const now = Date.now()
     const nowDate = new Date()
 
-    let periodStart = 0
-    let periodEnd = now
-
-    if (period === 'week') {
-      periodStart = now - 7 * 24 * 60 * 60 * 1000
-    } else if (period === 'last-month') {
-      periodStart = new Date(nowDate.getFullYear(), nowDate.getMonth() - 1, 1).getTime()
-      periodEnd = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1).getTime()
-    } else if (period === 'this-month') {
-      periodStart = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1).getTime()
-    } else if (period === 'year') {
-      periodStart = new Date(nowDate.getFullYear(), 0, 1).getTime()
+    // Calculate period boundaries
+    function getPeriodRange(p: string) {
+      let start = 0, end = now
+      if (p === 'week') {
+        start = now - 7 * 24 * 60 * 60 * 1000
+      } else if (p === 'last-month') {
+        start = new Date(nowDate.getFullYear(), nowDate.getMonth() - 1, 1).getTime()
+        end = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1).getTime()
+      } else if (p === 'this-month') {
+        start = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1).getTime()
+      } else if (p === 'year') {
+        start = new Date(nowDate.getFullYear(), 0, 1).getTime()
+      }
+      return { start, end }
     }
-    // 'all' → periodStart stays 0
 
+    // Comparison period ranges
+    const weekRange = { start: now - 7 * 24 * 60 * 60 * 1000, end: now }
+    const lastMonthRange = {
+      start: new Date(nowDate.getFullYear(), nowDate.getMonth() - 1, 1).getTime(),
+      end: new Date(nowDate.getFullYear(), nowDate.getMonth(), 1).getTime()
+    }
+
+    const currentRange = getPeriodRange(period)
     const companiesList = await getAllCompanies(c.env.COMPANIES_KV)
 
     const results = await Promise.all(
       companiesList.map(async (company: any) => {
         try {
-          const boxes = await callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`)
+          // Fetch Streak, Promote, and Network data in parallel
+          const promoteUrl = company.sources?.promote || ''
+          const networkGid = company.networkSheetGid || (company.sources?.network || '')
+
+          const [boxes, promoteData, networkData] = await Promise.all([
+            callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`).catch(() => []),
+            promoteUrl ? fetchPromoteData(promoteUrl).catch(() => ({ platforms: {} })) : Promise.resolve({ platforms: {} }),
+            networkGid ? fetchNetworkData(networkGid).catch(() => ({ avgAcceptanceRate: 0, totalInvitations: 0 })) : Promise.resolve({ avgAcceptanceRate: 0, totalInvitations: 0 })
+          ])
+
           const allBoxes = Array.isArray(boxes) ? boxes : []
           const totalLeads = allBoxes.length
 
-          const periodLeads = allBoxes.filter((box: any) => {
-            const ts = box.creationTimestamp || 0
-            return ts >= periodStart && ts < periodEnd
+          // Count leads in each period
+          function countInRange(start: number, end: number) {
+            return allBoxes.filter((box: any) => {
+              const ts = box.creationTimestamp || 0
+              return ts >= start && ts < end
+            }).length
+          }
+
+          const periodLeads = countInRange(currentRange.start, currentRange.end)
+          const weekLeads = countInRange(weekRange.start, weekRange.end)
+          const lastMonthLeads = countInRange(lastMonthRange.start, lastMonthRange.end)
+
+          // Stage distribution
+          const stages: Record<string, number> = {}
+          allBoxes.forEach((box: any) => {
+            const stage = box.stageKey || 'Unknown'
+            stages[stage] = (stages[stage] || 0) + 1
+          })
+
+          // Recent activity (last 7 days)
+          const recentActivity = allBoxes.filter((box: any) => {
+            const ts = box.lastUpdatedTimestamp || 0
+            return ts >= weekRange.start
           }).length
 
           // Scale goal (10 leads/month) to the period
@@ -1275,26 +1349,72 @@ app.get('/api/overview', async (c) => {
             }
           }
 
+          // --- KPI: Promote — posts per day (target: 1/day) ---
+          let promotePostsPerDay = 0
+          let promoteConfigured = false
+          if (promoteUrl && promoteData.platforms) {
+            promoteConfigured = true
+            // Sum across all platforms
+            let totalPosts = 0, totalDays = 0
+            for (const plat of Object.values(promoteData.platforms) as any[]) {
+              totalPosts += plat.totalPosts || 0
+              if (plat.dailyData && plat.dailyData.length > totalDays) totalDays = plat.dailyData.length
+            }
+            promotePostsPerDay = totalDays > 0 ? Math.round((totalPosts / totalDays) * 10) / 10 : 0
+          }
+
+          // --- KPI: Network — acceptance rate ---
+          const networkAcceptanceRate = (networkData as any).avgAcceptanceRate || 0
+          const networkConfigured = !!networkGid
+
+          // --- KPI: Engage — % of 10 meetings/month ---
+          // Count leads created this month as proxy for meetings
+          const thisMonthStart = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1).getTime()
+          const thisMonthLeads = allBoxes.filter((box: any) => (box.creationTimestamp || 0) >= thisMonthStart).length
+          const engageMeetingsPct = Math.round((thisMonthLeads / 10) * 100)
+
           return {
             key: company.key,
             name: company.name,
             periodLeads,
             totalLeads,
+            weekLeads,
+            lastMonthLeads,
+            recentActivity,
+            stageCount: Object.keys(stages).length,
             goalPct: periodGoal > 0 ? Math.round((periodLeads / periodGoal) * 100) : 0,
+            // New KPIs
+            promotePostsPerDay,
+            promoteConfigured,
+            networkAcceptanceRate,
+            networkConfigured,
+            engageMeetingsPct,
+            engageThisMonthLeads: thisMonthLeads,
             error: false
           }
         } catch (_err) {
-          return { key: company.key, name: company.name, periodLeads: 0, totalLeads: 0, goalPct: 0, error: true }
+          return { key: company.key, name: company.name, periodLeads: 0, totalLeads: 0, weekLeads: 0, lastMonthLeads: 0, recentActivity: 0, stageCount: 0, goalPct: 0, promotePostsPerDay: 0, promoteConfigured: false, networkAcceptanceRate: 0, networkConfigured: false, engageMeetingsPct: 0, engageThisMonthLeads: 0, error: true }
         }
       })
     )
 
     results.sort((a, b) => b.periodLeads - a.periodLeads)
 
+    // Compute averages across all clients for comparison
+    const activeCount = results.filter(r => !r.error).length || 1
+    const avgWeekLeads = Math.round(results.reduce((s, r) => s + r.weekLeads, 0) / activeCount * 10) / 10
+    const avgLastMonthLeads = Math.round(results.reduce((s, r) => s + r.lastMonthLeads, 0) / activeCount * 10) / 10
+    const avgPeriodLeads = Math.round(results.reduce((s, r) => s + r.periodLeads, 0) / activeCount * 10) / 10
+    const avgTotalLeads = Math.round(results.reduce((s, r) => s + r.totalLeads, 0) / activeCount * 10) / 10
+    const avgRecentActivity = Math.round(results.reduce((s, r) => s + r.recentActivity, 0) / activeCount * 10) / 10
+
     return c.json({
       period,
       totalPeriodLeads: results.reduce((s, r) => s + r.periodLeads, 0),
       totalAllLeads: results.reduce((s, r) => s + r.totalLeads, 0),
+      totalWeekLeads: results.reduce((s, r) => s + r.weekLeads, 0),
+      totalLastMonthLeads: results.reduce((s, r) => s + r.lastMonthLeads, 0),
+      averages: { weekLeads: avgWeekLeads, lastMonthLeads: avgLastMonthLeads, periodLeads: avgPeriodLeads, totalLeads: avgTotalLeads, recentActivity: avgRecentActivity },
       companies: results
     })
   } catch (error: any) {
@@ -2199,61 +2319,115 @@ app.get('/overview', (c) => {
             }
 
             function renderSummary(data) {
-                document.getElementById('summary-row').innerHTML = \`
-                    <div class="flex flex-wrap gap-8">
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase font-semibold tracking-wide mb-1">Leads — \${periodLabel(data.period)}</p>
-                            <p class="text-4xl font-extrabold text-gray-900">\${data.totalPeriodLeads}</p>
-                        </div>
-                        <div class="border-l border-gray-200 pl-8">
-                            <p class="text-xs text-gray-500 uppercase font-semibold tracking-wide mb-1">All-Time Leads</p>
-                            <p class="text-4xl font-extrabold text-gray-900">\${data.totalAllLeads}</p>
-                        </div>
-                        <div class="border-l border-gray-200 pl-8">
-                            <p class="text-xs text-gray-500 uppercase font-semibold tracking-wide mb-1">Active Clients</p>
-                            <p class="text-4xl font-extrabold text-gray-900">\${data.companies.length}</p>
-                        </div>
-                    </div>
-                    <p class="text-xs text-gray-400 mt-2 sm:mt-0">
-                        <i class="fas fa-clock mr-1"></i>Updated \${new Date().toLocaleTimeString()}
-                    </p>
-                \`;
+                var avg = data.averages || {};
+                document.getElementById('summary-row').innerHTML = '<div class="flex flex-wrap gap-8">'
+                    + '<div>'
+                    + '<p class="text-xs text-gray-500 uppercase font-semibold tracking-wide mb-1">Leads — ' + periodLabel(data.period) + '</p>'
+                    + '<p class="text-4xl font-extrabold text-gray-900">' + data.totalPeriodLeads + '</p>'
+                    + '</div>'
+                    + '<div class="border-l border-gray-200 pl-8">'
+                    + '<p class="text-xs text-gray-500 uppercase font-semibold tracking-wide mb-1">Last 7 Days</p>'
+                    + '<p class="text-4xl font-extrabold text-gray-900">' + (data.totalWeekLeads || 0) + '</p>'
+                    + '<p class="text-xs text-gray-400">avg ' + (avg.weekLeads || 0) + '/client</p>'
+                    + '</div>'
+                    + '<div class="border-l border-gray-200 pl-8">'
+                    + '<p class="text-xs text-gray-500 uppercase font-semibold tracking-wide mb-1">Last Month</p>'
+                    + '<p class="text-4xl font-extrabold text-gray-900">' + (data.totalLastMonthLeads || 0) + '</p>'
+                    + '<p class="text-xs text-gray-400">avg ' + (avg.lastMonthLeads || 0) + '/client</p>'
+                    + '</div>'
+                    + '<div class="border-l border-gray-200 pl-8">'
+                    + '<p class="text-xs text-gray-500 uppercase font-semibold tracking-wide mb-1">All-Time</p>'
+                    + '<p class="text-4xl font-extrabold text-gray-900">' + data.totalAllLeads + '</p>'
+                    + '</div>'
+                    + '<div class="border-l border-gray-200 pl-8">'
+                    + '<p class="text-xs text-gray-500 uppercase font-semibold tracking-wide mb-1">Active Clients</p>'
+                    + '<p class="text-4xl font-extrabold text-gray-900">' + data.companies.length + '</p>'
+                    + '</div>'
+                    + '</div>'
+                    + '<p class="text-xs text-gray-400 mt-2 sm:mt-0">'
+                    + '<i class="fas fa-clock mr-1"></i>Updated ' + new Date().toLocaleTimeString()
+                    + '</p>';
             }
 
+            function compareBadge(val, avg) {
+                if (avg === 0) return '<span class="text-xs text-gray-400">—</span>';
+                var diff = Math.round(((val - avg) / avg) * 100);
+                if (diff > 0) return '<span class="text-xs text-green-600 font-semibold">+' + diff + '% vs avg</span>';
+                if (diff < 0) return '<span class="text-xs text-red-500 font-semibold">' + diff + '% vs avg</span>';
+                return '<span class="text-xs text-gray-500">= avg</span>';
+            }
+
+            var overviewAverages = {};
+
             function renderCards(companies) {
-                const grid = document.getElementById('cards-grid');
+                var grid = document.getElementById('cards-grid');
                 if (!companies.length) {
                     grid.innerHTML = '<p class="col-span-3 text-center text-gray-400 py-16 text-lg">No company data available.</p>';
                     return;
                 }
-                grid.innerHTML = companies.map(co => {
-                    const pct = Math.min(co.goalPct, 100);
-                    const colors = goalColor(co.goalPct);
-                    const errBadge = co.error ? '<span class="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full ml-2">API Error</span>' : '';
-                    return \`
-                    <div class="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-lg transition-shadow flex flex-col">
-                        <div class="flex items-start justify-between mb-3">
-                            <h3 class="text-lg font-bold text-gray-800 leading-tight">\${co.name}\${errBadge}</h3>
-                            <span class="ml-2 flex-shrink-0 border text-xs font-semibold px-2 py-0.5 rounded-full \${colors.badge}">\${co.goalPct}% of goal</span>
-                        </div>
-                        <p class="text-5xl font-extrabold text-gray-900 mb-0.5">\${co.periodLeads}</p>
-                        <p class="text-xs text-gray-400 mb-1">leads this period</p>
-                        <p class="text-sm text-gray-500 mb-4"><i class="fas fa-database mr-1 text-gray-300"></i>\${co.totalLeads} total all time</p>
-                        <div class="mb-5">
-                            <div class="flex justify-between text-xs mb-1">
-                                <span class="text-gray-400">Goal progress</span>
-                                <span class="font-semibold \${colors.text}">\${co.goalPct}%</span>
-                            </div>
-                            <div class="w-full bg-gray-100 rounded-full h-2">
-                                <div class="\${colors.bar} h-2 rounded-full transition-all duration-700" style="width:\${pct}%"></div>
-                            </div>
-                        </div>
-                        <div class="mt-auto">
-                            <a href="/?company=\${co.key}" class="block w-full text-center bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg px-4 py-2.5 text-sm font-semibold transition-all shadow">
-                                <i class="fas fa-chart-line mr-2"></i>View Dashboard
-                            </a>
-                        </div>
-                    </div>\`;
+                var avg = overviewAverages;
+                grid.innerHTML = companies.map(function(co) {
+                    var errBadge = co.error ? '<span class="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full ml-2">API Error</span>' : '';
+
+                    // KPI colors
+                    function kpiColor(val, target) {
+                        var pct = target > 0 ? (val / target) * 100 : 0;
+                        if (pct >= 100) return { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700', bar: 'bg-green-500', icon: 'text-green-500' };
+                        if (pct >= 50)  return { bg: 'bg-yellow-50', border: 'border-yellow-200', text: 'text-yellow-700', bar: 'bg-yellow-400', icon: 'text-yellow-500' };
+                        return { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-600', bar: 'bg-red-400', icon: 'text-red-500' };
+                    }
+
+                    // Promote KPI: posts/day vs target 1/day
+                    var promoteVal = co.promotePostsPerDay || 0;
+                    var promoteC = kpiColor(promoteVal, 1);
+                    var promotePct = Math.min(Math.round(promoteVal * 100), 100);
+                    var promoteLabel = co.promoteConfigured ? promoteVal + '/day' : 'N/A';
+
+                    // Network KPI: acceptance rate (target ~20%)
+                    var networkVal = co.networkAcceptanceRate || 0;
+                    var networkC = kpiColor(networkVal, 20);
+                    var networkPct = Math.min(Math.round((networkVal / 20) * 100), 100);
+                    var networkLabel = co.networkConfigured ? networkVal + '%' : 'N/A';
+
+                    // Engage KPI: % of 10 meetings/month
+                    var engageVal = co.engageThisMonthLeads || 0;
+                    var engageC = kpiColor(engageVal, 10);
+                    var engagePct = Math.min(co.engageMeetingsPct || 0, 100);
+                    var engageLabel = engageVal + '/10';
+
+                    return '<div class="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-lg transition-shadow flex flex-col">'
+                        + '<div class="flex items-start justify-between mb-4">'
+                        + '<h3 class="text-lg font-bold text-gray-800 leading-tight">' + co.name + errBadge + '</h3>'
+                        + '</div>'
+                        // 3 KPI cards row
+                        + '<div class="grid grid-cols-3 gap-3 mb-4">'
+                        // Promote
+                        + '<div class="' + promoteC.bg + ' border ' + promoteC.border + ' rounded-lg p-3 text-center">'
+                        + '<p class="text-xs text-gray-500 font-semibold uppercase mb-1"><i class="fas fa-bullhorn mr-1 ' + promoteC.icon + '"></i>Promote</p>'
+                        + '<p class="text-xl font-extrabold ' + promoteC.text + '">' + promoteLabel + '</p>'
+                        + '<div class="w-full bg-gray-200 rounded-full h-1.5 mt-2"><div class="' + promoteC.bar + ' h-1.5 rounded-full" style="width:' + promotePct + '%"></div></div>'
+                        + '</div>'
+                        // Network
+                        + '<div class="' + networkC.bg + ' border ' + networkC.border + ' rounded-lg p-3 text-center">'
+                        + '<p class="text-xs text-gray-500 font-semibold uppercase mb-1"><i class="fas fa-users mr-1 ' + networkC.icon + '"></i>Network</p>'
+                        + '<p class="text-xl font-extrabold ' + networkC.text + '">' + networkLabel + '</p>'
+                        + '<div class="w-full bg-gray-200 rounded-full h-1.5 mt-2"><div class="' + networkC.bar + ' h-1.5 rounded-full" style="width:' + networkPct + '%"></div></div>'
+                        + '</div>'
+                        // Engage
+                        + '<div class="' + engageC.bg + ' border ' + engageC.border + ' rounded-lg p-3 text-center">'
+                        + '<p class="text-xs text-gray-500 font-semibold uppercase mb-1"><i class="fas fa-handshake mr-1 ' + engageC.icon + '"></i>Engage</p>'
+                        + '<p class="text-xl font-extrabold ' + engageC.text + '">' + engageLabel + '</p>'
+                        + '<div class="w-full bg-gray-200 rounded-full h-1.5 mt-2"><div class="' + engageC.bar + ' h-1.5 rounded-full" style="width:' + engagePct + '%"></div></div>'
+                        + '</div>'
+                        + '</div>'
+                        // Total leads summary
+                        + '<p class="text-sm text-gray-500 mb-4"><i class="fas fa-database mr-1 text-gray-300"></i>' + co.totalLeads + ' total leads all time</p>'
+                        + '<div class="mt-auto">'
+                        + '<a href="/?company=' + co.key + '" class="block w-full text-center bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg px-4 py-2.5 text-sm font-semibold transition-all shadow">'
+                        + '<i class="fas fa-chart-line mr-2"></i>View Dashboard'
+                        + '</a>'
+                        + '</div>'
+                        + '</div>';
                 }).join('');
             }
 
@@ -2265,6 +2439,7 @@ app.get('/overview', (c) => {
                     const res = await fetch('/api/overview?period=' + period);
                     if (!res.ok) throw new Error('HTTP ' + res.status);
                     const data = await res.json();
+                    overviewAverages = data.averages || {};
                     renderSummary(data);
                     renderCards(data.companies);
                 } catch (err) {
@@ -2282,8 +2457,13 @@ app.get('/overview', (c) => {
   `)
 })
 
-// Default route - Dashboard HTML
+// Default route - redirect to overview unless ?company= specified
 app.get('/', (c) => {
+  const companyKey = c.req.query('company')
+  if (!companyKey) {
+    return c.redirect('/overview')
+  }
+  // Show dashboard for selected company
   return c.html(`
     <!DOCTYPE html>
     <html lang="en">
@@ -2326,16 +2506,7 @@ app.get('/', (c) => {
                                 <i class="fas fa-building mr-2"></i>Select Company:
                             </label>
                             <select id="company-selector" onchange="switchCompany(this.value)" class="bg-white text-gray-800 rounded-lg px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-300 shadow-md">
-                                <option value="mabsilico">MabSilico</option>
-                                <option value="finance-montreal">Finance Montreal (Steve)</option>
-                                <option value="finance-montreal-noza">Finance Montreal (Noza)</option>
-                                <option value="apm-music">APM Music</option>
-                                <option value="ducrocq">Ducrocq</option>
-                                <option value="milvue">Milvue</option>
-                                <option value="seekyo">Seekyo Therapeutics</option>
-                                <option value="altavia">Altavia</option>
-                                <option value="valos">Valos</option>
-                                <option value="dab-embedded">DAB-Embedded</option>
+                                <!-- Populated dynamically from /api/companies (excludes archived) -->
                             </select>
                             <button onclick="refreshDashboard()" class="bg-blue-500 hover:bg-blue-400 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors shadow-md">
                                 <i class="fas fa-sync-alt mr-2"></i>Refresh
@@ -2392,13 +2563,16 @@ app.get('/', (c) => {
                 <div class="bg-white rounded-lg shadow mb-8">
                     <div class="border-b border-gray-200">
                         <nav class="flex -mb-px">
+                            <button onclick="switchView('onboarding')" id="tab-onboarding" class="view-tab active border-b-2 border-blue-500 py-4 px-6 text-sm font-medium text-blue-600">
+                                <i class="fas fa-rocket mr-2"></i>Onboarding
+                            </button>
                             <button onclick="switchView('promote')" id="tab-promote" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
                                 <i class="fas fa-bullhorn mr-2"></i>PROMOTE
                             </button>
                             <button onclick="switchView('network')" id="tab-network" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
                                 <i class="fas fa-users mr-2"></i>NETWORK
                             </button>
-                            <button onclick="switchView('engage')" id="tab-engage" class="view-tab active border-b-2 border-blue-500 py-4 px-6 text-sm font-medium text-blue-600">
+                            <button onclick="switchView('engage')" id="tab-engage" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
                                 <i class="fas fa-handshake mr-2"></i>ENGAGE
                             </button>
                             <button onclick="switchView('print')" id="tab-print" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
@@ -2406,9 +2580,6 @@ app.get('/', (c) => {
                             </button>
                             <button onclick="switchView('settings')" id="tab-settings" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
                                 <i class="fas fa-cog mr-2"></i>Settings
-                            </button>
-                            <button onclick="switchView('onboarding')" id="tab-onboarding" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                                <i class="fas fa-rocket mr-2"></i>Onboarding
                             </button>
                         </nav>
                     </div>
@@ -2546,7 +2717,7 @@ app.get('/', (c) => {
                     </div>
                 </div>
 
-                <!-- ENGAGE View (formerly Overview) --><div id="view-engage" class="view-content">
+                <!-- ENGAGE View (formerly Overview) --><div id="view-engage" class="view-content hidden">
                 <!-- Campaign Performance Summary Cards -->
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                     <!-- Total Leads Card -->
@@ -3040,7 +3211,7 @@ app.get('/', (c) => {
             </div>
 
             <!-- Onboarding View -->
-            <div id="view-onboarding" class="view-content hidden">
+            <div id="view-onboarding" class="view-content">
                 <div class="bg-white rounded-lg shadow p-8">
                     <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
                         <i class="fas fa-rocket text-green-600 mr-3"></i>
@@ -3443,18 +3614,27 @@ app.get('/', (c) => {
                 promoteDataCache = null;
                 Object.values(promoteCharts).forEach((c) => c.destroy());
                 promoteCharts = {};
-                
+
+                // Immediately update header title from dropdown text (before data loads)
+                const selector = document.getElementById('company-selector');
+                const selectedOption = selector.options[selector.selectedIndex];
+                const displayName = selectedOption ? selectedOption.textContent.trim() : companyKey;
+                document.querySelector('h1').innerHTML = \`
+                    <i class="fas fa-chart-line mr-3"></i>
+                    \${displayName} - Pipeline Report
+                \`;
+
                 // Show loading state
                 document.getElementById('dashboard').classList.add('hidden');
                 document.getElementById('loading').classList.remove('hidden');
                 document.getElementById('error').classList.add('hidden');
-                
+
                 // Update Google Sheets formulas for this company
                 updateSheetsFormulas();
-                
+
                 // Update Settings view
                 updateSettingsView();
-                
+
                 // Fetch new company data
                 fetchCompanyData(companyKey);
             }
@@ -4733,136 +4913,4 @@ app.get('/', (c) => {
                 };
 
                 // Add networkSheetGid if provided
-                if (networkGid) {
-                    newCompany.networkSheetGid = networkGid;
-                }
-
-                try {
-                    const res = await fetch('/api/companies', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name, pipelineKey, networkUrl, promoteUrl, engageUrl, networkGid, key })
-                    });
-                    const data = await res.json();
-                    if (!res.ok) throw new Error(data.error || 'Failed to add company');
-
-                    // Add company to local COMPANIES object
-                    COMPANIES[key] = newCompany;
-
-                    // Add to dropdown
-                    const selector = document.getElementById('company-selector');
-                    const option = document.createElement('option');
-                    option.value = key;
-                    option.textContent = name;
-                    selector.appendChild(option);
-
-                    // Switch to the new company
-                    currentCompany = key;
-                    selector.value = key;
-
-                    updateSheetsFormulas();
-                    updateSettingsView();
-                    loadDashboard();
-
-                    showMessage('success', \`Company "\${name}" added and saved permanently!\`);
-                    resetAddCompanyForm();
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                } catch (err) {
-                    showMessage('error', \`Failed to add company: \${err.message}\`);
-                }
-            }
-
-            // Reset Add Company Form
-            function resetAddCompanyForm() {
-                document.getElementById('new-company-name').value = '';
-                document.getElementById('new-company-key').value = '';
-                document.getElementById('new-pipeline-key').value = '';
-                document.getElementById('new-engage-url').value = '';
-                document.getElementById('new-network-url').value = '';
-                document.getElementById('new-network-gid').value = '';
-                document.getElementById('new-promote-url').value = '';
-                
-                // Hide message
-                const messageEl = document.getElementById('add-company-message');
-                messageEl.classList.add('hidden');
-            }
-
-            // Show Message Function
-            function showMessage(type, message) {
-                const messageEl = document.getElementById('add-company-message');
-                messageEl.classList.remove('hidden');
-                
-                if (type === 'success') {
-                    messageEl.className = 'bg-green-50 border-l-4 border-green-500 p-4 mt-4';
-                    messageEl.innerHTML = \`
-                        <div class="flex items-center">
-                            <i class="fas fa-check-circle text-green-600 text-xl mr-3"></i>
-                            <div>
-                                <p class="text-sm font-semibold text-green-800">Success!</p>
-                                <p class="text-sm text-green-700 mt-1">\${message}</p>
-                            </div>
-                        </div>
-                    \`;
-                } else {
-                    messageEl.className = 'bg-red-50 border-l-4 border-red-500 p-4 mt-4';
-                    messageEl.innerHTML = \`
-                        <div class="flex items-center">
-                            <i class="fas fa-exclamation-circle text-red-600 text-xl mr-3"></i>
-                            <div>
-                                <p class="text-sm font-semibold text-red-800">Error</p>
-                                <p class="text-sm text-red-700 mt-1">\${message}</p>
-                            </div>
-                        </div>
-                    \`;
-                }
-
-                // Auto-hide success messages after 5 seconds
-                if (type === 'success') {
-                    setTimeout(() => {
-                        messageEl.classList.add('hidden');
-                    }, 5000);
-                }
-            }
-
-            // Load KV companies on startup and merge into COMPANIES + dropdown
-            async function loadKVCompanies() {
-                try {
-                    const res = await fetch('/api/companies');
-                    const data = await res.json();
-                    if (!data.companies) return;
-                    const selector = document.getElementById('company-selector');
-                    data.companies.forEach(company => {
-                        // Merge into COMPANIES object
-                        if (!COMPANIES[company.key]) {
-                            COMPANIES[company.key] = company;
-                            // Add to dropdown if not already there
-                            if (selector && !selector.querySelector(\`option[value="\${company.key}"]\`)) {
-                                const option = document.createElement('option');
-                                option.value = company.key;
-                                option.textContent = company.name;
-                                selector.appendChild(option);
-                            }
-                        } else {
-                            // Override hardcoded entry with KV version (has saved URLs)
-                            COMPANIES[company.key] = { ...COMPANIES[company.key], ...company };
-                        }
-                    });
-                } catch (e) {
-                    console.warn('Could not load KV companies:', e);
-                }
-            }
-
-            // Load dashboard on page load and setup auto-refresh
-            loadKVCompanies().then(() => {
-                updateSheetsFormulas();
-                updateSettingsView();
-                loadDashboard();
-            });
-            setupAutoRefresh();
-        </script>
-    </body>
-    </html>
-  `)
-})
-
-export default app
+                if (network
