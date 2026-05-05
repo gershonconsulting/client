@@ -588,7 +588,7 @@ app.get('/api/companies', async (c) => {
 app.post('/api/companies', async (c) => {
   try {
     const body = await c.req.json()
-    const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, notionUrl, networkGid, key: providedKey } = body
+    const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, notionUrl, networkGid, key: providedKey, googleChatUrl, googleChatWebhookUrl } = body
 
     if (!name || !pipelineKey) {
       return c.json({ error: 'name and pipelineKey are required' }, 400)
@@ -613,11 +613,131 @@ app.post('/api/companies', async (c) => {
       }
     }
     if (networkGid) company.networkSheetGid = networkGid
+    if (googleChatUrl) company.googleChatUrl = googleChatUrl
+    if (googleChatWebhookUrl) company.googleChatWebhookUrl = googleChatWebhookUrl
 
     await c.env.COMPANIES_KV.put(`company:${key}`, JSON.stringify(company))
     return c.json({ success: true, company })
   } catch (err) {
     return c.json({ error: 'Failed to save company' }, 500)
+  }
+})
+
+// --- Google Chat Weekly Reminder ---
+// Send weekly lead status reminder to all companies with a Google Chat webhook
+app.get('/api/chat/weekly-reminder', async (c) => {
+  try {
+    const results: any[] = []
+    const companies = await getAllCompanies(c.env.COMPANIES_KV)
+
+    for (const company of companies) {
+      if (!company.googleChatWebhookUrl || !company.pipelineKey) continue
+
+      try {
+        // Fetch pipeline info and boxes
+        const [pipeline, boxes] = await Promise.all([
+          callStreakAPI(`/pipelines/${company.pipelineKey}`),
+          callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`)
+        ])
+
+        // Build stage name map from pipeline
+        const stageOrder = pipeline.stageOrder || []
+        const stages: Record<string, string> = {}
+        for (const key of stageOrder) {
+          stages[key] = pipeline.stages?.[key]?.name || 'Unknown'
+        }
+
+        // Count boxes at stage "Lead" (case-insensitive)
+        const leadCount = Array.isArray(boxes)
+          ? boxes.filter((box: any) => {
+              const stageName = stages[box.stageKey] || ''
+              return stageName.toLowerCase() === 'lead'
+            }).length
+          : 0
+
+        // Build the reminder message
+        const message = `As a reminder, you still have ${leadCount} leads in your Streak that are still at the stage of LEAD, they should be CONTACTED or better. Also, a FIT would be important to share for future campaigns. Thanks.`
+
+        // Send to Google Chat webhook
+        const webhookRes = await fetch(company.googleChatWebhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+          body: JSON.stringify({ text: message })
+        })
+
+        results.push({
+          company: company.name,
+          leadCount,
+          sent: webhookRes.ok,
+          status: webhookRes.status
+        })
+      } catch (companyErr: any) {
+        results.push({
+          company: company.name,
+          error: companyErr.message,
+          sent: false
+        })
+      }
+    }
+
+    return c.json({ success: true, results, timestamp: new Date().toISOString() })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// Send weekly reminder for a specific company (for testing)
+app.get('/api/chat/weekly-reminder/:companyKey', async (c) => {
+  try {
+    const companyKey = c.req.param('companyKey').toLowerCase()
+    const company = await getCompany(c.env.COMPANIES_KV, companyKey)
+
+    if (!company) {
+      return c.json({ error: 'Company not found' }, 404)
+    }
+    if (!company.googleChatWebhookUrl) {
+      return c.json({ error: `No Google Chat webhook configured for ${company.name}` }, 400)
+    }
+    if (!company.pipelineKey) {
+      return c.json({ error: `No pipeline key configured for ${company.name}` }, 400)
+    }
+
+    const [pipeline, boxes] = await Promise.all([
+      callStreakAPI(`/pipelines/${company.pipelineKey}`),
+      callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`)
+    ])
+
+    const stageOrder = pipeline.stageOrder || []
+    const stages: Record<string, string> = {}
+    for (const key of stageOrder) {
+      stages[key] = pipeline.stages?.[key]?.name || 'Unknown'
+    }
+
+    const leadCount = Array.isArray(boxes)
+      ? boxes.filter((box: any) => {
+          const stageName = stages[box.stageKey] || ''
+          return stageName.toLowerCase() === 'lead'
+        }).length
+      : 0
+
+    const message = `As a reminder, you still have ${leadCount} leads in your Streak that are still at the stage of LEAD, they should be CONTACTED or better. Also, a FIT would be important to share for future campaigns. Thanks.`
+
+    const webhookRes = await fetch(company.googleChatWebhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+      body: JSON.stringify({ text: message })
+    })
+
+    return c.json({
+      success: webhookRes.ok,
+      company: company.name,
+      leadCount,
+      message,
+      webhookStatus: webhookRes.status,
+      timestamp: new Date().toISOString()
+    })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
   }
 })
 
@@ -636,7 +756,7 @@ app.put('/api/companies/:key', async (c) => {
   try {
     const key = c.req.param('key')
     const body = await c.req.json()
-    const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, networkGid } = body
+    const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, networkGid, googleChatUrl, googleChatWebhookUrl } = body
 
     // Load existing company (include archived so we can restore)
     const all = await getAllCompanies(c.env.COMPANIES_KV, true)
@@ -665,6 +785,8 @@ app.put('/api/companies/:key', async (c) => {
     }
     if (engageUrl) updated.url = engageUrl
     if (archived !== undefined) updated.archived = archived
+    if (googleChatUrl !== undefined) updated.googleChatUrl = googleChatUrl
+    if (googleChatWebhookUrl !== undefined) updated.googleChatWebhookUrl = googleChatWebhookUrl
 
     await c.env.COMPANIES_KV.put(`company:${key}`, JSON.stringify(updated))
     return c.json({ success: true, company: updated })
@@ -2517,6 +2639,9 @@ app.get('/', (c) => {
                             <a href="/admin" class="bg-purple-500 hover:bg-purple-400 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors shadow-md">
                                 <i class="fas fa-shield-alt mr-2"></i>Admin Panel
                             </a>
+                            <a id="open-chat-btn" href="#" target="_blank" class="bg-green-500 hover:bg-green-400 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors shadow-md hidden">
+                                <i class="fas fa-comments mr-2"></i>Open Chat
+                            </a>
                         </div>
                     </div>
                     <div class="text-right">
@@ -3023,9 +3148,45 @@ app.get('/', (c) => {
                             </div>
                         </div>
 
+                        <!-- GOOGLE CHAT Integration -->
+                        <div class="p-6 bg-indigo-50 border border-indigo-200 rounded-lg">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center justify-between">
+                                <span><i class="fas fa-comments text-indigo-600 mr-2"></i>Google Chat Integration</span>
+                                <span id="status-googlechat" class="hidden text-xs font-semibold px-2 py-1 rounded-full bg-indigo-100 text-indigo-700"><i class="fas fa-check-circle mr-1"></i>Configured</span>
+                            </h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="text-sm font-medium text-gray-700">Chat Space URL:</label>
+                                    <input
+                                        type="url"
+                                        id="edit-googlechat-url"
+                                        placeholder="https://chat.google.com/app/chat/AAAA-..."
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono text-sm"
+                                    />
+                                    <p class="text-xs text-gray-500 mt-1">
+                                        <i class="fas fa-external-link-alt mr-1"></i>
+                                        Link to the Google Chat space — used for the "Open Chat" button
+                                    </p>
+                                </div>
+                                <div>
+                                    <label class="text-sm font-medium text-gray-700">Webhook URL:</label>
+                                    <input
+                                        type="url"
+                                        id="edit-googlechat-webhook"
+                                        placeholder="https://chat.googleapis.com/v1/spaces/..."
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono text-sm"
+                                    />
+                                    <p class="text-xs text-gray-500 mt-1">
+                                        <i class="fas fa-robot mr-1"></i>
+                                        Webhook endpoint for automated messages (weekly reminders)
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Save Button -->
                         <div class="flex items-center space-x-4 pt-4">
-                            <button 
+                            <button
                                 type="button"
                                 onclick="saveSourceURLs()"
                                 class="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-blue-600 hover:to-blue-700 transition-all shadow-lg flex items-center justify-center"
@@ -3176,9 +3337,40 @@ app.get('/', (c) => {
                                 <p class="text-xs text-gray-500 mt-1">URL for marketing campaigns and promotional activities</p>
                             </div>
 
+                            <!-- Google Chat Webhook URL (Optional) -->
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    <i class="fas fa-comments text-indigo-600 mr-2"></i>
+                                    Google Chat Space URL
+                                    <span class="text-gray-400 text-xs ml-2">(Optional)</span>
+                                </label>
+                                <input
+                                    type="url"
+                                    id="new-googlechat-url"
+                                    placeholder="https://chat.google.com/app/chat/AAAA-..."
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono text-sm"
+                                />
+                                <p class="text-xs text-gray-500 mt-1">Link to the Google Chat space for this company</p>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    <i class="fas fa-robot text-indigo-600 mr-2"></i>
+                                    Google Chat Webhook URL
+                                    <span class="text-gray-400 text-xs ml-2">(Optional)</span>
+                                </label>
+                                <input
+                                    type="url"
+                                    id="new-googlechat-webhook"
+                                    placeholder="https://chat.googleapis.com/v1/spaces/..."
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono text-sm"
+                                />
+                                <p class="text-xs text-gray-500 mt-1">Webhook endpoint for sending automated messages</p>
+                            </div>
+
                             <!-- Action Buttons -->
                             <div class="flex items-center space-x-4 pt-4">
-                                <button 
+                                <button
                                     type="button"
                                     onclick="addNewCompany()"
                                     class="flex-1 bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-green-600 hover:to-green-700 transition-all shadow-lg flex items-center justify-center"
@@ -3631,6 +3823,9 @@ app.get('/', (c) => {
 
                 // Update Google Sheets formulas for this company
                 updateSheetsFormulas();
+
+                // Update Open Chat button visibility
+                updateOpenChatButton();
 
                 // Update Settings view
                 updateSettingsView();
@@ -4749,6 +4944,18 @@ app.get('/', (c) => {
                 }
             }
 
+            function updateOpenChatButton() {
+                const company = COMPANIES[currentCompany];
+                const btn = document.getElementById('open-chat-btn');
+                if (!btn) return;
+                if (company && company.googleChatUrl) {
+                    btn.href = company.googleChatUrl;
+                    btn.classList.remove('hidden');
+                } else {
+                    btn.classList.add('hidden');
+                }
+            }
+
             function updateSettingsView() {
                 const company = COMPANIES[currentCompany];
                 const sources = company.sources || { promote: '', network: '', engage: '' };
@@ -4761,6 +4968,18 @@ app.get('/', (c) => {
                 document.getElementById('edit-network-url').value = sources.network || '';
                 document.getElementById('edit-network-gid').value = company.networkSheetGid || '';
                 document.getElementById('edit-engage-url').value = sources.engage || company.url || '';
+
+                // Populate Google Chat fields
+                document.getElementById('edit-googlechat-url').value = company.googleChatUrl || '';
+                document.getElementById('edit-googlechat-webhook').value = company.googleChatWebhookUrl || '';
+
+                // Show Google Chat status badge
+                const gcBadge = document.getElementById('status-googlechat');
+                if (company.googleChatUrl || company.googleChatWebhookUrl) {
+                    gcBadge.classList.remove('hidden');
+                } else {
+                    gcBadge.classList.add('hidden');
+                }
 
                 // Show green badges for already-saved URLs
                 updateSourceStatusBadges(sources, company);
@@ -4781,6 +5000,8 @@ app.get('/', (c) => {
                 const networkUrl = document.getElementById('edit-network-url').value.trim();
                 const networkGid = document.getElementById('edit-network-gid').value.trim();
                 const engageUrl = document.getElementById('edit-engage-url').value.trim();
+                const googleChatUrl = document.getElementById('edit-googlechat-url').value.trim();
+                const googleChatWebhookUrl = document.getElementById('edit-googlechat-webhook').value.trim();
 
                 // Validate URLs if provided
                 if (promoteUrl && !isValidURL(promoteUrl)) {
@@ -4799,118 +5020,14 @@ app.get('/', (c) => {
                     showEditMessage('error', 'Network Sheet GID must contain only numbers.');
                     return;
                 }
+                if (googleChatUrl && !isValidURL(googleChatUrl)) {
+                    showEditMessage('error', 'Google Chat Space URL is not valid. Please enter a valid URL or leave it empty.');
+                    return;
+                }
+                if (googleChatWebhookUrl && !isValidURL(googleChatWebhookUrl)) {
+                    showEditMessage('error', 'Google Chat Webhook URL is not valid. Please enter a valid URL or leave it empty.');
+                    return;
+                }
 
                 try {
-                    const res = await fetch(\`/api/companies/\${currentCompany}\`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ promoteUrl, networkUrl, networkGid, engageUrl })
-                    });
-                    const data = await res.json();
-                    if (!res.ok) throw new Error(data.error || 'Save failed');
-
-                    // Update local object so dashboard reflects immediately
-                    if (!company.sources) company.sources = {};
-                    company.sources.promote = promoteUrl;
-                    company.sources.network = networkUrl;
-                    company.sources.engage = engageUrl || company.url;
-                    if (networkGid) { company.networkSheetGid = networkGid; } else { delete company.networkSheetGid; }
-                    if (engageUrl) company.url = engageUrl;
-
-                    // Refresh status badges
-                    updateSourceStatusBadges(company.sources, company);
-                    showEditMessage('success', \`Source URLs for \${company.name} saved and persisted successfully!\`);
-                    loadDashboard();
-                } catch (err) {
-                    showEditMessage('error', \`Failed to save: \${err.message}\`);
-                }
-            }
-
-            // Validate URL
-            function isValidURL(string) {
-                try {
-                    new URL(string);
-                    return true;
-                } catch (_) {
-                    return false;
-                }
-            }
-
-            // Show Edit Message Function
-            function showEditMessage(type, message) {
-                const messageEl = document.getElementById('edit-sources-message');
-                messageEl.classList.remove('hidden');
-                
-                if (type === 'success') {
-                    messageEl.className = 'bg-green-50 border-l-4 border-green-500 p-4 mt-4';
-                    messageEl.innerHTML = \`
-                        <div class="flex items-center">
-                            <i class="fas fa-check-circle text-green-600 text-xl mr-3"></i>
-                            <div>
-                                <p class="text-sm font-semibold text-green-800">Success!</p>
-                                <p class="text-sm text-green-700 mt-1">\${message}</p>
-                            </div>
-                        </div>
-                    \`;
-                    
-                    // Auto-hide after 5 seconds
-                    setTimeout(() => {
-                        messageEl.classList.add('hidden');
-                    }, 5000);
-                } else {
-                    messageEl.className = 'bg-red-50 border-l-4 border-red-500 p-4 mt-4';
-                    messageEl.innerHTML = \`
-                        <div class="flex items-center">
-                            <i class="fas fa-exclamation-circle text-red-600 text-xl mr-3"></i>
-                            <div>
-                                <p class="text-sm font-semibold text-red-800">Error</p>
-                                <p class="text-sm text-red-700 mt-1">\${message}</p>
-                            </div>
-                        </div>
-                    \`;
-                }
-            }
-
-            // Add New Company Function
-            async function addNewCompany() {
-                // Get form values
-                const name = document.getElementById('new-company-name').value.trim();
-                const key = document.getElementById('new-company-key').value.trim();
-                const pipelineKey = document.getElementById('new-pipeline-key').value.trim();
-                const engageUrl = document.getElementById('new-engage-url').value.trim();
-                const networkUrl = document.getElementById('new-network-url').value.trim();
-                const networkGid = document.getElementById('new-network-gid').value.trim();
-                const promoteUrl = document.getElementById('new-promote-url').value.trim();
-
-                // Validate required fields
-                if (!name || !key || !pipelineKey || !engageUrl) {
-                    showMessage('error', 'Please fill in all required fields (marked with *)');
-                    return;
-                }
-
-                // Validate key format (lowercase, numbers, hyphens only)
-                if (!/^[a-z0-9-]+$/.test(key)) {
-                    showMessage('error', 'Company Key must contain only lowercase letters, numbers, and hyphens');
-                    return;
-                }
-
-                // Check if key already exists
-                if (COMPANIES[key]) {
-                    showMessage('error', \`Company key "\${key}" already exists. Please use a different key.\`);
-                    return;
-                }
-
-                // Create new company object
-                const newCompany = {
-                    name: name,
-                    pipelineKey: pipelineKey,
-                    url: engageUrl,
-                    sources: {
-                        promote: promoteUrl || '',
-                        network: networkUrl || '',
-                        engage: engageUrl
-                    }
-                };
-
-                // Add networkSheetGid if provided
-                if (network
+                    const res = await fetch(\`/api
