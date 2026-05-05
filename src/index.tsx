@@ -5036,4 +5036,449 @@ app.get('/', (c) => {
                     const el = document.getElementById(id);
                     if (el) {
                         if (value) { el.classList.remove('hidden'); }
-                        else { el.classLis
+                        else { el.classList.add('hidden'); }
+                    }
+                }
+            }
+
+            // --- Scheduled Messages Management ---
+            let messageCounter = 0;
+
+            function addMessageRow(msg) {
+                const list = document.getElementById('messages-list');
+                const noMsg = document.getElementById('no-messages');
+                if (noMsg) noMsg.classList.add('hidden');
+
+                messageCounter++;
+                const id = msg ? msg.id : \`msg_\${Date.now()}_\${messageCounter}\`;
+                const text = msg ? msg.text : '';
+                const day = msg ? msg.dayOfWeek : 'friday';
+                const time = msg ? msg.time : '17:00';
+                const enabled = msg ? msg.enabled !== false : true;
+
+                const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+                const dayOptions = days.map(d => \`<option value="\${d}" \${d === day ? 'selected' : ''}>\${d.charAt(0).toUpperCase() + d.slice(1)}</option>\`).join('');
+
+                const row = document.createElement('div');
+                row.className = 'bg-white border border-orange-200 rounded-lg p-4 space-y-3';
+                row.dataset.messageId = id;
+                row.innerHTML = \`
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" class="sr-only peer msg-enabled" \${enabled ? 'checked' : ''}>
+                                <div class="w-9 h-5 bg-gray-200 peer-focus:ring-2 peer-focus:ring-orange-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-orange-500"></div>
+                            </label>
+                            <span class="text-sm font-medium text-gray-700">\${enabled ? 'Active' : 'Paused'}</span>
+                        </div>
+                        <button type="button" onclick="removeMessageRow(this)" class="text-red-400 hover:text-red-600 transition-colors">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
+                    <textarea class="msg-text w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500" rows="3" placeholder="As a reminder, you still have [leads:Lead] leads at the stage of LEAD...">\${text}</textarea>
+                    <div class="flex items-center space-x-3">
+                        <div class="flex-1">
+                            <label class="text-xs font-medium text-gray-600">Day</label>
+                            <select class="msg-day w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500">
+                                \${dayOptions}
+                            </select>
+                        </div>
+                        <div class="flex-1">
+                            <label class="text-xs font-medium text-gray-600">Time (EST)</label>
+                            <input type="time" class="msg-time w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500" value="\${time}">
+                        </div>
+                    </div>
+                \`;
+
+                // Toggle label update
+                const toggle = row.querySelector('.msg-enabled');
+                toggle.addEventListener('change', function() {
+                    this.closest('.flex').querySelector('span').textContent = this.checked ? 'Active' : 'Paused';
+                });
+
+                list.appendChild(row);
+            }
+
+            function removeMessageRow(btn) {
+                const row = btn.closest('[data-message-id]');
+                row.remove();
+                const list = document.getElementById('messages-list');
+                if (list.children.length === 0) {
+                    document.getElementById('no-messages').classList.remove('hidden');
+                }
+            }
+
+            function collectMessages() {
+                const rows = document.querySelectorAll('#messages-list [data-message-id]');
+                const messages = [];
+                rows.forEach(row => {
+                    messages.push({
+                        id: row.dataset.messageId,
+                        text: row.querySelector('.msg-text').value.trim(),
+                        dayOfWeek: row.querySelector('.msg-day').value,
+                        time: row.querySelector('.msg-time').value,
+                        enabled: row.querySelector('.msg-enabled').checked
+                    });
+                });
+                return messages;
+            }
+
+            function renderMessages(messages) {
+                const list = document.getElementById('messages-list');
+                const noMsg = document.getElementById('no-messages');
+                list.innerHTML = '';
+                if (!messages || messages.length === 0) {
+                    noMsg.classList.remove('hidden');
+                    return;
+                }
+                noMsg.classList.add('hidden');
+                messages.forEach(msg => addMessageRow(msg));
+            }
+
+            function updateOpenChatButton() {
+                const company = COMPANIES[currentCompany];
+                const btn = document.getElementById('open-chat-btn');
+                if (!btn) return;
+                if (company && company.googleChatUrl) {
+                    btn.href = company.googleChatUrl;
+                    btn.classList.remove('hidden');
+                } else {
+                    btn.classList.add('hidden');
+                }
+            }
+
+            function updateSettingsView() {
+                const company = COMPANIES[currentCompany];
+                const sources = company.sources || { promote: '', network: '', engage: '' };
+
+                // Update company name in settings header
+                document.getElementById('settings-company-name').textContent = company.name;
+
+                // Populate input fields with current values
+                document.getElementById('edit-promote-url').value = sources.promote || '';
+                document.getElementById('edit-network-url').value = sources.network || '';
+                document.getElementById('edit-network-gid').value = company.networkSheetGid || '';
+                document.getElementById('edit-engage-url').value = sources.engage || company.url || '';
+
+                // Populate Google Chat fields
+                document.getElementById('edit-googlechat-url').value = company.googleChatUrl || '';
+                document.getElementById('edit-googlechat-webhook').value = company.googleChatWebhookUrl || '';
+
+                // Show Google Chat status badge
+                const gcBadge = document.getElementById('status-googlechat');
+                if (company.googleChatUrl || company.googleChatWebhookUrl) {
+                    gcBadge.classList.remove('hidden');
+                } else {
+                    gcBadge.classList.add('hidden');
+                }
+
+                // Render scheduled messages
+                renderMessages(company.messages || []);
+
+                // Show green badges for already-saved URLs
+                updateSourceStatusBadges(sources, company);
+
+                // Hide any previous messages
+                const messageEl = document.getElementById('edit-sources-message');
+                if (messageEl) {
+                    messageEl.classList.add('hidden');
+                }
+            }
+
+            // Save Source URLs Function
+            async function saveSourceURLs() {
+                const company = COMPANIES[currentCompany];
+
+                // Get values from input fields
+                const promoteUrl = document.getElementById('edit-promote-url').value.trim();
+                const networkUrl = document.getElementById('edit-network-url').value.trim();
+                const networkGid = document.getElementById('edit-network-gid').value.trim();
+                const engageUrl = document.getElementById('edit-engage-url').value.trim();
+                const googleChatUrl = document.getElementById('edit-googlechat-url').value.trim();
+                const googleChatWebhookUrl = document.getElementById('edit-googlechat-webhook').value.trim();
+
+                // Validate URLs if provided
+                if (promoteUrl && !isValidURL(promoteUrl)) {
+                    showEditMessage('error', 'PROMOTE URL is not valid. Please enter a valid URL or leave it empty.');
+                    return;
+                }
+                if (networkUrl && !isValidURL(networkUrl)) {
+                    showEditMessage('error', 'NETWORK URL is not valid. Please enter a valid URL or leave it empty.');
+                    return;
+                }
+                if (engageUrl && !isValidURL(engageUrl)) {
+                    showEditMessage('error', 'ENGAGE URL is not valid. Please enter a valid URL.');
+                    return;
+                }
+                if (networkGid && !/^[0-9]*$/.test(networkGid)) {
+                    showEditMessage('error', 'Network Sheet GID must contain only numbers.');
+                    return;
+                }
+                if (googleChatUrl && !isValidURL(googleChatUrl)) {
+                    showEditMessage('error', 'Google Chat Space URL is not valid.');
+                    return;
+                }
+                if (googleChatWebhookUrl && !isValidURL(googleChatWebhookUrl)) {
+                    showEditMessage('error', 'Google Chat Webhook URL is not valid.');
+                    return;
+                }
+
+                // Collect scheduled messages
+                const messages = collectMessages();
+
+                try {
+                    const res = await fetch(\`/api/companies/\${currentCompany}\`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ promoteUrl, networkUrl, networkGid, engageUrl, googleChatUrl, googleChatWebhookUrl, messages })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || 'Save failed');
+
+                    // Update local object so dashboard reflects immediately
+                    if (!company.sources) company.sources = {};
+                    company.sources.promote = promoteUrl;
+                    company.sources.network = networkUrl;
+                    company.sources.engage = engageUrl || company.url;
+                    if (networkGid) { company.networkSheetGid = networkGid; } else { delete company.networkSheetGid; }
+                    if (engageUrl) company.url = engageUrl;
+                    company.googleChatUrl = googleChatUrl || '';
+                    company.googleChatWebhookUrl = googleChatWebhookUrl || '';
+                    company.messages = messages;
+
+                    // Refresh status badges
+                    updateSourceStatusBadges(company.sources, company);
+                    showEditMessage('success', \`Source URLs for \${company.name} saved and persisted successfully!\`);
+                    loadDashboard();
+                } catch (err) {
+                    showEditMessage('error', \`Failed to save: \${err.message}\`);
+                }
+            }
+
+            // Validate URL
+            function isValidURL(string) {
+                try {
+                    new URL(string);
+                    return true;
+                } catch (_) {
+                    return false;
+                }
+            }
+
+            // Show Edit Message Function
+            function showEditMessage(type, message) {
+                const messageEl = document.getElementById('edit-sources-message');
+                messageEl.classList.remove('hidden');
+                
+                if (type === 'success') {
+                    messageEl.className = 'bg-green-50 border-l-4 border-green-500 p-4 mt-4';
+                    messageEl.innerHTML = \`
+                        <div class="flex items-center">
+                            <i class="fas fa-check-circle text-green-600 text-xl mr-3"></i>
+                            <div>
+                                <p class="text-sm font-semibold text-green-800">Success!</p>
+                                <p class="text-sm text-green-700 mt-1">\${message}</p>
+                            </div>
+                        </div>
+                    \`;
+                    
+                    // Auto-hide after 5 seconds
+                    setTimeout(() => {
+                        messageEl.classList.add('hidden');
+                    }, 5000);
+                } else {
+                    messageEl.className = 'bg-red-50 border-l-4 border-red-500 p-4 mt-4';
+                    messageEl.innerHTML = \`
+                        <div class="flex items-center">
+                            <i class="fas fa-exclamation-circle text-red-600 text-xl mr-3"></i>
+                            <div>
+                                <p class="text-sm font-semibold text-red-800">Error</p>
+                                <p class="text-sm text-red-700 mt-1">\${message}</p>
+                            </div>
+                        </div>
+                    \`;
+                }
+            }
+
+            // Add New Company Function
+            async function addNewCompany() {
+                // Get form values
+                const name = document.getElementById('new-company-name').value.trim();
+                const key = document.getElementById('new-company-key').value.trim();
+                const pipelineKey = document.getElementById('new-pipeline-key').value.trim();
+                const engageUrl = document.getElementById('new-engage-url').value.trim();
+                const networkUrl = document.getElementById('new-network-url').value.trim();
+                const networkGid = document.getElementById('new-network-gid').value.trim();
+                const promoteUrl = document.getElementById('new-promote-url').value.trim();
+                const googleChatUrl = document.getElementById('new-googlechat-url').value.trim();
+                const googleChatWebhookUrl = document.getElementById('new-googlechat-webhook').value.trim();
+
+                // Validate required fields
+                if (!name || !key || !pipelineKey || !engageUrl) {
+                    showMessage('error', 'Please fill in all required fields (marked with *)');
+                    return;
+                }
+
+                // Validate key format (lowercase, numbers, hyphens only)
+                if (!/^[a-z0-9-]+$/.test(key)) {
+                    showMessage('error', 'Company Key must contain only lowercase letters, numbers, and hyphens');
+                    return;
+                }
+
+                // Check if key already exists
+                if (COMPANIES[key]) {
+                    showMessage('error', \`Company key "\${key}" already exists. Please use a different key.\`);
+                    return;
+                }
+
+                // Create new company object
+                const newCompany = {
+                    name: name,
+                    pipelineKey: pipelineKey,
+                    url: engageUrl,
+                    sources: {
+                        promote: promoteUrl || '',
+                        network: networkUrl || '',
+                        engage: engageUrl
+                    }
+                };
+
+                // Add optional fields
+                if (networkGid) newCompany.networkSheetGid = networkGid;
+                if (googleChatUrl) newCompany.googleChatUrl = googleChatUrl;
+                if (googleChatWebhookUrl) newCompany.googleChatWebhookUrl = googleChatWebhookUrl;
+
+                try {
+                    const res = await fetch('/api/companies', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name, pipelineKey, networkUrl, promoteUrl, engageUrl, networkGid, key, googleChatUrl, googleChatWebhookUrl })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || 'Failed to add company');
+
+                    // Add company to local COMPANIES object
+                    COMPANIES[key] = newCompany;
+
+                    // Add to dropdown
+                    const selector = document.getElementById('company-selector');
+                    const option = document.createElement('option');
+                    option.value = key;
+                    option.textContent = name;
+                    selector.appendChild(option);
+
+                    // Switch to the new company
+                    currentCompany = key;
+                    selector.value = key;
+
+                    updateSheetsFormulas();
+                    updateSettingsView();
+                    updateOpenChatButton();
+                    loadDashboard();
+
+                    showMessage('success', \`Company "\${name}" added and saved permanently!\`);
+                    resetAddCompanyForm();
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                } catch (err) {
+                    showMessage('error', \`Failed to add company: \${err.message}\`);
+                }
+            }
+
+            // Reset Add Company Form
+            function resetAddCompanyForm() {
+                document.getElementById('new-company-name').value = '';
+                document.getElementById('new-company-key').value = '';
+                document.getElementById('new-pipeline-key').value = '';
+                document.getElementById('new-engage-url').value = '';
+                document.getElementById('new-network-url').value = '';
+                document.getElementById('new-network-gid').value = '';
+                document.getElementById('new-promote-url').value = '';
+                document.getElementById('new-googlechat-url').value = '';
+                document.getElementById('new-googlechat-webhook').value = '';
+                
+                // Hide message
+                const messageEl = document.getElementById('add-company-message');
+                messageEl.classList.add('hidden');
+            }
+
+            // Show Message Function
+            function showMessage(type, message) {
+                const messageEl = document.getElementById('add-company-message');
+                messageEl.classList.remove('hidden');
+                
+                if (type === 'success') {
+                    messageEl.className = 'bg-green-50 border-l-4 border-green-500 p-4 mt-4';
+                    messageEl.innerHTML = \`
+                        <div class="flex items-center">
+                            <i class="fas fa-check-circle text-green-600 text-xl mr-3"></i>
+                            <div>
+                                <p class="text-sm font-semibold text-green-800">Success!</p>
+                                <p class="text-sm text-green-700 mt-1">\${message}</p>
+                            </div>
+                        </div>
+                    \`;
+                } else {
+                    messageEl.className = 'bg-red-50 border-l-4 border-red-500 p-4 mt-4';
+                    messageEl.innerHTML = \`
+                        <div class="flex items-center">
+                            <i class="fas fa-exclamation-circle text-red-600 text-xl mr-3"></i>
+                            <div>
+                                <p class="text-sm font-semibold text-red-800">Error</p>
+                                <p class="text-sm text-red-700 mt-1">\${message}</p>
+                            </div>
+                        </div>
+                    \`;
+                }
+
+                // Auto-hide success messages after 5 seconds
+                if (type === 'success') {
+                    setTimeout(() => {
+                        messageEl.classList.add('hidden');
+                    }, 5000);
+                }
+            }
+
+            // Load KV companies on startup and merge into COMPANIES + dropdown
+            async function loadKVCompanies() {
+                try {
+                    const res = await fetch('/api/companies');
+                    const data = await res.json();
+                    if (!data.companies) return;
+                    var selector = document.getElementById('company-selector');
+                    data.companies.forEach(company => {
+                        // Merge into COMPANIES object
+                        if (!COMPANIES[company.key]) {
+                            COMPANIES[company.key] = company;
+                            // Add to dropdown if not already there
+                            if (selector && !selector.querySelector(\`option[value="\${company.key}"]\`)) {
+                                const option = document.createElement('option');
+                                option.value = company.key;
+                                option.textContent = company.name;
+                                selector.appendChild(option);
+                            }
+                        } else {
+                            // Override hardcoded entry with KV version (has saved URLs)
+                            COMPANIES[company.key] = { ...COMPANIES[company.key], ...company };
+                        }
+                    });
+                } catch (e) {
+                    console.warn('Could not load KV companies:', e);
+                }
+            }
+
+            // Load dashboard on page load and setup auto-refresh
+            loadKVCompanies().then(function() {
+                updateSheetsFormulas();
+                updateSettingsView();
+                updateOnboardingView();
+                updateOpenChatButton();
+                loadDashboard();
+            });
+            setupAutoRefresh();
+        </script>
+    </body>
+    </html>
+  `)
+})
+
+export default app
