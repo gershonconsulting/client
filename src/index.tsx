@@ -588,7 +588,7 @@ app.get('/api/companies', async (c) => {
 app.post('/api/companies', async (c) => {
   try {
     const body = await c.req.json()
-    const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, notionUrl, networkGid, key: providedKey, googleChatUrl, googleChatWebhookUrl } = body
+    const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, notionUrl, networkGid, key: providedKey, googleChatUrl, googleChatWebhookUrl, messages } = body
 
     if (!name || !pipelineKey) {
       return c.json({ error: 'name and pipelineKey are required' }, 400)
@@ -615,6 +615,7 @@ app.post('/api/companies', async (c) => {
     if (networkGid) company.networkSheetGid = networkGid
     if (googleChatUrl) company.googleChatUrl = googleChatUrl
     if (googleChatWebhookUrl) company.googleChatWebhookUrl = googleChatWebhookUrl
+    if (messages && messages.length > 0) company.messages = messages
 
     await c.env.COMPANIES_KV.put(`company:${key}`, JSON.stringify(company))
     return c.json({ success: true, company })
@@ -623,8 +624,105 @@ app.post('/api/companies', async (c) => {
   }
 })
 
-// --- Google Chat Weekly Reminder ---
-// Send weekly lead status reminder to all companies with a Google Chat webhook
+// --- Google Chat Scheduled Messages ---
+// Resolve dynamic variables like [leads:Lead], [leads:Contacted] in message text
+async function resolveMessageVariables(text: string, pipelineKey: string): Promise<string> {
+  // Find all [leads:StageName] patterns
+  const pattern = /\[leads:([^\]]+)\]/gi
+  const matches = [...text.matchAll(pattern)]
+  if (matches.length === 0) return text
+
+  // Fetch pipeline and boxes once
+  const [pipeline, boxes] = await Promise.all([
+    callStreakAPI(`/pipelines/${pipelineKey}`),
+    callStreakAPI(`/pipelines/${pipelineKey}/boxes`)
+  ])
+
+  // Build stage name map
+  const stageOrder = pipeline.stageOrder || []
+  const stages: Record<string, string> = {}
+  for (const key of stageOrder) {
+    stages[key] = pipeline.stages?.[key]?.name || 'Unknown'
+  }
+
+  // Replace each variable with the count
+  let resolved = text
+  for (const match of matches) {
+    const stageName = match[1]
+    const count = Array.isArray(boxes)
+      ? boxes.filter((box: any) => {
+          const boxStage = stages[box.stageKey] || ''
+          return boxStage.toLowerCase() === stageName.toLowerCase()
+        }).length
+      : 0
+    resolved = resolved.replace(match[0], count.toString())
+  }
+  return resolved
+}
+
+// Get current day of week in EST
+function getCurrentDayEST(): string {
+  const now = new Date()
+  // Convert to EST (UTC-5)
+  const estOffset = -5 * 60
+  const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes()
+  const estMinutes = utcMinutes + estOffset
+  const estDate = new Date(now)
+  estDate.setUTCMinutes(estDate.getUTCMinutes() + estOffset)
+  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+  return days[estDate.getUTCDay()]
+}
+
+// Send all scheduled messages that match the current day (called by external cron)
+app.get('/api/chat/send-messages', async (c) => {
+  try {
+    const results: any[] = []
+    const companies = await getAllCompanies(c.env.COMPANIES_KV)
+    const today = getCurrentDayEST()
+
+    for (const company of companies) {
+      if (!company.googleChatWebhookUrl || !company.messages || !company.pipelineKey) continue
+
+      // Filter messages scheduled for today that are enabled
+      const todayMessages = company.messages.filter((msg: any) =>
+        msg.enabled && msg.dayOfWeek === today
+      )
+
+      for (const msg of todayMessages) {
+        try {
+          const resolvedText = await resolveMessageVariables(msg.text, company.pipelineKey)
+
+          const webhookRes = await fetch(company.googleChatWebhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+            body: JSON.stringify({ text: resolvedText })
+          })
+
+          results.push({
+            company: company.name,
+            messageId: msg.id,
+            sent: webhookRes.ok,
+            status: webhookRes.status,
+            resolvedText
+          })
+        } catch (msgErr: any) {
+          results.push({
+            company: company.name,
+            messageId: msg.id,
+            error: msgErr.message,
+            sent: false
+          })
+        }
+      }
+    }
+
+    return c.json({ success: true, day: today, results, timestamp: new Date().toISOString() })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// Legacy endpoint: send the default lead reminder to all companies
 app.get('/api/chat/weekly-reminder', async (c) => {
   try {
     const results: any[] = []
@@ -634,20 +732,17 @@ app.get('/api/chat/weekly-reminder', async (c) => {
       if (!company.googleChatWebhookUrl || !company.pipelineKey) continue
 
       try {
-        // Fetch pipeline info and boxes
         const [pipeline, boxes] = await Promise.all([
           callStreakAPI(`/pipelines/${company.pipelineKey}`),
           callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`)
         ])
 
-        // Build stage name map from pipeline
         const stageOrder = pipeline.stageOrder || []
         const stages: Record<string, string> = {}
         for (const key of stageOrder) {
           stages[key] = pipeline.stages?.[key]?.name || 'Unknown'
         }
 
-        // Count boxes at stage "Lead" (case-insensitive)
         const leadCount = Array.isArray(boxes)
           ? boxes.filter((box: any) => {
               const stageName = stages[box.stageKey] || ''
@@ -655,28 +750,17 @@ app.get('/api/chat/weekly-reminder', async (c) => {
             }).length
           : 0
 
-        // Build the reminder message
         const message = `As a reminder, you still have ${leadCount} leads in your Streak that are still at the stage of LEAD, they should be CONTACTED or better. Also, a FIT would be important to share for future campaigns. Thanks.`
 
-        // Send to Google Chat webhook
         const webhookRes = await fetch(company.googleChatWebhookUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json; charset=UTF-8' },
           body: JSON.stringify({ text: message })
         })
 
-        results.push({
-          company: company.name,
-          leadCount,
-          sent: webhookRes.ok,
-          status: webhookRes.status
-        })
+        results.push({ company: company.name, leadCount, sent: webhookRes.ok, status: webhookRes.status })
       } catch (companyErr: any) {
-        results.push({
-          company: company.name,
-          error: companyErr.message,
-          sent: false
-        })
+        results.push({ company: company.name, error: companyErr.message, sent: false })
       }
     }
 
@@ -686,8 +770,8 @@ app.get('/api/chat/weekly-reminder', async (c) => {
   }
 })
 
-// Send weekly reminder for a specific company (for testing)
-app.get('/api/chat/weekly-reminder/:companyKey', async (c) => {
+// Send messages for a specific company (for testing)
+app.get('/api/chat/send-messages/:companyKey', async (c) => {
   try {
     const companyKey = c.req.param('companyKey').toLowerCase()
     const company = await getCompany(c.env.COMPANIES_KV, companyKey)
@@ -701,39 +785,30 @@ app.get('/api/chat/weekly-reminder/:companyKey', async (c) => {
     if (!company.pipelineKey) {
       return c.json({ error: `No pipeline key configured for ${company.name}` }, 400)
     }
-
-    const [pipeline, boxes] = await Promise.all([
-      callStreakAPI(`/pipelines/${company.pipelineKey}`),
-      callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`)
-    ])
-
-    const stageOrder = pipeline.stageOrder || []
-    const stages: Record<string, string> = {}
-    for (const key of stageOrder) {
-      stages[key] = pipeline.stages?.[key]?.name || 'Unknown'
+    if (!company.messages || company.messages.length === 0) {
+      return c.json({ error: `No messages configured for ${company.name}` }, 400)
     }
 
-    const leadCount = Array.isArray(boxes)
-      ? boxes.filter((box: any) => {
-          const stageName = stages[box.stageKey] || ''
-          return stageName.toLowerCase() === 'lead'
-        }).length
-      : 0
-
-    const message = `As a reminder, you still have ${leadCount} leads in your Streak that are still at the stage of LEAD, they should be CONTACTED or better. Also, a FIT would be important to share for future campaigns. Thanks.`
-
-    const webhookRes = await fetch(company.googleChatWebhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-      body: JSON.stringify({ text: message })
-    })
+    const results: any[] = []
+    for (const msg of company.messages) {
+      if (!msg.enabled) continue
+      try {
+        const resolvedText = await resolveMessageVariables(msg.text, company.pipelineKey)
+        const webhookRes = await fetch(company.googleChatWebhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+          body: JSON.stringify({ text: resolvedText })
+        })
+        results.push({ messageId: msg.id, dayOfWeek: msg.dayOfWeek, time: msg.time, sent: webhookRes.ok, resolvedText })
+      } catch (msgErr: any) {
+        results.push({ messageId: msg.id, error: msgErr.message, sent: false })
+      }
+    }
 
     return c.json({
-      success: webhookRes.ok,
+      success: true,
       company: company.name,
-      leadCount,
-      message,
-      webhookStatus: webhookRes.status,
+      results,
       timestamp: new Date().toISOString()
     })
   } catch (err: any) {
@@ -756,7 +831,7 @@ app.put('/api/companies/:key', async (c) => {
   try {
     const key = c.req.param('key')
     const body = await c.req.json()
-    const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, networkGid, googleChatUrl, googleChatWebhookUrl } = body
+    const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, networkGid, googleChatUrl, googleChatWebhookUrl, messages } = body
 
     // Load existing company (include archived so we can restore)
     const all = await getAllCompanies(c.env.COMPANIES_KV, true)
@@ -787,6 +862,7 @@ app.put('/api/companies/:key', async (c) => {
     if (archived !== undefined) updated.archived = archived
     if (googleChatUrl !== undefined) updated.googleChatUrl = googleChatUrl
     if (googleChatWebhookUrl !== undefined) updated.googleChatWebhookUrl = googleChatWebhookUrl
+    if (messages !== undefined) updated.messages = messages
 
     await c.env.COMPANIES_KV.put(`company:${key}`, JSON.stringify(updated))
     return c.json({ success: true, company: updated })
@@ -3184,6 +3260,27 @@ app.get('/', (c) => {
                             </div>
                         </div>
 
+                        <!-- SCHEDULED MESSAGES -->
+                        <div class="p-6 bg-orange-50 border border-orange-200 rounded-lg">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center justify-between">
+                                <span><i class="fas fa-paper-plane text-orange-600 mr-2"></i>Scheduled Messages</span>
+                                <button type="button" onclick="addMessageRow()" class="text-sm bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded-lg transition-colors">
+                                    <i class="fas fa-plus mr-1"></i>Add Message
+                                </button>
+                            </h3>
+                            <p class="text-xs text-gray-600 mb-4">
+                                <i class="fas fa-info-circle mr-1"></i>
+                                Configure automated messages sent to this company's Google Chat. Use dynamic variables: <code class="bg-orange-100 px-1 rounded">[leads:Lead]</code>, <code class="bg-orange-100 px-1 rounded">[leads:Contacted]</code>, <code class="bg-orange-100 px-1 rounded">[leads:Qualified]</code> etc. to insert live Streak counts.
+                            </p>
+                            <div id="messages-list" class="space-y-4">
+                                <!-- Messages populated dynamically -->
+                            </div>
+                            <div id="no-messages" class="text-center py-6 text-gray-400">
+                                <i class="fas fa-envelope-open text-3xl mb-2"></i>
+                                <p class="text-sm">No scheduled messages yet. Click "Add Message" to create one.</p>
+                            </div>
+                        </div>
+
                         <!-- Save Button -->
                         <div class="flex items-center space-x-4 pt-4">
                             <button
@@ -4939,95 +5036,4 @@ app.get('/', (c) => {
                     const el = document.getElementById(id);
                     if (el) {
                         if (value) { el.classList.remove('hidden'); }
-                        else { el.classList.add('hidden'); }
-                    }
-                }
-            }
-
-            function updateOpenChatButton() {
-                const company = COMPANIES[currentCompany];
-                const btn = document.getElementById('open-chat-btn');
-                if (!btn) return;
-                if (company && company.googleChatUrl) {
-                    btn.href = company.googleChatUrl;
-                    btn.classList.remove('hidden');
-                } else {
-                    btn.classList.add('hidden');
-                }
-            }
-
-            function updateSettingsView() {
-                const company = COMPANIES[currentCompany];
-                const sources = company.sources || { promote: '', network: '', engage: '' };
-
-                // Update company name in settings header
-                document.getElementById('settings-company-name').textContent = company.name;
-
-                // Populate input fields with current values
-                document.getElementById('edit-promote-url').value = sources.promote || '';
-                document.getElementById('edit-network-url').value = sources.network || '';
-                document.getElementById('edit-network-gid').value = company.networkSheetGid || '';
-                document.getElementById('edit-engage-url').value = sources.engage || company.url || '';
-
-                // Populate Google Chat fields
-                document.getElementById('edit-googlechat-url').value = company.googleChatUrl || '';
-                document.getElementById('edit-googlechat-webhook').value = company.googleChatWebhookUrl || '';
-
-                // Show Google Chat status badge
-                const gcBadge = document.getElementById('status-googlechat');
-                if (company.googleChatUrl || company.googleChatWebhookUrl) {
-                    gcBadge.classList.remove('hidden');
-                } else {
-                    gcBadge.classList.add('hidden');
-                }
-
-                // Show green badges for already-saved URLs
-                updateSourceStatusBadges(sources, company);
-
-                // Hide any previous messages
-                const messageEl = document.getElementById('edit-sources-message');
-                if (messageEl) {
-                    messageEl.classList.add('hidden');
-                }
-            }
-
-            // Save Source URLs Function
-            async function saveSourceURLs() {
-                const company = COMPANIES[currentCompany];
-
-                // Get values from input fields
-                const promoteUrl = document.getElementById('edit-promote-url').value.trim();
-                const networkUrl = document.getElementById('edit-network-url').value.trim();
-                const networkGid = document.getElementById('edit-network-gid').value.trim();
-                const engageUrl = document.getElementById('edit-engage-url').value.trim();
-                const googleChatUrl = document.getElementById('edit-googlechat-url').value.trim();
-                const googleChatWebhookUrl = document.getElementById('edit-googlechat-webhook').value.trim();
-
-                // Validate URLs if provided
-                if (promoteUrl && !isValidURL(promoteUrl)) {
-                    showEditMessage('error', 'PROMOTE URL is not valid. Please enter a valid URL or leave it empty.');
-                    return;
-                }
-                if (networkUrl && !isValidURL(networkUrl)) {
-                    showEditMessage('error', 'NETWORK URL is not valid. Please enter a valid URL or leave it empty.');
-                    return;
-                }
-                if (engageUrl && !isValidURL(engageUrl)) {
-                    showEditMessage('error', 'ENGAGE URL is not valid. Please enter a valid URL.');
-                    return;
-                }
-                if (networkGid && !/^[0-9]*$/.test(networkGid)) {
-                    showEditMessage('error', 'Network Sheet GID must contain only numbers.');
-                    return;
-                }
-                if (googleChatUrl && !isValidURL(googleChatUrl)) {
-                    showEditMessage('error', 'Google Chat Space URL is not valid. Please enter a valid URL or leave it empty.');
-                    return;
-                }
-                if (googleChatWebhookUrl && !isValidURL(googleChatWebhookUrl)) {
-                    showEditMessage('error', 'Google Chat Webhook URL is not valid. Please enter a valid URL or leave it empty.');
-                    return;
-                }
-
-                try {
-                    const res = await fetch(\`/api
+                        else { el.classLis
