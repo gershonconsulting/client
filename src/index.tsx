@@ -2694,7 +2694,7 @@ app.get('/', (c) => {
             <div class="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-lg shadow-xl p-8 mb-8 text-white">
                 <div class="flex items-center justify-between mb-4">
                     <div>
-                        <h1 class="text-4xl font-bold mb-3">
+                        <h1 id="dashboard-title" class="text-4xl font-bold mb-3">
                             <i class="fas fa-chart-line mr-3"></i>
                             Gershon CRM - Client Dashboard
                         </h1>
@@ -3504,7 +3504,7 @@ app.get('/', (c) => {
                 <div class="bg-white rounded-lg shadow p-8">
                     <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
                         <i class="fas fa-rocket text-green-600 mr-3"></i>
-                        <span id="onboarding-company-name">Company</span> Onboarding Status
+                        <span><span id="onboarding-company-name">Company</span> Onboarding Status</span>
                     </h2>
                     
                     <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
@@ -3906,9 +3906,10 @@ app.get('/', (c) => {
 
                 // Immediately update header title from dropdown text (before data loads)
                 const selector = document.getElementById('company-selector');
+                selector.value = companyKey;
                 const selectedOption = selector.options[selector.selectedIndex];
                 const displayName = selectedOption ? selectedOption.textContent.trim() : companyKey;
-                document.querySelector('h1').innerHTML = \`
+                document.getElementById('dashboard-title').innerHTML = \`
                     <i class="fas fa-chart-line mr-3"></i>
                     \${displayName} - Pipeline Report
                 \`;
@@ -3958,7 +3959,7 @@ app.get('/', (c) => {
                     const companyName = data.company || (COMPANIES[companyKey] && COMPANIES[companyKey].name) || companyKey;
 
                     // Update page title with company name
-                    document.querySelector('h1').innerHTML = \`
+                    document.getElementById('dashboard-title').innerHTML = \`
                         <i class="fas fa-chart-line mr-3"></i>
                         \${companyName} - Pipeline Report
                     \`;
