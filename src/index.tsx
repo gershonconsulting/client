@@ -5446,22 +5446,33 @@ app.get('/', (c) => {
                     const data = await res.json();
                     if (!data.companies) return;
                     var selector = document.getElementById('company-selector');
-                    data.companies.forEach(company => {
+                    // Clear any existing options
+                    if (selector) selector.innerHTML = '';
+                    data.companies.forEach(function(company) {
                         // Merge into COMPANIES object
                         if (!COMPANIES[company.key]) {
                             COMPANIES[company.key] = company;
-                            // Add to dropdown if not already there
-                            if (selector && !selector.querySelector(\`option[value="\${company.key}"]\`)) {
-                                const option = document.createElement('option');
-                                option.value = company.key;
-                                option.textContent = company.name;
-                                selector.appendChild(option);
-                            }
                         } else {
                             // Override hardcoded entry with KV version (has saved URLs)
                             COMPANIES[company.key] = { ...COMPANIES[company.key], ...company };
                         }
+                        // Always add to dropdown (all companies, not just KV-only)
+                        if (selector) {
+                            var option = document.createElement('option');
+                            option.value = company.key;
+                            option.textContent = company.name;
+                            selector.appendChild(option);
+                        }
                     });
+                    // Sync currentCompany and dropdown to URL param
+                    var urlParams = new URLSearchParams(window.location.search);
+                    var urlCompany = urlParams.get('company');
+                    if (urlCompany && COMPANIES[urlCompany]) {
+                        currentCompany = urlCompany;
+                        if (selector) selector.value = urlCompany;
+                    } else if (selector && selector.options.length > 0) {
+                        currentCompany = selector.options[0].value;
+                    }
                 } catch (e) {
                     console.warn('Could not load KV companies:', e);
                 }
