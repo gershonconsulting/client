@@ -3928,6 +3928,9 @@ app.get('/', (c) => {
                 // Update Settings view
                 updateSettingsView();
 
+
+                // Update Onboarding view
+                updateOnboardingView();
                 // Fetch new company data
                 fetchCompanyData(companyKey);
             }
