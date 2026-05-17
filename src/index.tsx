@@ -2467,6 +2467,7 @@ app.get('/admin', (c) => {
                 </form>
             </div>
         </div>
+    </div><!-- end ml-56 -->
     </body>
     </html>
   `)
@@ -2766,57 +2767,83 @@ app.get('/', (c) => {
         </style>
     </head>
     <body class="bg-gray-50 min-h-screen">
-        <div class="container mx-auto px-4 py-8">
-            <!-- Header -->
-            <div class="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-lg shadow-xl p-8 mb-8 text-white">
-                <div class="flex items-center justify-between mb-4">
-                    <div>
-                        <h1 id="dashboard-title" class="text-4xl font-bold mb-3">
-                            <i class="fas fa-chart-line mr-3"></i>
-                            Gershon CRM - Client Dashboard
-                        </h1>
-                        <!-- Company Selector -->
-                        <div class="flex items-center space-x-3">
-                            <label for="company-selector" class="text-blue-100 text-sm font-medium">
-                                <i class="fas fa-building mr-2"></i>Select Company:
-                            </label>
-                            <select id="company-selector" onchange="switchCompany(this.value)" class="bg-white text-gray-800 rounded-lg px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-300 shadow-md">
-                                <!-- Populated dynamically from /api/companies (excludes archived) -->
-                            </select>
-                            <button onclick="refreshDashboard()" class="bg-blue-500 hover:bg-blue-400 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors shadow-md">
-                                <i class="fas fa-sync-alt mr-2"></i>Refresh
-                            </button>
-                            <a href="/overview" class="bg-indigo-500 hover:bg-indigo-400 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors shadow-md">
-                                <i class="fas fa-th-large mr-2"></i>Overview
-                            </a>
-                            <a href="/admin" class="bg-purple-500 hover:bg-purple-400 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors shadow-md">
-                                <i class="fas fa-shield-alt mr-2"></i>Admin Panel
-                            </a>
-                            <a id="open-chat-btn" href="#" target="_blank" class="bg-green-500 hover:bg-green-400 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors shadow-md hidden">
-                                <i class="fas fa-comments mr-2"></i>Open Chat
-                            </a>
-                        </div>
-                    </div>
-                    <div class="text-right">
-                        <div class="mb-3">
-                            <span class="inline-block bg-white text-indigo-700 font-bold text-sm px-3 py-1 rounded-full shadow-md tracking-wide">
-                                v${__APP_VERSION__}
-                            </span>
-                        </div>
-                        <p class="text-blue-100 text-sm mb-2">
-                            <i class="fas fa-sync-alt mr-2"></i>
-                            Last Updated: <span id="last-updated" class="font-semibold">Loading...</span>
-                        </p>
-                        <p class="text-blue-200 text-xs">
-                            <i class="fas fa-calendar-alt mr-1"></i>
-                            Auto-refreshes every Monday at 8:00 AM
-                        </p>
-                    </div>
+        <!-- Fixed Left Sidebar -->
+        <aside id="sidebar" class="fixed top-0 left-0 h-full w-56 bg-gradient-to-b from-blue-700 to-indigo-800 text-white flex flex-col z-50 shadow-xl">
+            <!-- Brand -->
+            <div class="px-5 pt-6 pb-4 border-b border-blue-600/40">
+                <div class="flex items-center mb-1">
+                    <i class="fas fa-chart-line text-xl mr-2"></i>
+                    <span class="font-bold text-lg">Gershon CRM</span>
                 </div>
-                <div>
-                    <p class="text-blue-100">Tracking 9 Company Pipelines with Streak CRM</p>
-                </div>
+                <h1 id="dashboard-title" class="text-xs text-blue-200 font-medium">Client Dashboard</h1>
+                <span class="inline-block bg-white/15 text-blue-100 font-semibold text-[10px] px-2 py-0.5 rounded-full mt-1 tracking-wide">
+                    v${__APP_VERSION__}
+                </span>
             </div>
+
+            <!-- Company Selector -->
+            <div class="px-4 py-3 border-b border-blue-600/40">
+                <label class="text-blue-200 text-[10px] uppercase tracking-wider font-semibold block mb-1">Company</label>
+                <select id="company-selector" onchange="switchCompany(this.value)" class="w-full bg-blue-600/50 text-white rounded px-2 py-1.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-300 border border-blue-500/40">
+                    <!-- Populated dynamically -->
+                </select>
+            </div>
+
+            <!-- Navigation -->
+            <nav class="flex-1 overflow-y-auto py-3 px-2">
+                <button onclick="switchView('executive')" id="tab-executive" class="sidebar-nav active w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-white bg-white/15 mb-0.5 transition-colors">
+                    <i class="fas fa-tachometer-alt w-5 mr-2.5 text-center"></i>Dashboard
+                </button>
+                <button onclick="switchView('onboarding')" id="tab-onboarding" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
+                    <i class="fas fa-rocket w-5 mr-2.5 text-center"></i>Onboarding
+                </button>
+                <button onclick="switchView('promote')" id="tab-promote" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
+                    <i class="fas fa-bullhorn w-5 mr-2.5 text-center"></i>Promote
+                </button>
+                <button onclick="switchView('network')" id="tab-network" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
+                    <i class="fas fa-users w-5 mr-2.5 text-center"></i>Network
+                </button>
+                <button onclick="switchView('engage')" id="tab-engage" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
+                    <i class="fas fa-handshake w-5 mr-2.5 text-center"></i>Engage
+                </button>
+                <button onclick="switchView('print')" id="tab-print" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
+                    <i class="fas fa-print w-5 mr-2.5 text-center"></i>Print Report
+                </button>
+                <button onclick="switchView('settings')" id="tab-settings" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
+                    <i class="fas fa-cog w-5 mr-2.5 text-center"></i>Settings
+                </button>
+            </nav>
+
+            <!-- Sidebar Actions -->
+            <div class="px-3 py-3 border-t border-blue-600/40 space-y-1.5">
+                <button onclick="refreshDashboard()" class="w-full flex items-center px-3 py-2 rounded-lg text-xs font-medium text-blue-100 hover:bg-white/10 transition-colors">
+                    <i class="fas fa-sync-alt w-5 mr-2 text-center"></i>Refresh Data
+                </button>
+                <a href="/overview" class="flex items-center px-3 py-2 rounded-lg text-xs font-medium text-blue-100 hover:bg-white/10 transition-colors">
+                    <i class="fas fa-th-large w-5 mr-2 text-center"></i>Overview
+                </a>
+                <a href="/admin" class="flex items-center px-3 py-2 rounded-lg text-xs font-medium text-blue-100 hover:bg-white/10 transition-colors">
+                    <i class="fas fa-shield-alt w-5 mr-2 text-center"></i>Admin Panel
+                </a>
+                <a id="open-chat-btn" href="#" target="_blank" class="hidden items-center px-3 py-2 rounded-lg text-xs font-medium text-blue-100 hover:bg-white/10 transition-colors">
+                    <i class="fas fa-comments w-5 mr-2 text-center"></i>Open Chat
+                </a>
+            </div>
+
+            <!-- Footer -->
+            <div class="px-4 py-3 border-t border-blue-600/40">
+                <p class="text-blue-200 text-[10px]">
+                    <i class="fas fa-sync-alt mr-1"></i>Last Updated: <span id="last-updated" class="font-semibold">Loading...</span>
+                </p>
+                <p class="text-blue-300/60 text-[9px] mt-0.5">
+                    <i class="fas fa-calendar-alt mr-1"></i>Auto-refreshes Mon 8AM
+                </p>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <div class="ml-56 min-h-screen">
+        <div class="container mx-auto px-6 py-6">
 
             <!-- Loading State -->
             <div id="loading" class="text-center py-12">
@@ -2837,34 +2864,6 @@ app.get('/', (c) => {
 
             <!-- Dashboard Content -->
             <div id="dashboard" class="hidden">
-                <!-- View Tabs -->
-                <div class="bg-white rounded-lg shadow mb-8">
-                    <div class="border-b border-gray-200">
-                        <nav class="flex -mb-px">
-                            <button onclick="switchView('executive')" id="tab-executive" class="view-tab active border-b-2 border-blue-500 py-4 px-6 text-sm font-medium text-blue-600">
-                                <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
-                            </button>
-                            <button onclick="switchView('onboarding')" id="tab-onboarding" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                                <i class="fas fa-rocket mr-2"></i>Onboarding
-                            </button>
-                            <button onclick="switchView('promote')" id="tab-promote" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                                <i class="fas fa-bullhorn mr-2"></i>PROMOTE
-                            </button>
-                            <button onclick="switchView('network')" id="tab-network" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                                <i class="fas fa-users mr-2"></i>NETWORK
-                            </button>
-                            <button onclick="switchView('engage')" id="tab-engage" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                                <i class="fas fa-handshake mr-2"></i>ENGAGE
-                            </button>
-                            <button onclick="switchView('print')" id="tab-print" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                                <i class="fas fa-print mr-2"></i>Print Report
-                            </button>
-                            <button onclick="switchView('settings')" id="tab-settings" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                                <i class="fas fa-cog mr-2"></i>Settings
-                            </button>
-                        </nav>
-                    </div>
-                </div>
 
                 <!-- EXECUTIVE DASHBOARD View -->
                 <div id="view-executive" class="view-content">
@@ -4260,9 +4259,9 @@ app.get('/', (c) => {
                 });
                 
                 // Remove active class from all tabs
-                document.querySelectorAll('.view-tab').forEach(tab => {
-                    tab.classList.remove('active', 'border-blue-500', 'text-blue-600');
-                    tab.classList.add('border-transparent', 'text-gray-500');
+                document.querySelectorAll('.sidebar-nav').forEach(tab => {
+                    tab.classList.remove('active', 'bg-white/15', 'text-white');
+                    tab.classList.add('text-blue-100');
                 });
                 
                 // Show selected view
@@ -4270,8 +4269,8 @@ app.get('/', (c) => {
                 
                 // Add active class to selected tab
                 const activeTab = document.getElementById('tab-' + viewName);
-                activeTab.classList.add('active', 'border-blue-500', 'text-blue-600');
-                activeTab.classList.remove('border-transparent', 'text-gray-500');
+                activeTab.classList.add('active', 'bg-white/15', 'text-white');
+                activeTab.classList.remove('text-blue-100');
                 
                 // Render view-specific content
                 if (currentData) {
