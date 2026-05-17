@@ -3373,6 +3373,28 @@ app.get('/', (c) => {
                             </div>
                         </div>
 
+
+                        <!-- EMAILING DATA SOURCE -->
+                        <div class="p-6 bg-indigo-50 border border-indigo-200 rounded-lg">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                                <i class="fas fa-envelope text-indigo-600 mr-2"></i>Emailing Campaign Data
+                                <span id="status-emailing" class="hidden ml-2 text-xs font-semibold px-2 py-1 rounded-full bg-indigo-100 text-indigo-700"><i class="fas fa-check-circle mr-1"></i>Configured</span>
+                            </h3>
+                            <div>
+                                <label class="text-sm font-medium text-gray-700">Emailing Data URL (Google Sheets):</label>
+                                <input
+                                    type="url"
+                                    id="edit-emailing-url"
+                                    placeholder="https://docs.google.com/spreadsheets/d/..."
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono text-sm"
+                                />
+                                <p class="text-xs text-gray-500 mt-1">
+                                    <i class="fas fa-table mr-1"></i>
+                                    CSV with columns: campaign name, emails sent, replies, human replies, positive replies, rates, targeting, leads
+                                </p>
+                            </div>
+                        </div>
+
                         <!-- SCHEDULED MESSAGES -->
                         <div class="p-6 bg-orange-50 border border-orange-200 rounded-lg">
                             <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center justify-between">
@@ -5615,11 +5637,13 @@ app.get('/', (c) => {
 
                 // Populate Google Chat fields
                 document.getElementById('edit-googlechat-url').value = company.googleChatUrl || '';
-                document.getElementById('edit-emailing-url').value = company.emailingUrl || '';
+                var emailingEl = document.getElementById('edit-emailing-url'); if (emailingEl) emailingEl.value = company.emailingUrl || '';
                 document.getElementById('edit-googlechat-webhook').value = company.googleChatWebhookUrl || '';
 
                 // Show Google Chat status badge
                 const gcBadge = document.getElementById('status-googlechat');
+                const emBadge = document.getElementById('status-emailing');
+                if (emBadge) { if (company.emailingUrl) { emBadge.classList.remove('hidden'); } else { emBadge.classList.add('hidden'); } }
                 if (company.googleChatUrl || company.googleChatWebhookUrl) {
                     gcBadge.classList.remove('hidden');
                 } else {
@@ -5649,7 +5673,7 @@ app.get('/', (c) => {
                 const networkGid = document.getElementById('edit-network-gid').value.trim();
                 const engageUrl = document.getElementById('edit-engage-url').value.trim();
                 const googleChatUrl = document.getElementById('edit-googlechat-url').value.trim();
-                const emailingUrl = document.getElementById('edit-emailing-url').value.trim();
+                const emailingUrlEl = document.getElementById('edit-emailing-url'); const emailingUrl = emailingUrlEl ? emailingUrlEl.value.trim() : '';
                 const googleChatWebhookUrl = document.getElementById('edit-googlechat-webhook').value.trim();
 
                 // Validate URLs if provided
