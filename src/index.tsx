@@ -315,6 +315,73 @@ async function fetchNetworkData(urlOrGid: string) {
   }
 }
 
+async function fetchEmailingData(urlOrGid: string) {
+  try {
+    const { sheetId, gid } = parseSheetUrl(urlOrGid)
+    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`
+    const response = await fetch(url)
+    if (!response.ok) throw new Error(`Google Sheets error: ${response.statusText}`)
+    const csvText = await response.text()
+    const lines = csvText.split('\n').filter(line => line.trim())
+    if (lines.length < 2) return { campaigns: [], totals: { emailsSent: 0, allReplies: 0, humanReplies: 0, positiveReplies: 0, humanReplyRate: 0, positiveReplyRate: 0 } }
+
+    // Parse CSV with proper quoting support
+    function parseCSVLine(line: string): string[] {
+      const result: string[] = []
+      let current = ''
+      let inQuotes = false
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i]
+        if (ch === '"') { inQuotes = !inQuotes }
+        else if (ch === ',' && !inQuotes) { result.push(current.trim()); current = '' }
+        else { current += ch }
+      }
+      result.push(current.trim())
+      return result
+    }
+
+    const campaigns: any[] = []
+    for (let i = 1; i < lines.length; i++) {
+      const cols = parseCSVLine(lines[i])
+      if (cols.length < 10) continue
+      campaigns.push({
+        id: cols[0],
+        name: cols[1],
+        account: cols[2],
+        company: cols[3],
+        emailsSent: parseInt(cols[4]) || 0,
+        allReplies: parseInt(cols[5]) || 0,
+        humanReplies: parseInt(cols[6]) || 0,
+        positiveReplies: parseInt(cols[7]) || 0,
+        humanReplyRate: parseFloat(cols[8]) || 0,
+        positiveReplyRate: parseFloat(cols[9]) || 0,
+        targeting: cols.length > 10 ? cols[10] : '',
+        leads: cols.length > 11 ? (parseInt(cols[11]) || 0) : 0
+      })
+    }
+
+    const totals = {
+      emailsSent: campaigns.reduce((s, c) => s + c.emailsSent, 0),
+      allReplies: campaigns.reduce((s, c) => s + c.allReplies, 0),
+      humanReplies: campaigns.reduce((s, c) => s + c.humanReplies, 0),
+      positiveReplies: campaigns.reduce((s, c) => s + c.positiveReplies, 0),
+      humanReplyRate: 0,
+      positiveReplyRate: 0,
+      leads: campaigns.reduce((s, c) => s + c.leads, 0),
+      campaignCount: campaigns.length
+    }
+    if (totals.allReplies > 0) {
+      totals.humanReplyRate = (totals.humanReplies / totals.allReplies) * 100
+      totals.positiveReplyRate = (totals.positiveReplies / totals.allReplies) * 100
+    }
+
+    return { campaigns, totals }
+  } catch (error) {
+    console.error('Error fetching emailing data:', error)
+    return { campaigns: [], totals: { emailsSent: 0, allReplies: 0, humanReplies: 0, positiveReplies: 0, humanReplyRate: 0, positiveReplyRate: 0, leads: 0, campaignCount: 0 } }
+  }
+}
+
 // API Routes
 
 // Get pipeline information
@@ -588,7 +655,7 @@ app.get('/api/companies', async (c) => {
 app.post('/api/companies', async (c) => {
   try {
     const body = await c.req.json()
-    const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, notionUrl, networkGid, key: providedKey, googleChatUrl, googleChatWebhookUrl, messages } = body
+    const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, notionUrl, networkGid, key: providedKey, googleChatUrl, googleChatWebhookUrl, emailingUrl, messages } = body
 
     if (!name || !pipelineKey) {
       return c.json({ error: 'name and pipelineKey are required' }, 400)
@@ -616,6 +683,7 @@ app.post('/api/companies', async (c) => {
     if (googleChatUrl) company.googleChatUrl = googleChatUrl
     if (googleChatWebhookUrl) company.googleChatWebhookUrl = googleChatWebhookUrl
     if (messages && messages.length > 0) company.messages = messages
+    if (emailingUrl) company.emailingUrl = emailingUrl
 
     await c.env.COMPANIES_KV.put(`company:${key}`, JSON.stringify(company))
     return c.json({ success: true, company })
@@ -831,7 +899,7 @@ app.put('/api/companies/:key', async (c) => {
   try {
     const key = c.req.param('key')
     const body = await c.req.json()
-    const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, networkGid, googleChatUrl, googleChatWebhookUrl, messages } = body
+    const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, networkGid, googleChatUrl, googleChatWebhookUrl, emailingUrl, messages } = body
 
     // Load existing company (include archived so we can restore)
     const all = await getAllCompanies(c.env.COMPANIES_KV, true)
@@ -863,6 +931,7 @@ app.put('/api/companies/:key', async (c) => {
     if (googleChatUrl !== undefined) updated.googleChatUrl = googleChatUrl
     if (googleChatWebhookUrl !== undefined) updated.googleChatWebhookUrl = googleChatWebhookUrl
     if (messages !== undefined) updated.messages = messages
+    if (body.emailingUrl !== undefined) updated.emailingUrl = body.emailingUrl
 
     await c.env.COMPANIES_KV.put(`company:${key}`, JSON.stringify(updated))
     return c.json({ success: true, company: updated })
@@ -1230,6 +1299,13 @@ app.get('/api/analytics', async (c) => {
     if (networkSource) {
       networkData = await fetchNetworkData(networkSource)
     }
+
+    // Fetch emailing campaign data if configured
+    let emailingData = null
+    const emailingSource = company.emailingUrl
+    if (emailingSource) {
+      emailingData = await fetchEmailingData(emailingSource)
+    }
     
     return c.json({
       company: company.name,
@@ -1238,6 +1314,7 @@ app.get('/api/analytics', async (c) => {
       campaignDurationMonths,
       firstLeadDate: firstLeadDate ? firstLeadDate.toISOString() : null,
       networkData,
+      emailingData,
       stageDistribution,
       originDistribution,
       fitDistribution,
@@ -2764,7 +2841,10 @@ app.get('/', (c) => {
                 <div class="bg-white rounded-lg shadow mb-8">
                     <div class="border-b border-gray-200">
                         <nav class="flex -mb-px">
-                            <button onclick="switchView('onboarding')" id="tab-onboarding" class="view-tab active border-b-2 border-blue-500 py-4 px-6 text-sm font-medium text-blue-600">
+                            <button onclick="switchView('executive')" id="tab-executive" class="view-tab active border-b-2 border-blue-500 py-4 px-6 text-sm font-medium text-blue-600">
+                                <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
+                            </button>
+                            <button onclick="switchView('onboarding')" id="tab-onboarding" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
                                 <i class="fas fa-rocket mr-2"></i>Onboarding
                             </button>
                             <button onclick="switchView('promote')" id="tab-promote" class="view-tab border-b-2 border-transparent py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
@@ -3027,6 +3107,39 @@ app.get('/', (c) => {
                     </div>
                 </div>
                 </div>
+
+                    <!-- Lead Velocity & Conversion Analysis -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+                        <!-- Monthly Lead Velocity -->
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-tachometer-alt text-blue-500 mr-2"></i>Monthly Lead Velocity
+                            </h3>
+                            <div id="lead-velocity-chart" class="space-y-2">
+                                <p class="text-gray-400 text-sm">Loading...</p>
+                            </div>
+                        </div>
+
+                        <!-- Stage Conversion Rates -->
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-filter text-green-500 mr-2"></i>Stage-to-Stage Conversion
+                            </h3>
+                            <div id="stage-conversion-chart" class="space-y-2">
+                                <p class="text-gray-400 text-sm">Loading...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Time in Stage Analysis -->
+                    <div class="bg-white rounded-lg shadow p-6 mt-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-clock text-purple-500 mr-2"></i>Average Time in Stage
+                        </h3>
+                        <div id="time-in-stage-chart" class="space-y-2">
+                            <p class="text-gray-400 text-sm">Loading...</p>
+                        </div>
+                    </div>
                 <!-- End ENGAGE View -->
 
                 <!-- Print Report View -->
@@ -3500,7 +3613,134 @@ app.get('/', (c) => {
             </div>
 
             <!-- Onboarding View -->
-            <div id="view-onboarding" class="view-content">
+
+                <!-- EXECUTIVE DASHBOARD View -->
+                <div id="view-executive" class="view-content">
+                    <div class="mb-6">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-2 flex items-center">
+                            <i class="fas fa-tachometer-alt text-blue-600 mr-3"></i>
+                            <span id="exec-company-name">Company</span> — Campaign Dashboard
+                        </h2>
+                        <p class="text-gray-500 text-sm">Executive summary of campaign performance vs targets</p>
+                    </div>
+
+                    <!-- KPI Cards Row -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                        <!-- Acceptance Rate -->
+                        <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm font-medium text-gray-500 uppercase tracking-wide">Acceptance Rate</span>
+                                <i class="fas fa-user-plus text-blue-400 text-lg"></i>
+                            </div>
+                            <div class="text-3xl font-bold text-gray-900 mb-1" id="exec-acceptance-rate">—</div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-400">Target: 20%</span>
+                                <span id="exec-acceptance-badge" class="text-xs font-semibold px-2 py-1 rounded-full bg-gray-100 text-gray-500">—</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2 mt-3">
+                                <div id="exec-acceptance-bar" class="h-2 rounded-full bg-blue-500 transition-all" style="width:0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Leads per Month -->
+                        <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm font-medium text-gray-500 uppercase tracking-wide">Leads / Month</span>
+                                <i class="fas fa-chart-line text-green-400 text-lg"></i>
+                            </div>
+                            <div class="text-3xl font-bold text-gray-900 mb-1" id="exec-leads-month">—</div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-400">Target: 10/mo</span>
+                                <span id="exec-leads-badge" class="text-xs font-semibold px-2 py-1 rounded-full bg-gray-100 text-gray-500">—</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2 mt-3">
+                                <div id="exec-leads-bar" class="h-2 rounded-full bg-green-500 transition-all" style="width:0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Followers per Month -->
+                        <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-purple-500">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm font-medium text-gray-500 uppercase tracking-wide">Followers / Month</span>
+                                <i class="fas fa-users text-purple-400 text-lg"></i>
+                            </div>
+                            <div class="text-3xl font-bold text-gray-900 mb-1" id="exec-followers-month">—</div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-400">Target: 100/mo</span>
+                                <span id="exec-followers-badge" class="text-xs font-semibold px-2 py-1 rounded-full bg-gray-100 text-gray-500">—</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2 mt-3">
+                                <div id="exec-followers-bar" class="h-2 rounded-full bg-purple-500 transition-all" style="width:0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Posts per Day -->
+                        <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-orange-500">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm font-medium text-gray-500 uppercase tracking-wide">Posts / Day</span>
+                                <i class="fas fa-pen-fancy text-orange-400 text-lg"></i>
+                            </div>
+                            <div class="text-3xl font-bold text-gray-900 mb-1" id="exec-posts-day">Coming Soon</div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-400">Target: 1/day</span>
+                                <span id="exec-posts-badge" class="text-xs font-semibold px-2 py-1 rounded-full bg-yellow-100 text-yellow-700">Pending</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2 mt-3">
+                                <div id="exec-posts-bar" class="h-2 rounded-full bg-orange-500 transition-all" style="width:0%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Channel Summary Row -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                        <!-- NETWORK Summary -->
+                        <div class="bg-white rounded-xl shadow p-6">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-project-diagram text-blue-500 mr-2"></i>Network (LinkedIn)
+                            </h3>
+                            <div id="exec-network-summary" class="space-y-3">
+                                <div class="flex justify-between"><span class="text-gray-500">Total Invitations</span><span class="font-semibold" id="exec-net-invitations">—</span></div>
+                                <div class="flex justify-between"><span class="text-gray-500">Accepted</span><span class="font-semibold" id="exec-net-accepted">—</span></div>
+                                <div class="flex justify-between"><span class="text-gray-500">Avg Rate</span><span class="font-semibold" id="exec-net-rate">—</span></div>
+                            </div>
+                        </div>
+
+                        <!-- EMAILING Summary -->
+                        <div class="bg-white rounded-xl shadow p-6">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-envelope text-indigo-500 mr-2"></i>Emailing Campaigns
+                            </h3>
+                            <div id="exec-emailing-summary" class="space-y-3">
+                                <div class="flex justify-between"><span class="text-gray-500">Emails Sent</span><span class="font-semibold" id="exec-em-sent">—</span></div>
+                                <div class="flex justify-between"><span class="text-gray-500">Human Replies</span><span class="font-semibold" id="exec-em-replies">—</span></div>
+                                <div class="flex justify-between"><span class="text-gray-500">Reply Rate</span><span class="font-semibold" id="exec-em-rate">—</span></div>
+                            </div>
+                        </div>
+
+                        <!-- ENGAGE Summary -->
+                        <div class="bg-white rounded-xl shadow p-6">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-handshake text-green-500 mr-2"></i>Engage (Pipeline)
+                            </h3>
+                            <div id="exec-engage-summary" class="space-y-3">
+                                <div class="flex justify-between"><span class="text-gray-500">Total Leads</span><span class="font-semibold" id="exec-eng-leads">—</span></div>
+                                <div class="flex justify-between"><span class="text-gray-500">Campaign Duration</span><span class="font-semibold" id="exec-eng-duration">—</span></div>
+                                <div class="flex justify-between"><span class="text-gray-500">Avg Leads/Month</span><span class="font-semibold" id="exec-eng-avg">—</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Emailing Campaigns Table -->
+                    <div class="bg-white rounded-xl shadow p-6" id="exec-emailing-table-container">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-mail-bulk text-indigo-500 mr-2"></i>Emailing Campaign Details
+                        </h3>
+                        <div id="exec-emailing-table" class="overflow-x-auto">
+                            <p class="text-gray-400 text-sm">No emailing data configured. Add an Emailing Data URL in Settings.</p>
+                        </div>
+                    </div>
+                </div>
+            <div id="view-onboarding" class="view-content hidden">
                 <div class="bg-white rounded-lg shadow p-8">
                     <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
                         <i class="fas fa-rocket text-green-600 mr-3"></i>
@@ -3929,7 +4169,8 @@ app.get('/', (c) => {
                 updateSettingsView();
 
 
-                // Update Onboarding view
+                // Update Executive Dashboard and Onboarding view
+                updateExecutiveDashboard();
                 updateOnboardingView();
                 // Fetch new company data
                 fetchCompanyData(companyKey);
@@ -3974,6 +4215,10 @@ app.get('/', (c) => {
                     
                     // Update summary cards and charts
                     updateDashboard(data);
+
+                    // Update executive dashboard and engage analytics
+                    updateExecutiveDashboard();
+                    updateEngageAnalytics();
                     
                 } catch (error) {
                     console.error('Error fetching company data:', error);
@@ -4010,6 +4255,10 @@ app.get('/', (c) => {
                         renderPrintView(currentData);
                     } else if (viewName === 'network' || viewName === 'stage' || viewName === 'fit' || viewName === 'interest') {
                         renderView(viewName, currentData);
+                    } else if (viewName === 'executive') {
+                        updateExecutiveDashboard();
+                    } else if (viewName === 'engage') {
+                        updateEngageAnalytics();
                     } else if (viewName === 'onboarding') {
                         updateOnboardingView();
                     } else if (viewName === 'promote') {
@@ -4262,6 +4511,206 @@ app.get('/', (c) => {
                         </tr></thead>
                         <tbody>\${tableRows}</tbody>
                     </table>\`;
+            }
+
+
+
+            // Update Engage Analytics (velocity + conversion)
+            function updateEngageAnalytics() {
+                if (!currentData) return;
+
+                // --- Monthly Lead Velocity Bar Chart ---
+                const monthly = currentData.monthlyLeads || [];
+                const maxCount = Math.max(...monthly.map(m => m.count), 1);
+                let velocityHtml = '';
+                monthly.forEach(function(m) {
+                    const pct = (m.count / maxCount) * 100;
+                    const barColor = m.count >= 10 ? 'bg-green-500' : (m.count >= 5 ? 'bg-yellow-500' : 'bg-red-400');
+                    velocityHtml += '<div class="flex items-center gap-3">';
+                    velocityHtml += '<span class="text-xs text-gray-500 w-16 text-right flex-shrink-0">' + m.month + '</span>';
+                    velocityHtml += '<div class="flex-1 bg-gray-100 rounded-full h-5 relative">';
+                    velocityHtml += '<div class="' + barColor + ' h-5 rounded-full transition-all flex items-center justify-end pr-2" style="width:' + Math.max(pct, 8) + '%">';
+                    velocityHtml += '<span class="text-xs text-white font-semibold">' + m.count + '</span>';
+                    velocityHtml += '</div></div></div>';
+                });
+                if (velocityHtml) {
+                    velocityHtml += '<div class="flex items-center gap-2 mt-3 text-xs text-gray-400">';
+                    velocityHtml += '<span class="inline-block w-3 h-3 rounded bg-green-500"></span> \u226510';
+                    velocityHtml += '<span class="inline-block w-3 h-3 rounded bg-yellow-500 ml-2"></span> 5-9';
+                    velocityHtml += '<span class="inline-block w-3 h-3 rounded bg-red-400 ml-2"></span> <5';
+                    velocityHtml += '<span class="ml-auto">Target: 10/mo</span></div>';
+                    document.getElementById('lead-velocity-chart').innerHTML = velocityHtml;
+                }
+
+                // --- Stage Conversion Funnel ---
+                const stages = currentData.stageDistribution || {};
+                const stageNames = Object.keys(stages);
+                const stageCounts = Object.values(stages);
+                const firstStageCount = stageCounts.length > 0 ? Math.max(stageCounts[0], 1) : 1;
+                let conversionHtml = '';
+                for (let i = 0; i < stageNames.length; i++) {
+                    const count = stageCounts[i];
+                    const pct = (count / firstStageCount) * 100;
+                    const convRate = i > 0 && stageCounts[i-1] > 0 ? ((count / stageCounts[i-1]) * 100).toFixed(0) : '100';
+                    const barColor = pct > 60 ? 'bg-blue-500' : (pct > 30 ? 'bg-blue-400' : 'bg-blue-300');
+                    conversionHtml += '<div class="flex items-center gap-3">';
+                    conversionHtml += '<span class="text-xs text-gray-600 w-28 text-right flex-shrink-0 truncate" title="' + stageNames[i] + '">' + stageNames[i] + '</span>';
+                    conversionHtml += '<div class="flex-1 bg-gray-100 rounded-full h-5 relative">';
+                    conversionHtml += '<div class="' + barColor + ' h-5 rounded-full transition-all flex items-center justify-end pr-2" style="width:' + Math.max(pct, 8) + '%">';
+                    conversionHtml += '<span class="text-xs text-white font-semibold">' + count + '</span>';
+                    conversionHtml += '</div></div>';
+                    if (i > 0) {
+                        conversionHtml += '<span class="text-xs text-gray-400 w-12 flex-shrink-0">' + convRate + '%</span>';
+                    } else {
+                        conversionHtml += '<span class="text-xs text-gray-400 w-12 flex-shrink-0">entry</span>';
+                    }
+                    conversionHtml += '</div>';
+                }
+                if (conversionHtml) {
+                    document.getElementById('stage-conversion-chart').innerHTML = conversionHtml;
+                }
+
+                // --- Time in Stage (estimated from box data) ---
+                // We use stageDistribution counts and campaign duration to estimate average time
+                const totalBoxes = currentData.totalBoxes || 0;
+                const durationDays = (currentData.campaignDurationMonths || 1) * 30;
+                let timeHtml = '';
+                const stageColors = ['bg-indigo-500', 'bg-blue-500', 'bg-cyan-500', 'bg-teal-500', 'bg-green-500', 'bg-yellow-500', 'bg-orange-500', 'bg-red-500'];
+                for (let i = 0; i < stageNames.length; i++) {
+                    const count = stageCounts[i];
+                    // Rough estimate: time in stage proportional to count relative to total throughput
+                    const estimatedDays = totalBoxes > 0 ? Math.round((count / totalBoxes) * durationDays) : 0;
+                    const maxDays = durationDays;
+                    const pct = maxDays > 0 ? (estimatedDays / maxDays) * 100 : 0;
+                    const color = stageColors[i % stageColors.length];
+                    timeHtml += '<div class="flex items-center gap-3">';
+                    timeHtml += '<span class="text-xs text-gray-600 w-28 text-right flex-shrink-0 truncate" title="' + stageNames[i] + '">' + stageNames[i] + '</span>';
+                    timeHtml += '<div class="flex-1 bg-gray-100 rounded-full h-5 relative">';
+                    timeHtml += '<div class="' + color + ' h-5 rounded-full transition-all flex items-center justify-end pr-2" style="width:' + Math.max(pct, 8) + '%">';
+                    timeHtml += '<span class="text-xs text-white font-semibold">~' + estimatedDays + 'd</span>';
+                    timeHtml += '</div></div></div>';
+                }
+                if (timeHtml) {
+                    document.getElementById('time-in-stage-chart').innerHTML = timeHtml;
+                }
+            }
+
+            // Update Executive Dashboard
+            function updateExecutiveDashboard() {
+                const company = COMPANIES[currentCompany];
+                document.getElementById('exec-company-name').textContent = company.name;
+
+                if (!currentData) return;
+
+                // --- Acceptance Rate (from Network) ---
+                const network = currentData.networkData;
+                const acceptRate = network ? network.avgAcceptanceRate : 0;
+                const acceptTarget = 20;
+                const acceptPct = Math.min((acceptRate / acceptTarget) * 100, 150);
+                document.getElementById('exec-acceptance-rate').textContent = acceptRate.toFixed(1) + '%';
+                document.getElementById('exec-acceptance-bar').style.width = Math.min(acceptPct, 100) + '%';
+                const acceptBadge = document.getElementById('exec-acceptance-badge');
+                if (acceptRate >= acceptTarget) {
+                    acceptBadge.textContent = Math.round(acceptPct) + '% achieved';
+                    acceptBadge.className = 'text-xs font-semibold px-2 py-1 rounded-full bg-green-100 text-green-700';
+                    document.getElementById('exec-acceptance-bar').className = 'h-2 rounded-full bg-green-500 transition-all';
+                } else {
+                    acceptBadge.textContent = Math.round(acceptPct) + '% achieved';
+                    acceptBadge.className = 'text-xs font-semibold px-2 py-1 rounded-full bg-yellow-100 text-yellow-700';
+                    document.getElementById('exec-acceptance-bar').className = 'h-2 rounded-full bg-blue-500 transition-all';
+                }
+
+                // --- Leads per Month (from Streak) ---
+                const avgLeads = currentData.averageLeadsPerMonth || 0;
+                const leadsTarget = 10;
+                const leadsPct = Math.min((avgLeads / leadsTarget) * 100, 150);
+                document.getElementById('exec-leads-month').textContent = avgLeads.toFixed(1);
+                document.getElementById('exec-leads-bar').style.width = Math.min(leadsPct, 100) + '%';
+                const leadsBadge = document.getElementById('exec-leads-badge');
+                if (avgLeads >= leadsTarget) {
+                    leadsBadge.textContent = Math.round(leadsPct) + '% achieved';
+                    leadsBadge.className = 'text-xs font-semibold px-2 py-1 rounded-full bg-green-100 text-green-700';
+                    document.getElementById('exec-leads-bar').className = 'h-2 rounded-full bg-green-500 transition-all';
+                } else {
+                    leadsBadge.textContent = Math.round(leadsPct) + '% achieved';
+                    leadsBadge.className = 'text-xs font-semibold px-2 py-1 rounded-full bg-yellow-100 text-yellow-700';
+                }
+
+                // --- Followers per Month (from Network accepted connections) ---
+                const totalAccepted = network ? (network.totalAccepted || 0) : 0;
+                const durationMonths = currentData.campaignDurationMonths || 1;
+                const followersPerMonth = durationMonths > 0 ? totalAccepted / durationMonths : 0;
+                const followersTarget = 100;
+                const followersPct = Math.min((followersPerMonth / followersTarget) * 100, 150);
+                document.getElementById('exec-followers-month').textContent = Math.round(followersPerMonth);
+                document.getElementById('exec-followers-bar').style.width = Math.min(followersPct, 100) + '%';
+                const followersBadge = document.getElementById('exec-followers-badge');
+                if (followersPerMonth >= followersTarget) {
+                    followersBadge.textContent = Math.round(followersPct) + '% achieved';
+                    followersBadge.className = 'text-xs font-semibold px-2 py-1 rounded-full bg-green-100 text-green-700';
+                    document.getElementById('exec-followers-bar').className = 'h-2 rounded-full bg-green-500 transition-all';
+                } else {
+                    followersBadge.textContent = Math.round(followersPct) + '% achieved';
+                    followersBadge.className = 'text-xs font-semibold px-2 py-1 rounded-full bg-yellow-100 text-yellow-700';
+                }
+
+                // --- Network Summary ---
+                document.getElementById('exec-net-invitations').textContent = network ? network.totalInvitations.toLocaleString() : 'N/A';
+                document.getElementById('exec-net-accepted').textContent = network ? (network.totalAccepted || 0).toLocaleString() : 'N/A';
+                document.getElementById('exec-net-rate').textContent = network ? network.avgAcceptanceRate.toFixed(1) + '%' : 'N/A';
+
+                // --- Emailing Summary ---
+                const emailing = currentData.emailingData;
+                if (emailing && emailing.totals) {
+                    document.getElementById('exec-em-sent').textContent = emailing.totals.emailsSent.toLocaleString();
+                    document.getElementById('exec-em-replies').textContent = emailing.totals.humanReplies.toLocaleString();
+                    const replyRate = emailing.totals.emailsSent > 0 ? ((emailing.totals.humanReplies / emailing.totals.emailsSent) * 100).toFixed(1) + '%' : '0%';
+                    document.getElementById('exec-em-rate').textContent = replyRate;
+
+                    // Build emailing table
+                    if (emailing.campaigns && emailing.campaigns.length > 0) {
+                        let tableHtml = '<table class="w-full text-sm"><thead><tr class="border-b-2 border-gray-200">';
+                        tableHtml += '<th class="text-left py-2 px-3 text-gray-600 font-semibold">Campaign</th>';
+                        tableHtml += '<th class="text-right py-2 px-3 text-gray-600 font-semibold">Emails Sent</th>';
+                        tableHtml += '<th class="text-right py-2 px-3 text-gray-600 font-semibold">Replies</th>';
+                        tableHtml += '<th class="text-right py-2 px-3 text-gray-600 font-semibold">Human Replies</th>';
+                        tableHtml += '<th class="text-right py-2 px-3 text-gray-600 font-semibold">Reply Rate</th>';
+                        tableHtml += '<th class="text-right py-2 px-3 text-gray-600 font-semibold">Leads</th>';
+                        tableHtml += '</tr></thead><tbody>';
+                        emailing.campaigns.forEach(function(c) {
+                            const rate = c.emailsSent > 0 ? ((c.humanReplies / c.emailsSent) * 100).toFixed(1) : '0';
+                            tableHtml += '<tr class="border-b border-gray-100 hover:bg-gray-50">';
+                            tableHtml += '<td class="py-2 px-3 text-gray-800 font-medium">' + c.name + '</td>';
+                            tableHtml += '<td class="py-2 px-3 text-right text-gray-600">' + c.emailsSent.toLocaleString() + '</td>';
+                            tableHtml += '<td class="py-2 px-3 text-right text-gray-600">' + c.allReplies + '</td>';
+                            tableHtml += '<td class="py-2 px-3 text-right text-gray-600">' + c.humanReplies + '</td>';
+                            tableHtml += '<td class="py-2 px-3 text-right font-semibold ' + (parseFloat(rate) > 0 ? 'text-green-600' : 'text-gray-400') + '">' + rate + '%</td>';
+                            tableHtml += '<td class="py-2 px-3 text-right font-semibold ' + (c.leads > 0 ? 'text-blue-600' : 'text-gray-400') + '">' + c.leads + '</td>';
+                            tableHtml += '</tr>';
+                        });
+                        // Totals row
+                        const totalRate = emailing.totals.emailsSent > 0 ? ((emailing.totals.humanReplies / emailing.totals.emailsSent) * 100).toFixed(1) : '0';
+                        tableHtml += '<tr class="border-t-2 border-gray-300 font-bold bg-gray-50">';
+                        tableHtml += '<td class="py-2 px-3 text-gray-900">TOTAL</td>';
+                        tableHtml += '<td class="py-2 px-3 text-right text-gray-900">' + emailing.totals.emailsSent.toLocaleString() + '</td>';
+                        tableHtml += '<td class="py-2 px-3 text-right text-gray-900">' + emailing.totals.allReplies + '</td>';
+                        tableHtml += '<td class="py-2 px-3 text-right text-gray-900">' + emailing.totals.humanReplies + '</td>';
+                        tableHtml += '<td class="py-2 px-3 text-right text-green-700">' + totalRate + '%</td>';
+                        tableHtml += '<td class="py-2 px-3 text-right text-blue-700">' + emailing.totals.leads + '</td>';
+                        tableHtml += '</tr></tbody></table>';
+                        document.getElementById('exec-emailing-table').innerHTML = tableHtml;
+                    }
+                } else {
+                    document.getElementById('exec-em-sent').textContent = 'N/A';
+                    document.getElementById('exec-em-replies').textContent = 'N/A';
+                    document.getElementById('exec-em-rate').textContent = 'N/A';
+                    document.getElementById('exec-emailing-table').innerHTML = '<p class="text-gray-400 text-sm">No emailing data configured. Add an Emailing Data URL in Settings.</p>';
+                }
+
+                // --- Engage Summary ---
+                document.getElementById('exec-eng-leads').textContent = currentData.totalBoxes || 0;
+                document.getElementById('exec-eng-duration').textContent = (currentData.campaignDurationMonths || 0) + ' months';
+                document.getElementById('exec-eng-avg').textContent = (currentData.averageLeadsPerMonth || 0).toFixed(1);
             }
 
             // Update Onboarding View
@@ -5166,6 +5615,7 @@ app.get('/', (c) => {
 
                 // Populate Google Chat fields
                 document.getElementById('edit-googlechat-url').value = company.googleChatUrl || '';
+                document.getElementById('edit-emailing-url').value = company.emailingUrl || '';
                 document.getElementById('edit-googlechat-webhook').value = company.googleChatWebhookUrl || '';
 
                 // Show Google Chat status badge
@@ -5199,6 +5649,7 @@ app.get('/', (c) => {
                 const networkGid = document.getElementById('edit-network-gid').value.trim();
                 const engageUrl = document.getElementById('edit-engage-url').value.trim();
                 const googleChatUrl = document.getElementById('edit-googlechat-url').value.trim();
+                const emailingUrl = document.getElementById('edit-emailing-url').value.trim();
                 const googleChatWebhookUrl = document.getElementById('edit-googlechat-webhook').value.trim();
 
                 // Validate URLs if provided
@@ -5234,7 +5685,7 @@ app.get('/', (c) => {
                     const res = await fetch(\`/api/companies/\${currentCompany}\`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ promoteUrl, networkUrl, networkGid, engageUrl, googleChatUrl, googleChatWebhookUrl, messages })
+                        body: JSON.stringify({ promoteUrl, networkUrl, networkGid, engageUrl, googleChatUrl, googleChatWebhookUrl, emailingUrl, messages })
                     });
                     const data = await res.json();
                     if (!res.ok) throw new Error(data.error || 'Save failed');
