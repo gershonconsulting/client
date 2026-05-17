@@ -2866,7 +2866,135 @@ app.get('/', (c) => {
                     </div>
                 </div>
 
-                <!-- PROMOTE View -->
+                <!-- EXECUTIVE DASHBOARD View -->
+                <div id="view-executive" class="view-content">
+                    <div class="mb-6">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-2 flex items-center">
+                            <i class="fas fa-tachometer-alt text-blue-600 mr-3"></i>
+                            <span id="exec-company-name">Company</span> — Campaign Dashboard
+                        </h2>
+                        <p class="text-gray-500 text-sm">Executive summary of campaign performance vs targets</p>
+                    </div>
+
+                    <!-- KPI Cards Row -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                        <!-- Acceptance Rate -->
+                        <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm font-medium text-gray-500 uppercase tracking-wide">Acceptance Rate</span>
+                                <i class="fas fa-user-plus text-blue-400 text-lg"></i>
+                            </div>
+                            <div class="text-3xl font-bold text-gray-900 mb-1" id="exec-acceptance-rate">—</div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-400">Target: 20%</span>
+                                <span id="exec-acceptance-badge" class="text-xs font-semibold px-2 py-1 rounded-full bg-gray-100 text-gray-500">—</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2 mt-3">
+                                <div id="exec-acceptance-bar" class="h-2 rounded-full bg-blue-500 transition-all" style="width:0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Leads per Month -->
+                        <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm font-medium text-gray-500 uppercase tracking-wide">Leads / Month</span>
+                                <i class="fas fa-chart-line text-green-400 text-lg"></i>
+                            </div>
+                            <div class="text-3xl font-bold text-gray-900 mb-1" id="exec-leads-month">—</div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-400">Target: 10/mo</span>
+                                <span id="exec-leads-badge" class="text-xs font-semibold px-2 py-1 rounded-full bg-gray-100 text-gray-500">—</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2 mt-3">
+                                <div id="exec-leads-bar" class="h-2 rounded-full bg-green-500 transition-all" style="width:0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Followers per Month -->
+                        <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-purple-500">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm font-medium text-gray-500 uppercase tracking-wide">Followers / Month</span>
+                                <i class="fas fa-users text-purple-400 text-lg"></i>
+                            </div>
+                            <div class="text-3xl font-bold text-gray-900 mb-1" id="exec-followers-month">—</div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-400">Target: 100/mo</span>
+                                <span id="exec-followers-badge" class="text-xs font-semibold px-2 py-1 rounded-full bg-gray-100 text-gray-500">—</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2 mt-3">
+                                <div id="exec-followers-bar" class="h-2 rounded-full bg-purple-500 transition-all" style="width:0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Posts per Day -->
+                        <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-orange-500">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm font-medium text-gray-500 uppercase tracking-wide">Posts / Day</span>
+                                <i class="fas fa-pen-fancy text-orange-400 text-lg"></i>
+                            </div>
+                            <div class="text-3xl font-bold text-gray-900 mb-1" id="exec-posts-day">Coming Soon</div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-400">Target: 1/day</span>
+                                <span id="exec-posts-badge" class="text-xs font-semibold px-2 py-1 rounded-full bg-yellow-100 text-yellow-700">Pending</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2 mt-3">
+                                <div id="exec-posts-bar" class="h-2 rounded-full bg-orange-500 transition-all" style="width:0%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Channel Summary Row -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                        <!-- NETWORK Summary -->
+                        <div class="bg-white rounded-xl shadow p-6">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-project-diagram text-blue-500 mr-2"></i>Network (LinkedIn)
+                            </h3>
+                            <div id="exec-network-summary" class="space-y-3">
+                                <div class="flex justify-between"><span class="text-gray-500">Total Invitations</span><span class="font-semibold" id="exec-net-invitations">—</span></div>
+                                <div class="flex justify-between"><span class="text-gray-500">Accepted</span><span class="font-semibold" id="exec-net-accepted">—</span></div>
+                                <div class="flex justify-between"><span class="text-gray-500">Avg Rate</span><span class="font-semibold" id="exec-net-rate">—</span></div>
+                            </div>
+                        </div>
+
+                        <!-- EMAILING Summary -->
+                        <div class="bg-white rounded-xl shadow p-6">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-envelope text-indigo-500 mr-2"></i>Emailing Campaigns
+                            </h3>
+                            <div id="exec-emailing-summary" class="space-y-3">
+                                <div class="flex justify-between"><span class="text-gray-500">Emails Sent</span><span class="font-semibold" id="exec-em-sent">—</span></div>
+                                <div class="flex justify-between"><span class="text-gray-500">Human Replies</span><span class="font-semibold" id="exec-em-replies">—</span></div>
+                                <div class="flex justify-between"><span class="text-gray-500">Reply Rate</span><span class="font-semibold" id="exec-em-rate">—</span></div>
+                            </div>
+                        </div>
+
+                        <!-- ENGAGE Summary -->
+                        <div class="bg-white rounded-xl shadow p-6">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-handshake text-green-500 mr-2"></i>Engage (Pipeline)
+                            </h3>
+                            <div id="exec-engage-summary" class="space-y-3">
+                                <div class="flex justify-between"><span class="text-gray-500">Total Leads</span><span class="font-semibold" id="exec-eng-leads">—</span></div>
+                                <div class="flex justify-between"><span class="text-gray-500">Campaign Duration</span><span class="font-semibold" id="exec-eng-duration">—</span></div>
+                                <div class="flex justify-between"><span class="text-gray-500">Avg Leads/Month</span><span class="font-semibold" id="exec-eng-avg">—</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Emailing Campaigns Table -->
+                    <div class="bg-white rounded-xl shadow p-6" id="exec-emailing-table-container">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-mail-bulk text-indigo-500 mr-2"></i>Emailing Campaign Details
+                        </h3>
+                        <div id="exec-emailing-table" class="overflow-x-auto">
+                            <p class="text-gray-400 text-sm">No emailing data configured. Add an Emailing Data URL in Settings.</p>
+                        </div>
+                    </div>
+                </div>
+
+
+                                <!-- PROMOTE View -->
                 <div id="view-promote" class="view-content hidden">
                     <!-- Platform tabs -->
                     <div class="flex space-x-2 mb-6">
@@ -3106,7 +3234,6 @@ app.get('/', (c) => {
                         </table>
                     </div>
                 </div>
-                </div>
 
                     <!-- Lead Velocity & Conversion Analysis -->
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
@@ -3140,6 +3267,7 @@ app.get('/', (c) => {
                             <p class="text-gray-400 text-sm">Loading...</p>
                         </div>
                     </div>
+                </div>
                 <!-- End ENGAGE View -->
 
                 <!-- Print Report View -->
@@ -3636,133 +3764,7 @@ app.get('/', (c) => {
 
             <!-- Onboarding View -->
 
-                <!-- EXECUTIVE DASHBOARD View -->
-                <div id="view-executive" class="view-content">
-                    <div class="mb-6">
-                        <h2 class="text-2xl font-bold text-gray-800 mb-2 flex items-center">
-                            <i class="fas fa-tachometer-alt text-blue-600 mr-3"></i>
-                            <span id="exec-company-name">Company</span> — Campaign Dashboard
-                        </h2>
-                        <p class="text-gray-500 text-sm">Executive summary of campaign performance vs targets</p>
-                    </div>
-
-                    <!-- KPI Cards Row -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                        <!-- Acceptance Rate -->
-                        <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
-                            <div class="flex items-center justify-between mb-2">
-                                <span class="text-sm font-medium text-gray-500 uppercase tracking-wide">Acceptance Rate</span>
-                                <i class="fas fa-user-plus text-blue-400 text-lg"></i>
-                            </div>
-                            <div class="text-3xl font-bold text-gray-900 mb-1" id="exec-acceptance-rate">—</div>
-                            <div class="flex items-center justify-between">
-                                <span class="text-sm text-gray-400">Target: 20%</span>
-                                <span id="exec-acceptance-badge" class="text-xs font-semibold px-2 py-1 rounded-full bg-gray-100 text-gray-500">—</span>
-                            </div>
-                            <div class="w-full bg-gray-200 rounded-full h-2 mt-3">
-                                <div id="exec-acceptance-bar" class="h-2 rounded-full bg-blue-500 transition-all" style="width:0%"></div>
-                            </div>
-                        </div>
-
-                        <!-- Leads per Month -->
-                        <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
-                            <div class="flex items-center justify-between mb-2">
-                                <span class="text-sm font-medium text-gray-500 uppercase tracking-wide">Leads / Month</span>
-                                <i class="fas fa-chart-line text-green-400 text-lg"></i>
-                            </div>
-                            <div class="text-3xl font-bold text-gray-900 mb-1" id="exec-leads-month">—</div>
-                            <div class="flex items-center justify-between">
-                                <span class="text-sm text-gray-400">Target: 10/mo</span>
-                                <span id="exec-leads-badge" class="text-xs font-semibold px-2 py-1 rounded-full bg-gray-100 text-gray-500">—</span>
-                            </div>
-                            <div class="w-full bg-gray-200 rounded-full h-2 mt-3">
-                                <div id="exec-leads-bar" class="h-2 rounded-full bg-green-500 transition-all" style="width:0%"></div>
-                            </div>
-                        </div>
-
-                        <!-- Followers per Month -->
-                        <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-purple-500">
-                            <div class="flex items-center justify-between mb-2">
-                                <span class="text-sm font-medium text-gray-500 uppercase tracking-wide">Followers / Month</span>
-                                <i class="fas fa-users text-purple-400 text-lg"></i>
-                            </div>
-                            <div class="text-3xl font-bold text-gray-900 mb-1" id="exec-followers-month">—</div>
-                            <div class="flex items-center justify-between">
-                                <span class="text-sm text-gray-400">Target: 100/mo</span>
-                                <span id="exec-followers-badge" class="text-xs font-semibold px-2 py-1 rounded-full bg-gray-100 text-gray-500">—</span>
-                            </div>
-                            <div class="w-full bg-gray-200 rounded-full h-2 mt-3">
-                                <div id="exec-followers-bar" class="h-2 rounded-full bg-purple-500 transition-all" style="width:0%"></div>
-                            </div>
-                        </div>
-
-                        <!-- Posts per Day -->
-                        <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-orange-500">
-                            <div class="flex items-center justify-between mb-2">
-                                <span class="text-sm font-medium text-gray-500 uppercase tracking-wide">Posts / Day</span>
-                                <i class="fas fa-pen-fancy text-orange-400 text-lg"></i>
-                            </div>
-                            <div class="text-3xl font-bold text-gray-900 mb-1" id="exec-posts-day">Coming Soon</div>
-                            <div class="flex items-center justify-between">
-                                <span class="text-sm text-gray-400">Target: 1/day</span>
-                                <span id="exec-posts-badge" class="text-xs font-semibold px-2 py-1 rounded-full bg-yellow-100 text-yellow-700">Pending</span>
-                            </div>
-                            <div class="w-full bg-gray-200 rounded-full h-2 mt-3">
-                                <div id="exec-posts-bar" class="h-2 rounded-full bg-orange-500 transition-all" style="width:0%"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Channel Summary Row -->
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                        <!-- NETWORK Summary -->
-                        <div class="bg-white rounded-xl shadow p-6">
-                            <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                                <i class="fas fa-project-diagram text-blue-500 mr-2"></i>Network (LinkedIn)
-                            </h3>
-                            <div id="exec-network-summary" class="space-y-3">
-                                <div class="flex justify-between"><span class="text-gray-500">Total Invitations</span><span class="font-semibold" id="exec-net-invitations">—</span></div>
-                                <div class="flex justify-between"><span class="text-gray-500">Accepted</span><span class="font-semibold" id="exec-net-accepted">—</span></div>
-                                <div class="flex justify-between"><span class="text-gray-500">Avg Rate</span><span class="font-semibold" id="exec-net-rate">—</span></div>
-                            </div>
-                        </div>
-
-                        <!-- EMAILING Summary -->
-                        <div class="bg-white rounded-xl shadow p-6">
-                            <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                                <i class="fas fa-envelope text-indigo-500 mr-2"></i>Emailing Campaigns
-                            </h3>
-                            <div id="exec-emailing-summary" class="space-y-3">
-                                <div class="flex justify-between"><span class="text-gray-500">Emails Sent</span><span class="font-semibold" id="exec-em-sent">—</span></div>
-                                <div class="flex justify-between"><span class="text-gray-500">Human Replies</span><span class="font-semibold" id="exec-em-replies">—</span></div>
-                                <div class="flex justify-between"><span class="text-gray-500">Reply Rate</span><span class="font-semibold" id="exec-em-rate">—</span></div>
-                            </div>
-                        </div>
-
-                        <!-- ENGAGE Summary -->
-                        <div class="bg-white rounded-xl shadow p-6">
-                            <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                                <i class="fas fa-handshake text-green-500 mr-2"></i>Engage (Pipeline)
-                            </h3>
-                            <div id="exec-engage-summary" class="space-y-3">
-                                <div class="flex justify-between"><span class="text-gray-500">Total Leads</span><span class="font-semibold" id="exec-eng-leads">—</span></div>
-                                <div class="flex justify-between"><span class="text-gray-500">Campaign Duration</span><span class="font-semibold" id="exec-eng-duration">—</span></div>
-                                <div class="flex justify-between"><span class="text-gray-500">Avg Leads/Month</span><span class="font-semibold" id="exec-eng-avg">—</span></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Emailing Campaigns Table -->
-                    <div class="bg-white rounded-xl shadow p-6" id="exec-emailing-table-container">
-                        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                            <i class="fas fa-mail-bulk text-indigo-500 mr-2"></i>Emailing Campaign Details
-                        </h3>
-                        <div id="exec-emailing-table" class="overflow-x-auto">
-                            <p class="text-gray-400 text-sm">No emailing data configured. Add an Emailing Data URL in Settings.</p>
-                        </div>
-                    </div>
-                </div>
-            <div id="view-onboarding" class="view-content hidden">
+                        <div id="view-onboarding" class="view-content hidden">
                 <div class="bg-white rounded-lg shadow p-8">
                     <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
                         <i class="fas fa-rocket text-green-600 mr-3"></i>
