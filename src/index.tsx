@@ -4205,14 +4205,14 @@ app.get('/', (c) => {
                     averageLeadsPerMonth: 18.8,
                     averagePercentage: 188.0,
                     recentBoxes: [
-                        { name: 'Microsoft Corp', stageKey: 'negotiation', stageName: 'Negotiation', fitName: 'High', interestName: 'High', lastUpdatedTimestamp: Date.now() - 86400000 },
-                        { name: 'Salesforce Inc', stageKey: 'proposal', stageName: 'Proposal Sent', fitName: 'High', interestName: 'High', lastUpdatedTimestamp: Date.now() - 172800000 },
-                        { name: 'SAP SE', stageKey: 'call', stageName: 'Call Scheduled', fitName: 'High', interestName: 'Medium', lastUpdatedTimestamp: Date.now() - 259200000 },
-                        { name: 'Oracle Corp', stageKey: 'engaged', stageName: 'Engaged', fitName: 'High', interestName: 'High', lastUpdatedTimestamp: Date.now() - 345600000 },
-                        { name: 'ServiceNow', stageKey: 'proposal', stageName: 'Proposal Sent', fitName: 'High', interestName: 'High', lastUpdatedTimestamp: Date.now() - 432000000 },
-                        { name: 'Workday Inc', stageKey: 'negotiation', stageName: 'Negotiation', fitName: 'Medium', interestName: 'High', lastUpdatedTimestamp: Date.now() - 518400000 },
-                        { name: 'HubSpot', stageKey: 'call', stageName: 'Call Scheduled', fitName: 'High', interestName: 'Medium', lastUpdatedTimestamp: Date.now() - 604800000 },
-                        { name: 'Datadog', stageKey: 'engaged', stageName: 'Engaged', fitName: 'High', interestName: 'High', lastUpdatedTimestamp: Date.now() - 691200000 }
+                        { name: 'Microsoft Corp', stage: 'Negotiation', fit: 'High', interest: 'High', country: 'United States', lastUpdated: new Date(Date.now() - 86400000).toISOString() },
+                        { name: 'Salesforce Inc', stage: 'Proposal Sent', fit: 'High', interest: 'High', country: 'United States', lastUpdated: new Date(Date.now() - 172800000).toISOString() },
+                        { name: 'SAP SE', stage: 'Call Scheduled', fit: 'High', interest: 'Medium', country: 'Germany', lastUpdated: new Date(Date.now() - 259200000).toISOString() },
+                        { name: 'Oracle Corp', stage: 'Engaged', fit: 'High', interest: 'High', country: 'United States', lastUpdated: new Date(Date.now() - 345600000).toISOString() },
+                        { name: 'ServiceNow', stage: 'Proposal Sent', fit: 'High', interest: 'High', country: 'United States', lastUpdated: new Date(Date.now() - 432000000).toISOString() },
+                        { name: 'Workday Inc', stage: 'Negotiation', fit: 'Medium', interest: 'High', country: 'United States', lastUpdated: new Date(Date.now() - 518400000).toISOString() },
+                        { name: 'HubSpot', stage: 'Call Scheduled', fit: 'High', interest: 'Medium', country: 'United States', lastUpdated: new Date(Date.now() - 604800000).toISOString() },
+                        { name: 'Datadog', stage: 'Engaged', fit: 'High', interest: 'High', country: 'France', lastUpdated: new Date(Date.now() - 691200000).toISOString() }
                     ]
                 };
             }
