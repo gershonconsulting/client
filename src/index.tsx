@@ -2794,50 +2794,74 @@ app.get('/', (c) => {
                 <button onclick="switchView('executive')" id="tab-executive" class="sidebar-nav active w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-white bg-white/15 mb-0.5 transition-colors">
                     <i class="fas fa-tachometer-alt w-5 mr-2.5 text-center"></i>Dashboard
                 </button>
-                <button onclick="switchView('onboarding')" id="tab-onboarding" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
-                    <i class="fas fa-rocket w-5 mr-2.5 text-center"></i>Onboarding
-                </button>
+
+                <div class="mt-3 mb-1 px-3">
+                    <span class="text-blue-300/60 text-[10px] uppercase tracking-wider font-semibold">Channels</span>
+                </div>
                 <button onclick="switchView('promote')" id="tab-promote" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
                     <i class="fas fa-bullhorn w-5 mr-2.5 text-center"></i>Promote
                 </button>
-                <button onclick="switchView('network')" id="tab-network" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
+                <button onclick="switchView('network')" id="tab-network" class="sidebar-nav w-full flex items-center px-3 py-2 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
                     <i class="fas fa-users w-5 mr-2.5 text-center"></i>Network
                 </button>
+                <div class="pl-9 space-y-0.5 mb-1">
+                    <button onclick="switchView('network')" class="sidebar-sub w-full flex items-center px-2 py-1.5 rounded text-xs text-blue-200 hover:bg-white/10 transition-colors">
+                        <i class="fas fa-paper-plane w-4 mr-2 text-center text-[10px]"></i>Messaging
+                    </button>
+                    <button onclick="switchView('network')" class="sidebar-sub w-full flex items-center px-2 py-1.5 rounded text-xs text-blue-200 hover:bg-white/10 transition-colors">
+                        <i class="fas fa-envelope w-4 mr-2 text-center text-[10px]"></i>Emailing
+                    </button>
+                </div>
                 <button onclick="switchView('engage')" id="tab-engage" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
                     <i class="fas fa-handshake w-5 mr-2.5 text-center"></i>Engage
                 </button>
+
+                <div class="mt-3 mb-1 px-3">
+                    <span class="text-blue-300/60 text-[10px] uppercase tracking-wider font-semibold">Tools</span>
+                </div>
+                <button onclick="switchView('onboarding')" id="tab-onboarding" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
+                    <i class="fas fa-rocket w-5 mr-2.5 text-center"></i>Onboarding
+                </button>
                 <button onclick="switchView('print')" id="tab-print" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
-                    <i class="fas fa-print w-5 mr-2.5 text-center"></i>Print Report
+                    <i class="fas fa-file-export w-5 mr-2.5 text-center"></i>Export
+                </button>
+                <button onclick="switchView('print')" id="tab-report" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
+                    <i class="fas fa-chart-bar w-5 mr-2.5 text-center"></i>Report
                 </button>
                 <button onclick="switchView('settings')" id="tab-settings" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
                     <i class="fas fa-cog w-5 mr-2.5 text-center"></i>Settings
                 </button>
             </nav>
 
-            <!-- Sidebar Actions -->
-            <div class="px-3 py-3 border-t border-blue-600/40 space-y-1.5">
-                <button onclick="refreshDashboard()" class="w-full flex items-center px-3 py-2 rounded-lg text-xs font-medium text-blue-100 hover:bg-white/10 transition-colors">
-                    <i class="fas fa-sync-alt w-5 mr-2 text-center"></i>Refresh Data
+            <!-- Sidebar Bottom Actions -->
+            <div class="px-3 py-2 border-t border-blue-600/40 space-y-1">
+                <button onclick="refreshDashboard()" class="w-full flex items-center px-3 py-1.5 rounded-lg text-[11px] font-medium text-blue-200 hover:bg-white/10 transition-colors">
+                    <i class="fas fa-sync-alt w-4 mr-2 text-center"></i>Refresh
                 </button>
-                <a href="/overview" class="flex items-center px-3 py-2 rounded-lg text-xs font-medium text-blue-100 hover:bg-white/10 transition-colors">
-                    <i class="fas fa-th-large w-5 mr-2 text-center"></i>Overview
+                <a href="/overview" class="flex items-center px-3 py-1.5 rounded-lg text-[11px] font-medium text-blue-200 hover:bg-white/10 transition-colors">
+                    <i class="fas fa-th-large w-4 mr-2 text-center"></i>Overview
                 </a>
-                <a href="/admin" class="flex items-center px-3 py-2 rounded-lg text-xs font-medium text-blue-100 hover:bg-white/10 transition-colors">
-                    <i class="fas fa-shield-alt w-5 mr-2 text-center"></i>Admin Panel
+                <a href="/admin" class="flex items-center px-3 py-1.5 rounded-lg text-[11px] font-medium text-blue-200 hover:bg-white/10 transition-colors">
+                    <i class="fas fa-shield-alt w-4 mr-2 text-center"></i>Admin
                 </a>
-                <a id="open-chat-btn" href="#" target="_blank" class="hidden items-center px-3 py-2 rounded-lg text-xs font-medium text-blue-100 hover:bg-white/10 transition-colors">
-                    <i class="fas fa-comments w-5 mr-2 text-center"></i>Open Chat
+                <a id="open-chat-btn" href="#" target="_blank" class="hidden items-center px-3 py-1.5 rounded-lg text-[11px] font-medium text-blue-200 hover:bg-white/10 transition-colors">
+                    <i class="fas fa-comments w-4 mr-2 text-center"></i>Chat
                 </a>
             </div>
 
-            <!-- Footer -->
-            <div class="px-4 py-3 border-t border-blue-600/40">
-                <p class="text-blue-200 text-[10px]">
-                    <i class="fas fa-sync-alt mr-1"></i>Last Updated: <span id="last-updated" class="font-semibold">Loading...</span>
-                </p>
-                <p class="text-blue-300/60 text-[9px] mt-0.5">
-                    <i class="fas fa-calendar-alt mr-1"></i>Auto-refreshes Mon 8AM
-                </p>
+            <!-- Demo + Logout -->
+            <div class="px-3 py-3 border-t border-blue-600/40">
+                <button onclick="toggleDemoMode()" id="demo-mode-btn" class="w-full flex items-center justify-center px-3 py-2 rounded-lg text-xs font-semibold bg-amber-500 hover:bg-amber-400 text-white mb-2 transition-colors shadow">
+                    <i class="fas fa-play-circle mr-2"></i>Demo Mode
+                </button>
+                <div class="flex items-center justify-between">
+                    <p class="text-blue-300/50 text-[9px]">
+                        <span id="last-updated" class="font-semibold">Loading...</span>
+                    </p>
+                    <button onclick="window.location.href='/overview'" class="text-blue-200 hover:text-white text-[11px] font-medium transition-colors">
+                        <i class="fas fa-sign-out-alt mr-1"></i>Logout
+                    </button>
+                </div>
             </div>
         </aside>
 
@@ -4109,6 +4133,121 @@ app.get('/', (c) => {
             let stageChart, fitChart;
             let currentData = null;
             let currentCompany = 'mabsilico'; // Default company
+            let isDemoMode = false;
+            let realData = null;
+
+            function generateDemoData() {
+                const now = new Date();
+                const monthlyLeads = [];
+                const counts = [8, 12, 15, 11, 18, 22, 14, 19, 25, 21, 28, 32];
+                for (let i = 11; i >= 0; i--) {
+                    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                    const y = d.getFullYear();
+                    const m = d.getMonth() + 1;
+                    const count = counts[11 - i];
+                    monthlyLeads.push({
+                        month: y + '-' + String(m).padStart(2, '0'),
+                        monthName: d.toLocaleString('en-US', { month: 'short', year: 'numeric' }),
+                        count: count,
+                        objective: 10,
+                        percentage: parseFloat(((count / 10) * 100).toFixed(1)),
+                        status: count >= 10 ? 'achieved' : 'pending'
+                    });
+                }
+                return {
+                    company: 'Acme Corporation',
+                    companyKey: 'demo',
+                    totalBoxes: 247,
+                    campaignDurationMonths: 12,
+                    firstLeadDate: new Date(now.getFullYear() - 1, now.getMonth(), 1).toISOString(),
+                    networkData: {
+                        totalInvitations: 8420,
+                        totalAccepted: 3650,
+                        acceptanceRate: 43.3,
+                        weeklyData: Array.from({length: 52}, (_, i) => ({
+                            week: 'W' + (i+1),
+                            sent: Math.floor(120 + Math.random() * 80),
+                            accepted: Math.floor(45 + Math.random() * 40),
+                            rate: parseFloat((35 + Math.random() * 20).toFixed(1))
+                        })),
+                        monthlyData: Array.from({length: 12}, (_, i) => {
+                            const d = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
+                            const sent = Math.floor(450 + i * 30 + Math.random() * 100);
+                            const accepted = Math.floor(sent * (0.38 + i * 0.008));
+                            return {
+                                month: d.toLocaleString('en-US', { month: 'short', year: 'numeric' }),
+                                sent: sent,
+                                accepted: accepted,
+                                rate: parseFloat(((accepted/sent)*100).toFixed(1))
+                            };
+                        })
+                    },
+                    emailingData: {
+                        campaigns: [
+                            { name: 'Enterprise Decision Makers', emailsSent: 4250, allReplies: 340, humanReplies: 285, positiveReplies: 128, humanReplyRate: 6.7, positiveReplyRate: 3.0, targeting: 'VP/C-Suite at Fortune 500 companies in Tech & Finance', leads: 42 },
+                            { name: 'Mid-Market Growth Leaders', emailsSent: 3180, allReplies: 254, humanReplies: 210, positiveReplies: 95, humanReplyRate: 6.6, positiveReplyRate: 3.0, targeting: 'Directors at companies with 200-1000 employees in SaaS', leads: 31 },
+                            { name: 'Healthcare Innovation Heads', emailsSent: 2890, allReplies: 202, humanReplies: 175, positiveReplies: 78, humanReplyRate: 6.1, positiveReplyRate: 2.7, targeting: 'Chief Innovation Officers at healthcare systems', leads: 24 },
+                            { name: 'EMEA Expansion Targets', emailsSent: 1950, allReplies: 156, humanReplies: 130, positiveReplies: 58, humanReplyRate: 6.7, positiveReplyRate: 3.0, targeting: 'Managing Directors at European enterprises', leads: 18 }
+                        ],
+                        totals: { emailsSent: 12270, allReplies: 952, humanReplies: 800, positiveReplies: 359, humanReplyRate: 6.5, positiveReplyRate: 2.9, leads: 115 }
+                    },
+                    stageDistribution: { 'Lead': 52, 'Contacted': 68, 'Engaged': 45, 'Call Scheduled': 38, 'Proposal Sent': 22, 'Negotiation': 14, 'Won': 8 },
+                    originDistribution: { 'LinkedIn': 112, 'Referral': 48, 'Email Campaign': 42, 'Website': 28, 'Event': 17 },
+                    fitDistribution: { 'High': 98, 'Medium': 87, 'Low': 35, 'Not Set': 27 },
+                    fitPercentages: { 'High': '39.7', 'Medium': '35.2', 'Low': '14.2', 'Not Set': '10.9' },
+                    interestDistribution: { 'High': 82, 'Medium': 95, 'Low': 42, 'Not Set': 28 },
+                    interestPercentages: { 'High': '33.2', 'Medium': '38.5', 'Low': '17.0', 'Not Set': '11.3' },
+                    countryDistribution: { 'United States': 98, 'United Kingdom': 42, 'France': 35, 'Germany': 28, 'Canada': 24, 'Other': 20 },
+                    languageDistribution: { 'English': 172, 'French': 40, 'German': 20, 'Spanish': 15 },
+                    freshnessDistribution: { 'High (>0.5)': 85, 'Medium (0.2-0.5)': 102, 'Low (<0.2)': 60 },
+                    monthlyLeads: monthlyLeads,
+                    leadObjective: 10,
+                    averageLeadsPerMonth: 18.8,
+                    averagePercentage: 188.0,
+                    recentBoxes: [
+                        { name: 'Microsoft Corp', stageKey: 'negotiation', stageName: 'Negotiation', fitName: 'High', interestName: 'High', lastUpdatedTimestamp: Date.now() - 86400000 },
+                        { name: 'Salesforce Inc', stageKey: 'proposal', stageName: 'Proposal Sent', fitName: 'High', interestName: 'High', lastUpdatedTimestamp: Date.now() - 172800000 },
+                        { name: 'SAP SE', stageKey: 'call', stageName: 'Call Scheduled', fitName: 'High', interestName: 'Medium', lastUpdatedTimestamp: Date.now() - 259200000 },
+                        { name: 'Oracle Corp', stageKey: 'engaged', stageName: 'Engaged', fitName: 'High', interestName: 'High', lastUpdatedTimestamp: Date.now() - 345600000 },
+                        { name: 'ServiceNow', stageKey: 'proposal', stageName: 'Proposal Sent', fitName: 'High', interestName: 'High', lastUpdatedTimestamp: Date.now() - 432000000 },
+                        { name: 'Workday Inc', stageKey: 'negotiation', stageName: 'Negotiation', fitName: 'Medium', interestName: 'High', lastUpdatedTimestamp: Date.now() - 518400000 },
+                        { name: 'HubSpot', stageKey: 'call', stageName: 'Call Scheduled', fitName: 'High', interestName: 'Medium', lastUpdatedTimestamp: Date.now() - 604800000 },
+                        { name: 'Datadog', stageKey: 'engaged', stageName: 'Engaged', fitName: 'High', interestName: 'High', lastUpdatedTimestamp: Date.now() - 691200000 }
+                    ]
+                };
+            }
+
+            function toggleDemoMode() {
+                isDemoMode = !isDemoMode;
+                var btn = document.getElementById('demo-mode-btn');
+                if (isDemoMode) {
+                    realData = currentData;
+                    currentData = generateDemoData();
+                    btn.innerHTML = '<i class="fas fa-stop-circle mr-2"></i>Exit Demo';
+                    btn.classList.remove('bg-amber-500', 'hover:bg-amber-400');
+                    btn.classList.add('bg-red-500', 'hover:bg-red-400');
+                    document.getElementById('dashboard-title').textContent = 'Acme Corporation - Pipeline Report';
+                    document.getElementById('loading').classList.add('hidden');
+                    document.getElementById('dashboard').classList.remove('hidden');
+                    updateDashboard(currentData);
+                    updateExecutiveDashboard();
+                    updateEngageAnalytics();
+                    switchView('executive');
+                } else {
+                    currentData = realData;
+                    btn.innerHTML = '<i class="fas fa-play-circle mr-2"></i>Demo Mode';
+                    btn.classList.remove('bg-red-500', 'hover:bg-red-400');
+                    btn.classList.add('bg-amber-500', 'hover:bg-amber-400');
+                    if (currentData) {
+                        var cn = currentData.company || 'Company';
+                        document.getElementById('dashboard-title').textContent = cn + ' - Pipeline Report';
+                        updateDashboard(currentData);
+                        updateExecutiveDashboard();
+                        updateEngageAnalytics();
+                    }
+                    switchView('executive');
+                }
+            }
 
             // Company configuration
             const COMPANIES = {
