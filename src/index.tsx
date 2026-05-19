@@ -4163,7 +4163,7 @@ app.get('/', (c) => {
                     networkData: {
                         totalInvitations: 8420,
                         totalAccepted: 3650,
-                        acceptanceRate: 43.3,
+                        avgAcceptanceRate: 43.3,
                         weeklyData: Array.from({length: 52}, (_, i) => ({
                             week: 'W' + (i+1),
                             sent: Math.floor(120 + Math.random() * 80),
