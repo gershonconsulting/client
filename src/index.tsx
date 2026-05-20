@@ -2665,10 +2665,10 @@ app.get('/overview', (c) => {
                     var networkPct = Math.min(Math.round((networkVal / 20) * 100), 100);
                     var networkLabel = co.networkConfigured ? networkVal + '%' : 'N/A';
 
-                    // Engage KPI: % of 10 meetings/month
-                    var engageVal = co.engageThisMonthLeads || 0;
+                    // Engage KPI: last month leads vs 10/month target
+                    var engageVal = co.lastMonthLeads || 0;
                     var engageC = kpiColor(engageVal, 10);
-                    var engagePct = Math.min(co.engageMeetingsPct || 0, 100);
+                    var engagePct = Math.min(Math.round((engageVal / 10) * 100), 100);
                     var engageLabel = engageVal + '/10';
 
                     return '<div class="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-lg transition-shadow flex flex-col">'

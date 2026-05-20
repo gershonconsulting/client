@@ -27,7 +27,7 @@ var is=Object.defineProperty;var xt=e=>{throw TypeError(e)};var ls=(e,t,s)=>t in
                         <h1 class="text-2xl font-bold text-gray-800">Company Management</h1>
                     </div>
                     <div class="flex items-center space-x-4">
-                        <span class="text-sm text-gray-600">Version <strong>1.3.14</strong></span>
+                        <span class="text-sm text-gray-600">Version <strong>1.3.16</strong></span>
                         <a href="/" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-all">
                             <i class="fas fa-arrow-left mr-2"></i>
                             Back to Dashboard
@@ -743,7 +743,7 @@ var is=Object.defineProperty;var xt=e=>{throw TypeError(e)};var ls=(e,t,s)=>t in
                     </div>
                     <div class="text-right">
                         <span class="inline-block bg-white text-indigo-700 font-bold text-sm px-3 py-1 rounded-full shadow-md tracking-wide mb-3">
-                            v1.3.14
+                            v1.3.16
                         </span>
                         <p class="text-blue-100 text-sm">
                             <i class="fas fa-building mr-1"></i>All active client pipelines
@@ -894,10 +894,10 @@ var is=Object.defineProperty;var xt=e=>{throw TypeError(e)};var ls=(e,t,s)=>t in
                     var networkPct = Math.min(Math.round((networkVal / 20) * 100), 100);
                     var networkLabel = co.networkConfigured ? networkVal + '%' : 'N/A';
 
-                    // Engage KPI: % of 10 meetings/month
-                    var engageVal = co.engageThisMonthLeads || 0;
+                    // Engage KPI: last month leads vs 10/month target
+                    var engageVal = co.lastMonthLeads || 0;
                     var engageC = kpiColor(engageVal, 10);
-                    var engagePct = Math.min(co.engageMeetingsPct || 0, 100);
+                    var engagePct = Math.min(Math.round((engageVal / 10) * 100), 100);
                     var engageLabel = engageVal + '/10';
 
                     return '<div class="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-lg transition-shadow flex flex-col">'
@@ -996,7 +996,7 @@ var is=Object.defineProperty;var xt=e=>{throw TypeError(e)};var ls=(e,t,s)=>t in
                 </div>
                 <h1 id="dashboard-title" class="text-xs text-blue-200 font-medium">Client Dashboard</h1>
                 <span class="inline-block bg-white/15 text-blue-100 font-semibold text-[10px] px-2 py-0.5 rounded-full mt-1 tracking-wide">
-                    v1.3.14
+                    v1.3.16
                 </span>
             </div>
 
