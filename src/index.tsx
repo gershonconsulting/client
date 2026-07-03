@@ -1575,10 +1575,12 @@ app.get('/api/overview', async (c) => {
           const promoteUrl = company.sources?.promote || ''
           const networkGid = company.networkSheetGid || (company.sources?.network || '')
 
-          const [boxes, promoteData, networkData] = await Promise.all([
+          const emailingSource = company.sources?.emailing || ''
+          const [boxes, promoteData, networkData, emailingData] = await Promise.all([
             callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`).catch(() => []),
             promoteUrl ? fetchPromoteData(promoteUrl).catch(() => ({ platforms: {} })) : Promise.resolve({ platforms: {} }),
-            networkGid ? fetchNetworkData(networkGid).catch(() => ({ avgAcceptanceRate: 0, totalInvitations: 0 })) : Promise.resolve({ avgAcceptanceRate: 0, totalInvitations: 0 })
+            networkGid ? fetchNetworkData(networkGid).catch(() => ({ avgAcceptanceRate: 0, totalInvitations: 0, totalAccepted: 0 })) : Promise.resolve({ avgAcceptanceRate: 0, totalInvitations: 0, totalAccepted: 0 }),
+            emailingSource ? fetchEmailingData(emailingSource).catch(() => ({ campaigns: [], totals: { emailsSent: 0, humanReplies: 0, humanReplyRate: 0, positiveReplies: 0, positiveReplyRate: 0, leads: 0, campaignCount: 0 } })) : Promise.resolve({ campaigns: [], totals: { emailsSent: 0, humanReplies: 0, humanReplyRate: 0, positiveReplies: 0, positiveReplyRate: 0, leads: 0, campaignCount: 0 } })
           ])
 
           const allBoxes = Array.isArray(boxes) ? boxes : []
@@ -1648,6 +1650,35 @@ app.get('/api/overview', async (c) => {
           const thisMonthLeads = allBoxes.filter((box: any) => (box.creationTimestamp || 0) >= thisMonthStart).length
           const engageMeetingsPct = Math.round((thisMonthLeads / 10) * 100)
 
+          // Campaign duration
+          const creationTimestamps = allBoxes.map((b: any) => b.creationTimestamp).filter(Boolean)
+          const firstLeadTs = creationTimestamps.length > 0 ? Math.min(...creationTimestamps) : 0
+          const campaignMonths = firstLeadTs > 0 ? Math.max(1, Math.round((now - firstLeadTs) / (30.44 * 24 * 60 * 60 * 1000))) : 0
+
+          // Promote totals
+          let promoteTotalPosts = 0, promoteTotalImpressions = 0, promoteFollowers = 0
+          if (promoteUrl && promoteData.platforms) {
+            for (const plat of Object.values(promoteData.platforms) as any[]) {
+              promoteTotalPosts += plat.totalPosts || 0
+              promoteTotalImpressions += plat.totalImpressions || 0
+              promoteFollowers += plat.latestFollowers || plat.totalFollowers || 0
+            }
+          }
+
+          // Network totals
+          const networkInvitations = (networkData as any).totalInvitations || 0
+          const networkAccepted = (networkData as any).totalAccepted || 0
+
+          // Emailing totals
+          const emailTotals = (emailingData as any)?.totals || {}
+          const emailsSent = emailTotals.emailsSent || 0
+          const emailHumanReplies = emailTotals.humanReplies || 0
+          const emailReplyRate = emailTotals.humanReplyRate || 0
+          const emailPositiveReplies = emailTotals.positiveReplies || 0
+          const emailPositiveRate = emailTotals.positiveReplyRate || 0
+          const emailLeads = emailTotals.leads || 0
+          const emailCampaignCount = (emailingData as any)?.campaigns?.length || 0
+
           return {
             key: company.key,
             name: company.name,
@@ -1658,17 +1689,31 @@ app.get('/api/overview', async (c) => {
             recentActivity,
             stageCount: Object.keys(stages).length,
             goalPct: periodGoal > 0 ? Math.round((periodLeads / periodGoal) * 100) : 0,
-            // New KPIs
             promotePostsPerDay,
             promoteConfigured,
+            promoteTotalPosts,
+            promoteTotalImpressions,
+            promoteFollowers,
             networkAcceptanceRate,
             networkConfigured,
+            networkInvitations,
+            networkAccepted,
             engageMeetingsPct,
             engageThisMonthLeads: thisMonthLeads,
+            emailsSent,
+            emailHumanReplies,
+            emailReplyRate,
+            emailPositiveReplies,
+            emailPositiveRate,
+            emailLeads,
+            emailCampaignCount,
+            emailConfigured: !!emailingSource,
+            campaignMonths,
+            firstLeadTs,
             error: false
           }
         } catch (_err) {
-          return { key: company.key, name: company.name, periodLeads: 0, totalLeads: 0, weekLeads: 0, lastMonthLeads: 0, recentActivity: 0, stageCount: 0, goalPct: 0, promotePostsPerDay: 0, promoteConfigured: false, networkAcceptanceRate: 0, networkConfigured: false, engageMeetingsPct: 0, engageThisMonthLeads: 0, error: true }
+          return { key: company.key, name: company.name, periodLeads: 0, totalLeads: 0, weekLeads: 0, lastMonthLeads: 0, recentActivity: 0, stageCount: 0, goalPct: 0, promotePostsPerDay: 0, promoteConfigured: false, promoteTotalPosts: 0, promoteTotalImpressions: 0, promoteFollowers: 0, networkAcceptanceRate: 0, networkConfigured: false, networkInvitations: 0, networkAccepted: 0, engageMeetingsPct: 0, engageThisMonthLeads: 0, emailsSent: 0, emailHumanReplies: 0, emailReplyRate: 0, emailPositiveReplies: 0, emailPositiveRate: 0, emailLeads: 0, emailCampaignCount: 0, emailConfigured: false, campaignMonths: 0, firstLeadTs: 0, error: true }
         }
       })
     )
@@ -2645,7 +2690,6 @@ app.get('/overview', (c) => {
                 grid.innerHTML = companies.map(function(co) {
                     var errBadge = co.error ? '<span class="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full ml-2">API Error</span>' : '';
 
-                    // KPI colors
                     function kpiColor(val, target) {
                         var pct = target > 0 ? (val / target) * 100 : 0;
                         if (pct >= 100) return { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700', bar: 'bg-green-500', icon: 'text-green-500' };
@@ -2653,57 +2697,94 @@ app.get('/overview', (c) => {
                         return { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-600', bar: 'bg-red-400', icon: 'text-red-500' };
                     }
 
-                    // Promote KPI: posts/day vs target 1/day
-                    var promoteVal = co.promotePostsPerDay || 0;
-                    var promoteC = kpiColor(promoteVal, 1);
-                    var promotePct = Math.min(Math.round(promoteVal * 100), 100);
-                    var promoteLabel = co.promoteConfigured ? promoteVal + '/day' : 'N/A';
+                    function fmtNum(n) { return n >= 1000 ? (n/1000).toFixed(1).replace(/\.0$/,'') + 'k' : String(n); }
 
-                    // Network KPI: acceptance rate (target ~20%)
-                    var networkVal = co.networkAcceptanceRate || 0;
-                    var networkC = kpiColor(networkVal, 20);
-                    var networkPct = Math.min(Math.round((networkVal / 20) * 100), 100);
-                    var networkLabel = co.networkConfigured ? networkVal + '%' : 'N/A';
+                    var durationBadge = co.campaignMonths > 0
+                        ? '<span class="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full"><i class="fas fa-clock mr-1"></i>' + co.campaignMonths + ' mo</span>'
+                        : '';
 
-                    // Engage KPI: last month leads vs 10/month target
                     var engageVal = co.lastMonthLeads || 0;
                     var engageC = kpiColor(engageVal, 10);
                     var engagePct = Math.min(Math.round((engageVal / 10) * 100), 100);
-                    var engageLabel = engageVal + '/10';
 
-                    return '<div class="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-lg transition-shadow flex flex-col">'
-                        + '<div class="flex items-start justify-between mb-4">'
-                        + '<h3 class="text-lg font-bold text-gray-800 leading-tight">' + co.name + errBadge + '</h3>'
-                        + '</div>'
-                        // 3 KPI cards row
-                        + '<div class="grid grid-cols-3 gap-3 mb-4">'
-                        // Promote
-                        + '<div class="' + promoteC.bg + ' border ' + promoteC.border + ' rounded-lg p-3 text-center">'
-                        + '<p class="text-xs text-gray-500 font-semibold uppercase mb-1"><i class="fas fa-bullhorn mr-1 ' + promoteC.icon + '"></i>Promote</p>'
-                        + '<p class="text-xl font-extrabold ' + promoteC.text + '">' + promoteLabel + '</p>'
-                        + '<div class="w-full bg-gray-200 rounded-full h-1.5 mt-2"><div class="' + promoteC.bar + ' h-1.5 rounded-full" style="width:' + promotePct + '%"></div></div>'
-                        + '</div>'
-                        // Network
-                        + '<div class="' + networkC.bg + ' border ' + networkC.border + ' rounded-lg p-3 text-center">'
-                        + '<p class="text-xs text-gray-500 font-semibold uppercase mb-1"><i class="fas fa-users mr-1 ' + networkC.icon + '"></i>Network</p>'
-                        + '<p class="text-xl font-extrabold ' + networkC.text + '">' + networkLabel + '</p>'
-                        + '<div class="w-full bg-gray-200 rounded-full h-1.5 mt-2"><div class="' + networkC.bar + ' h-1.5 rounded-full" style="width:' + networkPct + '%"></div></div>'
-                        + '</div>'
-                        // Engage
-                        + '<div class="' + engageC.bg + ' border ' + engageC.border + ' rounded-lg p-3 text-center">'
-                        + '<p class="text-xs text-gray-500 font-semibold uppercase mb-1"><i class="fas fa-handshake mr-1 ' + engageC.icon + '"></i>Engage</p>'
-                        + '<p class="text-xl font-extrabold ' + engageC.text + '">' + engageLabel + '</p>'
-                        + '<div class="w-full bg-gray-200 rounded-full h-1.5 mt-2"><div class="' + engageC.bar + ' h-1.5 rounded-full" style="width:' + engagePct + '%"></div></div>'
-                        + '</div>'
-                        + '</div>'
-                        // Total leads summary
-                        + '<p class="text-sm text-gray-500 mb-4"><i class="fas fa-database mr-1 text-gray-300"></i>' + co.totalLeads + ' total leads all time</p>'
-                        + '<div class="mt-auto">'
-                        + '<a href="/?company=' + co.key + '" class="block w-full text-center bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg px-4 py-2.5 text-sm font-semibold transition-all shadow">'
-                        + '<i class="fas fa-chart-line mr-2"></i>View Dashboard'
-                        + '</a>'
-                        + '</div>'
+                    var html = '<div class="bg-white rounded-xl shadow-md border border-gray-100 hover:shadow-lg transition-shadow flex flex-col overflow-hidden">';
+
+                    // Header
+                    html += '<div class="px-5 pt-5 pb-3 flex items-center justify-between">'
+                        + '<h3 class="text-base font-bold text-gray-800 leading-tight truncate">' + co.name + errBadge + '</h3>'
+                        + durationBadge
                         + '</div>';
+
+                    // Main KPI: Leads last month
+                    html += '<div class="px-5 pb-3">'
+                        + '<div class="flex items-end justify-between mb-1">'
+                        + '<span class="text-xs text-gray-400 uppercase font-semibold">Leads last month</span>'
+                        + '<span class="text-lg font-extrabold ' + engageC.text + '">' + engageVal + '<span class="text-xs font-normal text-gray-400">/10</span></span>'
+                        + '</div>'
+                        + '<div class="w-full bg-gray-100 rounded-full h-2"><div class="' + engageC.bar + ' h-2 rounded-full transition-all" style="width:' + engagePct + '%"></div></div>'
+                        + '</div>';
+
+                    // 3-column channel stats
+                    html += '<div class="grid grid-cols-3 divide-x divide-gray-100 border-t border-gray-100">';
+
+                    // PROMOTE
+                    html += '<div class="px-3 py-3">'
+                        + '<p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-2 text-center"><i class="fas fa-bullhorn text-orange-400 mr-1"></i>Promote</p>';
+                    if (co.promoteConfigured) {
+                        html += '<div class="space-y-0.5 text-center">'
+                            + '<p class="text-lg font-bold text-gray-800">' + (co.promotePostsPerDay || 0) + '<span class="text-[10px] text-gray-400">/day</span></p>'
+                            + '<p class="text-[10px] text-gray-400">' + fmtNum(co.promoteTotalPosts || 0) + ' posts</p>'
+                            + '<p class="text-[10px] text-gray-400">' + fmtNum(co.promoteTotalImpressions || 0) + ' impr.</p>'
+                            + '<p class="text-[10px] text-gray-400">' + fmtNum(co.promoteFollowers || 0) + ' followers</p>'
+                            + '</div>';
+                    } else {
+                        html += '<p class="text-sm text-gray-300 text-center mt-2">N/A</p>';
+                    }
+                    html += '</div>';
+
+                    // NETWORK
+                    html += '<div class="px-3 py-3">'
+                        + '<p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-2 text-center"><i class="fas fa-user-plus text-blue-400 mr-1"></i>Network</p>';
+                    if (co.networkConfigured) {
+                        html += '<div class="space-y-0.5 text-center">'
+                            + '<p class="text-lg font-bold text-gray-800">' + (co.networkAcceptanceRate || 0) + '<span class="text-[10px] text-gray-400">%</span></p>'
+                            + '<p class="text-[10px] text-gray-400">' + fmtNum(co.networkInvitations || 0) + ' sent</p>'
+                            + '<p class="text-[10px] text-gray-400">' + fmtNum(co.networkAccepted || 0) + ' accepted</p>'
+                            + '</div>';
+                    } else {
+                        html += '<p class="text-sm text-gray-300 text-center mt-2">N/A</p>';
+                    }
+                    html += '</div>';
+
+                    // EMAILING
+                    html += '<div class="px-3 py-3">'
+                        + '<p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-2 text-center"><i class="fas fa-envelope text-purple-400 mr-1"></i>Emailing</p>';
+                    if (co.emailConfigured && co.emailsSent > 0) {
+                        html += '<div class="space-y-0.5 text-center">'
+                            + '<p class="text-lg font-bold text-gray-800">' + (co.emailReplyRate || 0).toFixed(1) + '<span class="text-[10px] text-gray-400">%</span></p>'
+                            + '<p class="text-[10px] text-gray-400">' + fmtNum(co.emailsSent || 0) + ' sent</p>'
+                            + '<p class="text-[10px] text-gray-400">' + fmtNum(co.emailHumanReplies || 0) + ' replies</p>'
+                            + '<p class="text-[10px] text-gray-400">' + (co.emailCampaignCount || 0) + ' campaigns</p>'
+                            + '</div>';
+                    } else {
+                        html += '<p class="text-sm text-gray-300 text-center mt-2">N/A</p>';
+                    }
+                    html += '</div>';
+                    html += '</div>';
+
+                    // Footer
+                    html += '<div class="px-5 py-3 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between mt-auto">'
+                        + '<div class="flex items-center gap-3">'
+                        + '<span class="text-xs text-gray-500"><i class="fas fa-database text-gray-300 mr-1"></i>' + fmtNum(co.totalLeads) + ' leads</span>'
+                        + '<span class="text-xs text-gray-500"><i class="fas fa-bolt text-yellow-400 mr-1"></i>' + co.recentActivity + ' this week</span>'
+                        + '</div>'
+                        + '<a href="/?company=' + co.key + '" class="inline-flex items-center bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg px-4 py-2 text-xs font-semibold transition-all shadow">'
+                        + '<i class="fas fa-chart-line mr-1.5"></i>Dashboard'
+                        + '</a>'
+                        + '</div>';
+
+                    html += '</div>';
+                    return html;
                 }).join('');
             }
 
@@ -2716,7 +2797,12 @@ app.get('/overview', (c) => {
                     if (!res.ok) throw new Error('HTTP ' + res.status);
                     const data = await res.json();
                     overviewAverages = data.averages || {};
-                    renderSummary(data);
+                    data.companies.sort(function(a, b) {
+                    if (a.error && !b.error) return 1;
+                    if (!a.error && b.error) return -1;
+                    return (b.firstLeadTs || 0) - (a.firstLeadTs || 0);
+                });
+                renderSummary(data);
                     renderCards(data.companies);
                 } catch (err) {
                     document.getElementById('error-message').textContent = err.message;
