@@ -1811,6 +1811,22 @@ app.post('/api/admin/streak-key', async (c) => {
   }
 })
 
+// Streak API health check — tests actual connectivity
+app.get('/api/admin/streak-health', async (c) => {
+  try {
+    const start = Date.now()
+    const user = await callStreakAPI('/users/me')
+    const latency = Date.now() - start
+    return c.json({
+      ok: true,
+      email: user.email || user.lowercaseEmail || 'unknown',
+      latency,
+    })
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message || 'Connection failed' }, 200)
+  }
+})
+
 // List all Streak pipelines (admin utility)
 app.get('/api/admin/streak-pipelines', async (c) => {
   try {
@@ -1867,12 +1883,17 @@ app.get('/admin', (c) => {
         </div>
 
         <div class="max-w-7xl mx-auto px-6 py-8">
-            <!-- Google Sign-In + Streak API Key Management -->
+            <!-- Streak API Health + Key Management -->
             <div class="bg-white rounded-lg shadow-lg p-8 mb-8 border-l-4 border-red-500">
-                <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
-                    <i class="fas fa-key text-red-600 mr-3"></i>
-                    Streak API Key Management
-                </h2>
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-2xl font-bold text-gray-800 flex items-center">
+                        <i class="fas fa-key text-red-600 mr-3"></i>
+                        Streak API Key Management
+                    </h2>
+                    <div id="streak-health" class="flex items-center gap-2 px-4 py-2 rounded-full bg-gray-100 text-gray-500 text-sm">
+                        <i class="fas fa-spinner fa-spin"></i> Checking API...
+                    </div>
+                </div>
                 <p class="text-gray-600 mb-4">Sign in with Google to manage the Streak API key. Only authorized admins can update it.</p>
 
                 <!-- Google Sign-In -->
@@ -1915,6 +1936,27 @@ app.get('/admin', (c) => {
 
             <script src="https://accounts.google.com/gsi/client" async defer></script>
             <script>
+                // Auto-check Streak API health on page load
+                (function checkStreakHealth() {
+                    fetch('/api/admin/streak-health')
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        var el = document.getElementById('streak-health');
+                        if (data.ok) {
+                            el.className = 'flex items-center gap-2 px-4 py-2 rounded-full bg-green-100 text-green-700 text-sm font-medium';
+                            el.innerHTML = '<i class="fas fa-check-circle text-green-600"></i> API Connected (' + data.latency + 'ms) \u2014 ' + data.email;
+                        } else {
+                            el.className = 'flex items-center gap-2 px-4 py-2 rounded-full bg-red-100 text-red-700 text-sm font-medium';
+                            el.innerHTML = '<i class="fas fa-times-circle text-red-600"></i> API Error: ' + (data.error || 'Connection failed');
+                        }
+                    })
+                    .catch(function() {
+                        var el = document.getElementById('streak-health');
+                        el.className = 'flex items-center gap-2 px-4 py-2 rounded-full bg-red-100 text-red-700 text-sm font-medium';
+                        el.innerHTML = '<i class="fas fa-times-circle text-red-600"></i> Cannot reach server';
+                    });
+                })();
+
                 var googleIdToken = null;
 
                 function handleGoogleSignIn(response) {
