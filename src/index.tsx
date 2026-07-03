@@ -2910,109 +2910,101 @@ app.get('/', (c) => {
             .print-table th { background-color: #f3f4f6; padding: 12px 8px; text-align: left; font-weight: 600; border-bottom: 2px solid #e5e7eb; }
             .print-table td { padding: 10px 8px; border-bottom: 1px solid #e5e7eb; }
             .print-table tr:hover { background-color: #f9fafb; }
+
+            /* ── Gershon.AI Sidebar ── */
+            :root{ --brand:#6366f1; --brand-ink:#4f46e5; --brand-soft:#eef0fe; --side-line:#eef0f4; }
+            .sidebar{ width:250px; flex:0 0 250px; background:#fff; color:#475569; border-right:1px solid var(--side-line);
+              display:flex; flex-direction:column; position:fixed; top:0; left:0; height:100vh; z-index:50;
+              font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; box-shadow:1px 0 3px rgba(0,0,0,.04); }
+            .sidebar .brand{ display:flex; align-items:center; gap:9px; padding:22px 20px 4px; }
+            .sidebar .brand .logo{ display:flex; color:var(--brand); } .sidebar .brand .logo svg{ width:24px; height:24px; }
+            .sidebar .brand h1{ font-size:1.35rem; font-weight:800; color:var(--brand); letter-spacing:-0.01em; margin:0; }
+            .brand-meta{ padding:6px 20px 16px; margin-bottom:4px; border-bottom:1px solid var(--side-line); }
+            .brand-meta .eyebrow{ font-size:0.66rem; font-weight:700; letter-spacing:0.13em; color:#94a3b8; text-transform:uppercase; }
+            .brand-meta .ver{ font-size:0.9rem; font-weight:700; color:#334155; margin-top:8px; }
+            .brand-meta .rel{ font-size:0.74rem; color:#94a3b8; margin-top:2px; }
+            .company-select-wrap{ padding:8px 14px 12px; border-bottom:1px solid var(--side-line); }
+            .company-label{ font-size:0.66rem; font-weight:700; letter-spacing:0.13em; color:#94a3b8; text-transform:uppercase; display:block; margin-bottom:4px; }
+            .company-select{ width:100%; background:#f8fafc; color:#334155; border:1px solid var(--side-line); border-radius:9px;
+              padding:8px 28px 8px 10px; font-size:0.88rem; font-weight:600; font-family:inherit; cursor:pointer; outline:none;
+              transition:border-color .15s; -webkit-appearance:none; appearance:none;
+              background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+              background-repeat:no-repeat; background-position:right 10px center; }
+            .company-select:focus{ border-color:var(--brand); box-shadow:0 0 0 3px rgba(99,102,241,0.15); }
+            .nav-items{ padding:6px 12px; display:flex; flex-direction:column; gap:2px; flex:1; overflow-y:auto; }
+            .nav-sec{ font-size:0.66rem; font-weight:700; letter-spacing:0.13em; color:#94a3b8; text-transform:uppercase; padding:16px 12px 6px; }
+            .nav-item{ display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:9px; border:none; background:none;
+              color:#475569; cursor:pointer; font-size:0.92rem; font-weight:600; text-align:left; width:100%;
+              font-family:inherit; transition:background .15s,color .15s; text-decoration:none; }
+            .nav-item:hover{ background:#f5f6fb; color:#1e293b; }
+            .nav-item.active{ background:var(--brand-soft); color:var(--brand-ink); }
+            .nav-item .ico{ width:20px; flex:0 0 20px; display:flex; align-items:center; justify-content:center; }
+            .nav-item .ico svg{ width:18px; height:18px; }
+            .sidebar .foot{ padding:12px 14px 8px; border-top:1px solid var(--side-line); display:flex; flex-direction:column; gap:6px; }
+            .foot-btn{ display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:9px; border:none; background:none; cursor:pointer;
+              font-size:0.9rem; font-weight:600; color:#475569; text-align:left; width:100%; font-family:inherit; text-decoration:none;
+              transition:background .15s,color .15s; }
+            .foot-btn:hover{ background:#f5f6fb; color:#1e293b; }
+            .foot-btn .ico{ width:20px; flex:0 0 20px; display:flex; } .foot-btn .ico svg{ width:18px; height:18px; }
+            .foot-btn.demo.on{ background:var(--brand-soft); color:var(--brand-ink); }
+            .foot-btn.active{ background:var(--brand-soft); color:var(--brand-ink); }
+            .foot-btn.logout{ color:#dc2626; } .foot-btn.logout:hover{ background:#fee2e2; color:#b91c1c; }
+            .foot-domain{ text-align:center; font-size:0.72rem; color:#94a3b8; padding:6px 0 8px; }
+            .gai-main{ margin-left:250px; }
+            @media(max-width:880px){
+              .sidebar{ width:100%; flex:none; height:auto; position:relative; border-right:none; border-bottom:1px solid var(--side-line); box-shadow:none; }
+              .brand-meta,.nav-sec,.sidebar .foot,.company-select-wrap{ display:none; }
+              .nav-items{ flex-direction:row; flex-wrap:wrap; padding:8px; }
+              .nav-item{ width:auto; flex:1 1 auto; justify-content:center; padding:8px 10px; font-size:0.82rem; }
+              .gai-main{ margin-left:0; }
+            }
         </style>
     </head>
     <body class="bg-gray-50 min-h-screen">
         <!-- Fixed Left Sidebar -->
-        <aside id="sidebar" class="fixed top-0 left-0 h-full w-56 bg-gradient-to-b from-blue-700 to-indigo-800 text-white flex flex-col z-50 shadow-xl">
-            <!-- Brand -->
-            <div class="px-5 pt-6 pb-4 border-b border-blue-600/40">
-                <div class="flex items-center mb-1">
-                    <i class="fas fa-chart-line text-xl mr-2"></i>
-                    <span class="font-bold text-lg">Gershon CRM</span>
-                </div>
-                <h1 id="dashboard-title" class="text-xs text-blue-200 font-medium">Client Dashboard</h1>
-                <span class="inline-block bg-white/15 text-blue-100 font-semibold text-[10px] px-2 py-0.5 rounded-full mt-1 tracking-wide">
-                    v${__APP_VERSION__}
-                </span>
+        <aside id="sidebar" class="sidebar">
+          <div class="brand">
+            <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
+            <h1>Client</h1>
+          </div>
+          <div class="brand-meta">
+            <div class="eyebrow">by Gershon.AI</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <div class="ver">v${__APP_VERSION__}</div>
+              <button onclick="refreshDashboard()" style="background:none;border:none;cursor:pointer;color:#94a3b8;padding:4px;border-radius:6px;transition:color .15s;" title="Refresh data" onmouseover="this.style.color='#4f46e5'" onmouseout="this.style.color='#94a3b8'"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
             </div>
-
-            <!-- Company Selector -->
-            <div class="px-4 py-3 border-b border-blue-600/40">
-                <label class="text-blue-200 text-[10px] uppercase tracking-wider font-semibold block mb-1">Company</label>
-                <select id="company-selector" onchange="switchCompany(this.value)" class="w-full bg-blue-600/50 text-white rounded px-2 py-1.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-300 border border-blue-500/40">
-                    <!-- Populated dynamically -->
-                </select>
-            </div>
-
-            <!-- Navigation -->
-            <nav class="flex-1 overflow-y-auto py-3 px-2">
-                <button onclick="switchView('executive')" id="tab-executive" class="sidebar-nav active w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-white bg-white/15 mb-0.5 transition-colors">
-                    <i class="fas fa-tachometer-alt w-5 mr-2.5 text-center"></i>Dashboard
-                </button>
-
-                <div class="mt-3 mb-1 px-3">
-                    <span class="text-blue-300/60 text-[10px] uppercase tracking-wider font-semibold">Channels</span>
-                </div>
-                <button onclick="switchView('promote')" id="tab-promote" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
-                    <i class="fas fa-bullhorn w-5 mr-2.5 text-center"></i>Promote
-                </button>
-                <button onclick="switchView('network')" id="tab-network" class="sidebar-nav w-full flex items-center px-3 py-2 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
-                    <i class="fas fa-users w-5 mr-2.5 text-center"></i>Network
-                </button>
-                <div class="pl-9 space-y-0.5 mb-1">
-                    <button onclick="switchView('network')" class="sidebar-sub w-full flex items-center px-2 py-1.5 rounded text-xs text-blue-200 hover:bg-white/10 transition-colors">
-                        <i class="fas fa-paper-plane w-4 mr-2 text-center text-[10px]"></i>Messaging
-                    </button>
-                    <button onclick="switchView('network')" class="sidebar-sub w-full flex items-center px-2 py-1.5 rounded text-xs text-blue-200 hover:bg-white/10 transition-colors">
-                        <i class="fas fa-envelope w-4 mr-2 text-center text-[10px]"></i>Emailing
-                    </button>
-                </div>
-                <button onclick="switchView('engage')" id="tab-engage" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
-                    <i class="fas fa-handshake w-5 mr-2.5 text-center"></i>Engage
-                </button>
-
-                <div class="mt-3 mb-1 px-3">
-                    <span class="text-blue-300/60 text-[10px] uppercase tracking-wider font-semibold">Tools</span>
-                </div>
-                <button onclick="switchView('onboarding')" id="tab-onboarding" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
-                    <i class="fas fa-rocket w-5 mr-2.5 text-center"></i>Onboarding
-                </button>
-                <button onclick="switchView('print')" id="tab-print" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
-                    <i class="fas fa-file-export w-5 mr-2.5 text-center"></i>Export
-                </button>
-                <button onclick="switchView('print')" id="tab-report" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
-                    <i class="fas fa-chart-bar w-5 mr-2.5 text-center"></i>Report
-                </button>
-                <button onclick="switchView('settings')" id="tab-settings" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
-                    <i class="fas fa-cog w-5 mr-2.5 text-center"></i>Settings
-                </button>
-            </nav>
-
-            <!-- Sidebar Bottom Actions -->
-            <div class="px-3 py-2 border-t border-blue-600/40 space-y-1">
-                <button onclick="refreshDashboard()" class="w-full flex items-center px-3 py-1.5 rounded-lg text-[11px] font-medium text-blue-200 hover:bg-white/10 transition-colors">
-                    <i class="fas fa-sync-alt w-4 mr-2 text-center"></i>Refresh
-                </button>
-                <a href="/overview" class="flex items-center px-3 py-1.5 rounded-lg text-[11px] font-medium text-blue-200 hover:bg-white/10 transition-colors">
-                    <i class="fas fa-th-large w-4 mr-2 text-center"></i>Overview
-                </a>
-                <a href="/admin" class="flex items-center px-3 py-1.5 rounded-lg text-[11px] font-medium text-blue-200 hover:bg-white/10 transition-colors">
-                    <i class="fas fa-shield-alt w-4 mr-2 text-center"></i>Admin
-                </a>
-                <a id="open-chat-btn" href="#" target="_blank" class="hidden items-center px-3 py-1.5 rounded-lg text-[11px] font-medium text-blue-200 hover:bg-white/10 transition-colors">
-                    <i class="fas fa-comments w-4 mr-2 text-center"></i>Chat
-                </a>
-            </div>
-
-            <!-- Demo + Logout -->
-            <div class="px-3 py-3 border-t border-blue-600/40">
-                <button onclick="toggleDemoMode()" id="demo-mode-btn" class="w-full flex items-center justify-center px-3 py-2 rounded-lg text-xs font-semibold bg-amber-500 hover:bg-amber-400 text-white mb-2 transition-colors shadow">
-                    <i class="fas fa-play-circle mr-2"></i>Demo Mode
-                </button>
-                <div class="flex items-center justify-between">
-                    <p class="text-blue-300/50 text-[9px]">
-                        <span id="last-updated" class="font-semibold">Loading...</span>
-                    </p>
-                    <button onclick="window.location.href='/overview'" class="text-blue-200 hover:text-white text-[11px] font-medium transition-colors">
-                        <i class="fas fa-sign-out-alt mr-1"></i>Logout
-                    </button>
-                </div>
-            </div>
+            <div class="rel" id="last-updated">Loading...</div>
+          </div>
+          <div class="company-select-wrap">
+            <label class="company-label">Company</label>
+            <select id="company-selector" onchange="switchCompany(this.value)" class="company-select"></select>
+          </div>
+          <nav class="nav-items">
+            <button class="nav-item active" onclick="switchView('executive')" id="tab-executive"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg></span> Dashboard</button>
+            <div class="nav-sec">Channels</div>
+            <button class="nav-item" onclick="switchView('promote')" id="tab-promote"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></span> Promote</button>
+            <button class="nav-item" onclick="switchView('network')" id="tab-network"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> Network</button>
+            <button class="nav-item" onclick="switchView('engage')" id="tab-engage"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></span> Engage</button>
+            <div class="nav-sec">Tools</div>
+            <button class="nav-item" onclick="switchView('onboarding')" id="tab-onboarding"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span> Onboarding</button>
+            <button class="nav-item" onclick="switchView('print')" id="tab-print"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span> Export</button>
+            <button class="nav-item" onclick="switchView('print')" id="tab-report"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span> Report</button>
+            <div class="nav-sec">Links</div>
+            <a class="nav-item" href="/overview"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span> Overview</a>
+            <a class="nav-item" href="/admin"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span> Admin</a>
+            <a id="open-chat-btn" class="nav-item hidden" href="#" target="_blank"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span> Chat</a>
+          </nav>
+          <div class="foot">
+            <button class="foot-btn" onclick="switchView('settings')" id="tab-settings"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span> Settings</button>
+            <button class="foot-btn demo" id="demo-mode-btn" onclick="toggleDemoMode()"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z"/></svg></span> <span id="demoLbl">Demo mode</span></button>
+            <button class="foot-btn logout" onclick="window.location.href='/overview'"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span> Log out</button>
+            <div class="foot-domain">client.gershonCRM.com</div>
+          </div>
         </aside>
+        <span id="dashboard-title" style="display:none;">Client Dashboard</span>
 
         <!-- Main Content Area -->
-        <div class="ml-56 min-h-screen">
+        <div class="gai-main min-h-screen">
         <div class="container mx-auto px-6 py-6">
 
             <!-- Loading State -->
@@ -4369,9 +4361,8 @@ app.get('/', (c) => {
                 if (isDemoMode) {
                     realData = currentData;
                     currentData = generateDemoData();
-                    btn.innerHTML = '<i class="fas fa-stop-circle mr-2"></i>Exit Demo';
-                    btn.classList.remove('bg-amber-500', 'hover:bg-amber-400');
-                    btn.classList.add('bg-red-500', 'hover:bg-red-400');
+                    document.getElementById('demoLbl').textContent = 'Live data';
+                    btn.classList.add('on');
                     document.getElementById('dashboard-title').textContent = 'Acme Corporation - Pipeline Report';
                     document.getElementById('loading').classList.add('hidden');
                     document.getElementById('dashboard').classList.remove('hidden');
@@ -4381,9 +4372,8 @@ app.get('/', (c) => {
                     switchView('executive');
                 } else {
                     currentData = realData;
-                    btn.innerHTML = '<i class="fas fa-play-circle mr-2"></i>Demo Mode';
-                    btn.classList.remove('bg-red-500', 'hover:bg-red-400');
-                    btn.classList.add('bg-amber-500', 'hover:bg-amber-400');
+                    document.getElementById('demoLbl').textContent = 'Demo mode';
+                    btn.classList.remove('on');
                     if (currentData) {
                         var cn = currentData.company || 'Company';
                         document.getElementById('dashboard-title').textContent = cn + ' - Pipeline Report';
@@ -4544,9 +4534,8 @@ app.get('/', (c) => {
                 });
                 
                 // Remove active class from all tabs
-                document.querySelectorAll('.sidebar-nav').forEach(tab => {
-                    tab.classList.remove('active', 'bg-white/15', 'text-white');
-                    tab.classList.add('text-blue-100');
+                document.querySelectorAll('.nav-item, .foot-btn').forEach(tab => {
+                    tab.classList.remove('active');
                 });
                 
                 // Show selected view
@@ -4554,8 +4543,7 @@ app.get('/', (c) => {
                 
                 // Add active class to selected tab
                 const activeTab = document.getElementById('tab-' + viewName);
-                activeTab.classList.add('active', 'bg-white/15', 'text-white');
-                activeTab.classList.remove('text-blue-100');
+                if (activeTab) activeTab.classList.add('active');
                 
                 // Render view-specific content
                 if (currentData) {
