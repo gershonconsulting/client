@@ -42,6 +42,7 @@ const STREAK_API_BASE = 'https://www.streak.com/api/v1'
 // Authorized admin emails
 const ADMIN_EMAILS = [
   'oattia@gmail.com',
+  'olivier@gershonconsulting.com',
   'aina.andriamangason@gmail.com',
   'winnielauren3@gmail.com',
   'zakaria.omahdi@mabsilico.com',
