@@ -1810,6 +1810,23 @@ app.post('/api/admin/streak-key', async (c) => {
   }
 })
 
+// List all Streak pipelines (admin utility)
+app.get('/api/admin/streak-pipelines', async (c) => {
+  try {
+    const pipelines = await callStreakAPI('/pipelines')
+    const result = Array.isArray(pipelines)
+      ? pipelines.map((p: any) => ({
+          name: p.name,
+          key: p.pipelineKey || p.key,
+          boxCount: p.boxCount,
+        }))
+      : []
+    return c.json(result)
+  } catch (err) {
+    return c.json({ error: 'Failed to fetch pipelines' }, 500)
+  }
+})
+
 // Admin Panel Route
 app.get('/admin', (c) => {
   return c.html(`
