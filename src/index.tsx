@@ -2897,6 +2897,7 @@ app.get('/', (c) => {
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+        <script src="https://accounts.google.com/gsi/client" async defer></script>
         <style>
             @media print {
                 .no-print { display: none !important; }
@@ -3543,6 +3544,43 @@ app.get('/', (c) => {
                         <span id="settings-company-name">Company</span> Settings
                     </h2>
                     
+                    <!-- Streak API Key Management -->
+                    <div class="p-6 bg-red-50 border border-red-200 rounded-lg mb-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center justify-between">
+                            <span><i class="fas fa-key text-red-600 mr-2"></i>Streak API Key</span>
+                            <span id="streak-key-badge" class="text-xs font-semibold px-3 py-1 rounded-full bg-gray-100 text-gray-500">
+                                <i class="fas fa-spinner fa-spin mr-1"></i>Checking...
+                            </span>
+                        </h3>
+                        <p class="text-xs text-gray-600 mb-4">
+                            The Streak API key is shared across all companies. Sign in with Google to view or update it.
+                        </p>
+                        
+                        <div id="streak-key-auth" class="mb-4">
+                            <div id="settings-google-signin"></div>
+                        </div>
+                        
+                        <div id="streak-key-panel" class="hidden space-y-3">
+                            <div class="flex items-center gap-3">
+                                <span class="text-sm font-medium text-gray-700">Current key:</span>
+                                <code id="streak-key-masked" class="bg-white px-3 py-1 rounded border text-sm font-mono text-gray-600">—</code>
+                            </div>
+                            <div>
+                                <label class="text-sm font-medium text-gray-700">New API Key:</label>
+                                <div class="flex gap-2 mt-1">
+                                    <input type="password" id="streak-key-input" placeholder="Paste new Streak API key..." class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 font-mono text-sm" />
+                                    <button type="button" onclick="toggleKeyVisibility()" class="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-500" title="Show/hide key">
+                                        <i id="key-eye-icon" class="fas fa-eye"></i>
+                                    </button>
+                                    <button type="button" onclick="saveStreakKeyFromSettings()" class="px-5 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold text-sm transition-colors">
+                                        <i class="fas fa-save mr-1"></i>Save Key
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="streak-key-message" class="hidden"></div>
+                        </div>
+                    </div>
+
                     <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
                         <p class="text-sm text-blue-800">
                             <i class="fas fa-info-circle mr-2"></i>
@@ -5895,6 +5933,117 @@ app.get('/', (c) => {
                     btn.classList.add('hidden');
                 }
             }
+
+            // ── Streak API Key Management in Settings ──
+            var settingsGoogleToken = null;
+
+            function initSettingsGoogleSignIn() {
+                if (typeof google === 'undefined' || !google.accounts) {
+                    setTimeout(initSettingsGoogleSignIn, 500);
+                    return;
+                }
+                google.accounts.id.initialize({
+                    client_id: '122652289881-c1tl6o48nvebuskflujembp28qfgvv36.apps.googleusercontent.com',
+                    callback: onSettingsGoogleSignIn
+                });
+                google.accounts.id.renderButton(
+                    document.getElementById('settings-google-signin'),
+                    { theme: 'outline', size: 'medium', text: 'signin_with', shape: 'rectangular' }
+                );
+                // Also check current key status right away
+                checkStreakKeyStatus();
+            }
+
+            function onSettingsGoogleSignIn(response) {
+                settingsGoogleToken = response.credential;
+                document.getElementById('streak-key-auth').classList.add('hidden');
+                document.getElementById('streak-key-panel').classList.remove('hidden');
+                checkStreakKeyStatus();
+            }
+
+            function checkStreakKeyStatus() {
+                fetch('/api/admin/streak-health')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    var badge = document.getElementById('streak-key-badge');
+                    if (data.ok) {
+                        badge.className = 'text-xs font-semibold px-3 py-1 rounded-full bg-green-100 text-green-700';
+                        badge.innerHTML = '<i class="fas fa-check-circle mr-1"></i>Connected (' + data.latency + 'ms)';
+                    } else {
+                        badge.className = 'text-xs font-semibold px-3 py-1 rounded-full bg-red-100 text-red-700';
+                        badge.innerHTML = '<i class="fas fa-times-circle mr-1"></i>Error: ' + (data.error || 'Failed');
+                    }
+                })
+                .catch(function() {
+                    var badge = document.getElementById('streak-key-badge');
+                    badge.className = 'text-xs font-semibold px-3 py-1 rounded-full bg-red-100 text-red-700';
+                    badge.innerHTML = '<i class="fas fa-times-circle mr-1"></i>Cannot reach server';
+                });
+                // Also fetch masked key
+                fetch('/api/admin/streak-key/status')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    var el = document.getElementById('streak-key-masked');
+                    if (data.configured && data.maskedKey) {
+                        el.textContent = data.maskedKey;
+                    } else {
+                        el.textContent = 'Not configured';
+                    }
+                }).catch(function(){});
+            }
+
+            function toggleKeyVisibility() {
+                var inp = document.getElementById('streak-key-input');
+                var ico = document.getElementById('key-eye-icon');
+                if (inp.type === 'password') {
+                    inp.type = 'text';
+                    ico.className = 'fas fa-eye-slash';
+                } else {
+                    inp.type = 'password';
+                    ico.className = 'fas fa-eye';
+                }
+            }
+
+            function saveStreakKeyFromSettings() {
+                var key = document.getElementById('streak-key-input').value.trim();
+                if (!key) { showStreakKeyMessage('error', 'Please enter an API key.'); return; }
+                if (!settingsGoogleToken) { showStreakKeyMessage('error', 'Please sign in with Google first.'); return; }
+                
+                fetch('/api/admin/streak-key', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: settingsGoogleToken, key: key })
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        showStreakKeyMessage('success', 'API key saved! Reload the page to use the new key.');
+                        document.getElementById('streak-key-input').value = '';
+                        checkStreakKeyStatus();
+                    } else {
+                        showStreakKeyMessage('error', data.error || 'Failed to save key.');
+                    }
+                })
+                .catch(function(err) {
+                    showStreakKeyMessage('error', 'Network error: ' + err.message);
+                });
+            }
+
+            function showStreakKeyMessage(type, msg) {
+                var el = document.getElementById('streak-key-message');
+                el.classList.remove('hidden');
+                if (type === 'success') {
+                    el.className = 'bg-green-50 border-l-4 border-green-500 p-3 rounded text-sm text-green-800';
+                    el.innerHTML = '<i class="fas fa-check-circle mr-2"></i>' + msg;
+                } else {
+                    el.className = 'bg-red-50 border-l-4 border-red-500 p-3 rounded text-sm text-red-800';
+                    el.innerHTML = '<i class="fas fa-exclamation-circle mr-2"></i>' + msg;
+                }
+                setTimeout(function() { el.classList.add('hidden'); }, 6000);
+            }
+
+            // Initialize Google Sign-In for Settings when page loads
+            setTimeout(initSettingsGoogleSignIn, 1000);
 
             function updateSettingsView() {
                 const company = COMPANIES[currentCompany];
