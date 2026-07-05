@@ -1789,17 +1789,21 @@ app.get('/api/admin/streak-key/status', async (c) => {
 // Save encrypted Streak API key
 app.post('/api/admin/streak-key', async (c) => {
   try {
-    const body = await c.req.json() as { token: string, key: string }
-    if (!body.token || !body.key) {
-      return c.json({ success: false, error: 'Token and key are required' }, 400)
+    const body = await c.req.json() as { token?: string, key: string }
+    if (!body.key) {
+      return c.json({ success: false, error: 'API key is required' }, 400)
     }
-    const user = await verifyGoogleToken(body.token, c.env.GOOGLE_CLIENT_ID)
-    if (!user) {
-      return c.json({ success: false, error: 'Invalid Google token' }, 401)
-    }
-    if (!ADMIN_EMAILS.includes(user.email.toLowerCase())) {
-      return c.json({ success: false, error: 'Unauthorized email' }, 403)
-    }
+    // Google token verification commented out — direct key entry enabled
+    // if (!body.token) {
+    //   return c.json({ success: false, error: 'Token and key are required' }, 400)
+    // }
+    // const user = await verifyGoogleToken(body.token, c.env.GOOGLE_CLIENT_ID)
+    // if (!user) {
+    //   return c.json({ success: false, error: 'Invalid Google token' }, 401)
+    // }
+    // if (!ADMIN_EMAILS.includes(user.email.toLowerCase())) {
+    //   return c.json({ success: false, error: 'Unauthorized email' }, 403)
+    // }
     if (!c.env.ENCRYPTION_KEY) {
       return c.json({ success: false, error: 'Encryption key not configured on server' }, 500)
     }
@@ -1894,9 +1898,10 @@ app.get('/admin', (c) => {
                         <i class="fas fa-spinner fa-spin"></i> Checking API...
                     </div>
                 </div>
-                <p class="text-gray-600 mb-4">Sign in with Google to manage the Streak API key. Only authorized admins can update it.</p>
+                <p class="text-gray-600 mb-4">Manage the Streak API key. Enter your key from Streak Settings &rarr; Integrations &rarr; API.</p>
 
-                <!-- Google Sign-In -->
+                <!-- Google Sign-In (disabled — direct key entry enabled) -->
+                <!--
                 <div id="google-signin-section">
                     <div id="g_id_onload"
                         data-client_id="${c.env.GOOGLE_CLIENT_ID || '122652289881-c1tl6o48nvebuskflujembp28qfgvv36.apps.googleusercontent.com'}"
@@ -1913,9 +1918,10 @@ app.get('/admin', (c) => {
                     </div>
                     <div id="signin-status" class="mt-3 text-sm text-gray-500"></div>
                 </div>
+                -->
 
-                <!-- Key Management (hidden until signed in) -->
-                <div id="streak-key-section" style="display: none;" class="mt-6 pt-6 border-t border-gray-200">
+                <!-- Key Management (visible by default — no sign-in required) -->
+                <div id="streak-key-section" class="mt-6 pt-6 border-t border-gray-200">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="text-lg font-semibold text-gray-700">Current Key Status</h3>
                         <div id="streak-key-status">
@@ -1934,7 +1940,7 @@ app.get('/admin', (c) => {
                 </div>
             </div>
 
-            <script src="https://accounts.google.com/gsi/client" async defer></script>
+            <!-- <script src="https://accounts.google.com/gsi/client" async defer></script> -->
             <script>
                 // Auto-check Streak API health on page load
                 (function checkStreakHealth() {
@@ -1957,34 +1963,38 @@ app.get('/admin', (c) => {
                     });
                 })();
 
-                var googleIdToken = null;
+                // Google Sign-In disabled — direct key entry enabled
+                // var googleIdToken = null;
 
-                function handleGoogleSignIn(response) {
-                    googleIdToken = response.credential;
-                    var statusEl = document.getElementById('signin-status');
-                    statusEl.innerHTML = '<span class="text-yellow-600"><i class="fas fa-spinner fa-spin mr-1"></i>Verifying...</span>';
+                // function handleGoogleSignIn(response) {
+                //     googleIdToken = response.credential;
+                //     var statusEl = document.getElementById('signin-status');
+                //     statusEl.innerHTML = '<span class="text-yellow-600"><i class="fas fa-spinner fa-spin mr-1"></i>Verifying...</span>';
+                //
+                //     fetch('/api/admin/verify-google', {
+                //         method: 'POST',
+                //         headers: { 'Content-Type': 'application/json' },
+                //         body: JSON.stringify({ token: googleIdToken })
+                //     })
+                //     .then(function(r) { return r.json(); })
+                //     .then(function(data) {
+                //         if (data.authorized) {
+                //             statusEl.innerHTML = '<span class="text-green-600"><i class="fas fa-check-circle mr-1"></i>Signed in as ' + data.email + '</span>';
+                //             document.getElementById('streak-key-section').style.display = 'block';
+                //             loadStreakKeyStatus();
+                //         } else {
+                //             statusEl.innerHTML = '<span class="text-red-600"><i class="fas fa-times-circle mr-1"></i>Access denied for ' + (data.email || 'this account') + '</span>';
+                //             googleIdToken = null;
+                //         }
+                //     })
+                //     .catch(function() {
+                //         statusEl.innerHTML = '<span class="text-red-600">Verification failed. Try again.</span>';
+                //         googleIdToken = null;
+                //     });
+                // }
 
-                    fetch('/api/admin/verify-google', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ token: googleIdToken })
-                    })
-                    .then(function(r) { return r.json(); })
-                    .then(function(data) {
-                        if (data.authorized) {
-                            statusEl.innerHTML = '<span class="text-green-600"><i class="fas fa-check-circle mr-1"></i>Signed in as ' + data.email + '</span>';
-                            document.getElementById('streak-key-section').style.display = 'block';
-                            loadStreakKeyStatus();
-                        } else {
-                            statusEl.innerHTML = '<span class="text-red-600"><i class="fas fa-times-circle mr-1"></i>Access denied for ' + (data.email || 'this account') + '</span>';
-                            googleIdToken = null;
-                        }
-                    })
-                    .catch(function() {
-                        statusEl.innerHTML = '<span class="text-red-600">Verification failed. Try again.</span>';
-                        googleIdToken = null;
-                    });
-                }
+                // Load key status immediately (no sign-in required)
+                loadStreakKeyStatus();
 
                 function loadStreakKeyStatus() {
                     fetch('/api/admin/streak-key/status')
@@ -2004,7 +2014,6 @@ app.get('/admin', (c) => {
                 }
 
                 function saveStreakKey() {
-                    if (!googleIdToken) { alert('Please sign in with Google first.'); return; }
                     var keyInput = document.getElementById('streak-key-input');
                     var key = keyInput.value.trim();
                     if (!key) { alert('Please enter a Streak API key.'); return; }
@@ -2017,7 +2026,7 @@ app.get('/admin', (c) => {
                     fetch('/api/admin/streak-key', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ token: googleIdToken, key: key })
+                        body: JSON.stringify({ key: key })
                     })
                     .then(function(r) { return r.json(); })
                     .then(function(data) {
@@ -3538,6 +3547,32 @@ app.get('/', (c) => {
 
             <!-- Settings View -->
             <div id="view-settings" class="view-content hidden">
+                <!-- Streak API Key (shared across all companies) -->
+                <div class="bg-white rounded-lg shadow p-6 mb-6 border-l-4 border-red-500">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold text-gray-800 flex items-center">
+                            <i class="fas fa-key text-red-600 mr-3"></i>
+                            Streak API Key
+                        </h3>
+                        <div id="streak-key-badge" class="text-sm text-gray-400">Checking...</div>
+                    </div>
+                    <p class="text-gray-600 text-sm mb-4">The Streak API key is shared across all companies. Enter your key from Streak Settings &rarr; Integrations &rarr; API.</p>
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm font-medium text-gray-700">Current Key Status</span>
+                        <span id="streak-key-masked" class="text-sm font-mono text-gray-500"></span>
+                    </div>
+                    <div class="flex gap-3">
+                        <input type="password" id="streak-key-input-settings"
+                            placeholder="Enter new Streak API key (e.g., strk_...)"
+                            class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 font-mono text-sm" />
+                        <button onclick="saveStreakKeyFromSettings()"
+                            class="px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg font-semibold hover:from-red-600 hover:to-red-700 transition-all shadow-lg flex items-center">
+                            <i class="fas fa-save mr-2"></i>Save Key
+                        </button>
+                    </div>
+                    <div id="streak-key-msg" class="mt-2 text-sm"></div>
+                </div>
+
                 <div class="bg-white rounded-lg shadow p-8">
                     <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
                         <i class="fas fa-cog text-blue-600 mr-3"></i>
@@ -6044,6 +6079,64 @@ app.get('/', (c) => {
 
             // Initialize Google Sign-In for Settings when page loads
             setTimeout(initSettingsGoogleSignIn, 1000);
+
+            // Streak API Key management in Settings (no Google Sign-In required)
+            function checkStreakKeyStatus() {
+                fetch('/api/admin/streak-health')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    var badge = document.getElementById('streak-key-badge');
+                    if (badge) {
+                        if (data.ok) {
+                            badge.className = 'text-sm font-medium px-3 py-1 rounded-full bg-green-100 text-green-700';
+                            badge.innerHTML = '<i class="fas fa-check-circle mr-1"></i>Connected (' + data.latency + 'ms)';
+                        } else {
+                            badge.className = 'text-sm font-medium px-3 py-1 rounded-full bg-red-100 text-red-700';
+                            badge.innerHTML = '<i class="fas fa-times-circle mr-1"></i>Disconnected';
+                        }
+                    }
+                });
+                fetch('/api/admin/streak-key/status')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    var el = document.getElementById('streak-key-masked');
+                    if (el) {
+                        if (data.configured) {
+                            el.textContent = data.maskedKey;
+                        } else {
+                            el.innerHTML = '<span class="text-red-500">Not configured</span>';
+                        }
+                    }
+                });
+            }
+
+            function saveStreakKeyFromSettings() {
+                var keyInput = document.getElementById('streak-key-input-settings');
+                var key = keyInput.value.trim();
+                if (!key) { alert('Please enter a Streak API key.'); return; }
+                var msgEl = document.getElementById('streak-key-msg');
+                msgEl.innerHTML = '<span class="text-yellow-600"><i class="fas fa-spinner fa-spin mr-1"></i>Saving...</span>';
+                fetch('/api/admin/streak-key', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key: key })
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        msgEl.innerHTML = '<span class="text-green-600"><i class="fas fa-check-circle mr-1"></i>Key saved successfully! Reload the page to use the new key.</span>';
+                        keyInput.value = '';
+                        checkStreakKeyStatus();
+                    } else {
+                        msgEl.innerHTML = '<span class="text-red-600"><i class="fas fa-exclamation-circle mr-1"></i>' + (data.error || 'Failed to save') + '</span>';
+                    }
+                })
+                .catch(function() {
+                    msgEl.innerHTML = '<span class="text-red-600">Network error. Try again.</span>';
+                });
+            }
+
+            setTimeout(checkStreakKeyStatus, 500);
 
             function updateSettingsView() {
                 const company = COMPANIES[currentCompany];
