@@ -7,6 +7,10 @@ type Bindings = {
   STREAK_API_KEY?: string
   ENCRYPTION_KEY: string
   GOOGLE_CLIENT_ID: string
+  RESEND_API_KEY?: string
+  REPORT_SECRET?: string
+  REPORT_FROM_EMAIL?: string
+  REPORT_TO_EMAIL?: string
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -184,6 +188,373 @@ async function callStreakAPI(endpoint: string) {
   }
   
   return response.json()
+}
+
+// ── Email Reports via Resend ──────────────────────────────────────
+
+async function sendEmail(resendApiKey: string, options: { from: string, to: string[], subject: string, html: string }) {
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${resendApiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      from: options.from,
+      to: options.to,
+      subject: options.subject,
+      html: options.html
+    })
+  })
+  if (!response.ok) {
+    const err = await response.text()
+    throw new Error(`Resend API error: ${err}`)
+  }
+  return response.json()
+}
+
+async function collectReportData(kv: any) {
+  const companies = await getAllCompanies(kv)
+  const results = []
+
+  for (const company of companies) {
+    if (company.archived) continue
+    if (!company.pipelineKey) continue
+
+    try {
+      const [pipeline, boxes] = await Promise.all([
+        callStreakAPI(`/pipelines/${company.pipelineKey}`),
+        callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`)
+      ])
+
+      const allBoxes = Array.isArray(boxes) ? boxes : []
+      const now = Date.now()
+      const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000
+      const oneMonthAgo = now - 30 * 24 * 60 * 60 * 1000
+
+      // Count new leads this week and this month
+      const newThisWeek = allBoxes.filter((b: any) => b.createdTimestamp > oneWeekAgo).length
+      const newThisMonth = allBoxes.filter((b: any) => b.createdTimestamp > oneMonthAgo).length
+
+      // Stage distribution
+      const stageMap = pipeline.stageOrder || []
+      const stages = Array.isArray(stageMap) ? stageMap.map((key: string) => ({
+        key,
+        name: pipeline.stages?.[key]?.name || 'Unknown'
+      })) : []
+
+      const stageDistribution: Record<string, number> = {}
+      allBoxes.forEach((box: any) => {
+        const stage = stages.find((s: any) => s.key === box.stageKey)
+        const stageName = stage ? stage.name : 'Unknown'
+        stageDistribution[stageName] = (stageDistribution[stageName] || 0) + 1
+      })
+
+      // Calculate campaign duration in months
+      const oldestBox = allBoxes.reduce((oldest: any, box: any) => {
+        return (!oldest || box.createdTimestamp < oldest.createdTimestamp) ? box : oldest
+      }, null)
+      const campaignStartMs = oldestBox ? oldestBox.createdTimestamp : now
+      const campaignMonths = Math.max(1, Math.round((now - campaignStartMs) / (30 * 24 * 60 * 60 * 1000)))
+
+      // Freshness
+      const highFreshness = allBoxes.filter((b: any) => (b.freshness || 0) > 0.5).length
+      const medFreshness = allBoxes.filter((b: any) => (b.freshness || 0) >= 0.2 && (b.freshness || 0) <= 0.5).length
+      const lowFreshness = allBoxes.filter((b: any) => (b.freshness || 0) < 0.2).length
+
+      results.push({
+        key: company.key,
+        name: company.name,
+        totalLeads: allBoxes.length,
+        newThisWeek,
+        newThisMonth,
+        avgLeadsPerMonth: Math.round((allBoxes.length / campaignMonths) * 10) / 10,
+        campaignMonths,
+        stageDistribution,
+        freshness: { high: highFreshness, medium: medFreshness, low: lowFreshness },
+        pipelineUrl: company.url || `https://www.streak.com/a/pipelines/${company.pipelineKey}`
+      })
+    } catch (err) {
+      results.push({
+        key: company.key,
+        name: company.name,
+        error: (err as Error).message,
+        totalLeads: 0,
+        newThisWeek: 0,
+        newThisMonth: 0,
+        avgLeadsPerMonth: 0,
+        campaignMonths: 0,
+        stageDistribution: {},
+        freshness: { high: 0, medium: 0, low: 0 },
+        pipelineUrl: ''
+      })
+    }
+  }
+
+  return results
+}
+
+function generateWeeklyReportHtml(data: any[], weekLabel: string) {
+  const totalNewLeads = data.reduce((sum: number, d: any) => sum + d.newThisWeek, 0)
+  const totalTarget = data.filter((d: any) => !d.error).length * 2.5
+  const overallPct = totalTarget > 0 ? Math.round((totalNewLeads / totalTarget) * 100) : 0
+
+  // Sort by performance (new leads this week, descending)
+  const sorted = [...data].sort((a: any, b: any) => b.newThisWeek - a.newThisWeek)
+
+  const statusEmoji = overallPct >= 100 ? '🟢' : overallPct >= 75 ? '🟡' : '🔴'
+  const statusLabel = overallPct >= 100 ? 'ON TRACK' : overallPct >= 75 ? 'CLOSE' : 'BEHIND'
+
+  const companyRows = sorted.map((company: any) => {
+    const weeklyTarget = 2.5
+    const pct = Math.round((company.newThisWeek / weeklyTarget) * 100)
+    const barColor = pct >= 100 ? '#22c55e' : pct >= 75 ? '#eab308' : '#ef4444'
+    const barWidth = Math.min(pct, 100)
+    const dot = pct >= 100 ? '🟢' : pct >= 75 ? '🟡' : '🔴'
+
+    if (company.error) {
+      return `<tr>
+        <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9;font-weight:600;color:#334155;">${company.name}</td>
+        <td colspan="4" style="padding:12px 16px;border-bottom:1px solid #f1f5f9;color:#ef4444;font-size:13px;">⚠️ Error: ${company.error}</td>
+      </tr>`
+    }
+
+    // Top stages
+    const topStages = Object.entries(company.stageDistribution)
+      .sort((a: any, b: any) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([name, count]: [string, any]) => `${name}: ${count}`)
+      .join(', ')
+
+    return `<tr>
+      <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9;">
+        <div style="font-weight:600;color:#334155;">${company.name}</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:2px;">${company.totalLeads} total leads · ${company.campaignMonths}mo</div>
+      </td>
+      <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9;text-align:center;">
+        <span style="font-size:20px;font-weight:700;color:#334155;">${company.newThisWeek}</span>
+        <div style="font-size:11px;color:#94a3b8;">/ 2.5 target</div>
+      </td>
+      <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9;text-align:center;">
+        <span style="font-size:13px;font-weight:600;">${dot} ${pct}%</span>
+        <div style="background:#f1f5f9;border-radius:4px;height:6px;margin-top:4px;width:100px;">
+          <div style="background:${barColor};border-radius:4px;height:6px;width:${barWidth}px;"></div>
+        </div>
+      </td>
+      <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9;font-size:12px;color:#64748b;">
+        ${topStages || 'N/A'}
+      </td>
+      <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9;text-align:center;">
+        <span style="font-size:12px;color:#22c55e;font-weight:600;">${company.freshness.high}</span>
+        <span style="font-size:12px;color:#94a3b8;"> / </span>
+        <span style="font-size:12px;color:#eab308;">${company.freshness.medium}</span>
+        <span style="font-size:12px;color:#94a3b8;"> / </span>
+        <span style="font-size:12px;color:#ef4444;">${company.freshness.low}</span>
+      </td>
+    </tr>`
+  }).join('')
+
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<div style="max-width:680px;margin:0 auto;padding:20px;">
+
+  <!-- Header -->
+  <div style="background:linear-gradient(135deg,#6366f1,#4f46e5);border-radius:12px 12px 0 0;padding:32px;text-align:center;">
+    <div style="font-size:14px;color:rgba(255,255,255,0.7);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">Gershon.AI</div>
+    <h1 style="margin:0;color:#fff;font-size:24px;font-weight:700;">Weekly Performance Report</h1>
+    <p style="margin:8px 0 0;color:rgba(255,255,255,0.8);font-size:14px;">${weekLabel}</p>
+  </div>
+
+  <!-- Overall Score -->
+  <div style="background:#fff;padding:28px;border-left:1px solid #e2e8f0;border-right:1px solid #e2e8f0;">
+    <div style="text-align:center;">
+      <div style="font-size:13px;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Portfolio Weekly Target</div>
+      <div style="font-size:48px;font-weight:800;color:${overallPct >= 100 ? '#22c55e' : overallPct >= 75 ? '#eab308' : '#ef4444'};">${overallPct}%</div>
+      <div style="display:inline-block;padding:4px 16px;border-radius:20px;font-size:12px;font-weight:700;letter-spacing:1px;
+        background:${overallPct >= 100 ? '#f0fdf4' : overallPct >= 75 ? '#fefce8' : '#fef2f2'};
+        color:${overallPct >= 100 ? '#16a34a' : overallPct >= 75 ? '#ca8a04' : '#dc2626'};">
+        ${statusEmoji} ${statusLabel}
+      </div>
+      <div style="margin-top:12px;font-size:14px;color:#64748b;">
+        <strong>${totalNewLeads}</strong> new leads this week across <strong>${data.filter((d: any) => !d.error).length}</strong> companies
+        <br/>Target: <strong>${totalTarget}</strong> leads/week (2.5 per company)
+      </div>
+    </div>
+  </div>
+
+  <!-- Company Breakdown -->
+  <div style="background:#fff;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;overflow:hidden;">
+    <div style="padding:16px 16px 8px;border-bottom:2px solid #6366f1;">
+      <h2 style="margin:0;font-size:16px;color:#334155;">Company Breakdown</h2>
+    </div>
+    <table style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr style="background:#f8fafc;">
+          <th style="padding:10px 16px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Company</th>
+          <th style="padding:10px 16px;text-align:center;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">New Leads</th>
+          <th style="padding:10px 16px;text-align:center;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">vs Target</th>
+          <th style="padding:10px 16px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Top Stages</th>
+          <th style="padding:10px 16px;text-align:center;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Freshness</th>
+        </tr>
+      </thead>
+      <tbody>${companyRows}</tbody>
+    </table>
+  </div>
+
+  <!-- Footer -->
+  <div style="text-align:center;padding:24px;font-size:12px;color:#94a3b8;">
+    <p style="margin:0;">Sent by <strong>Client by Gershon.AI</strong> · <a href="https://client.gershoncrm.com" style="color:#6366f1;">Open Dashboard</a></p>
+    <p style="margin:4px 0 0;">Target: 10 leads/month per company (2.5/week) · Freshness: 🟢 High / 🟡 Medium / 🔴 Low</p>
+  </div>
+
+</div>
+</body>
+</html>`
+}
+
+function generateMonthlyReportHtml(data: any[], monthLabel: string) {
+  const totalNewLeads = data.reduce((sum: number, d: any) => sum + d.newThisMonth, 0)
+  const activeCompanies = data.filter((d: any) => !d.error).length
+  const totalTarget = activeCompanies * 10
+  const overallPct = totalTarget > 0 ? Math.round((totalNewLeads / totalTarget) * 100) : 0
+
+  const sorted = [...data].sort((a: any, b: any) => b.newThisMonth - a.newThisMonth)
+
+  const topPerformer = sorted.find((d: any) => !d.error)
+  const needsAttention = [...sorted].reverse().find((d: any) => !d.error && d.newThisMonth < 10)
+
+  const statusEmoji = overallPct >= 100 ? '🟢' : overallPct >= 75 ? '🟡' : '🔴'
+
+  const companyCards = sorted.map((company: any) => {
+    if (company.error) {
+      return `<div style="background:#fff;border:1px solid #fecaca;border-radius:8px;padding:16px;margin-bottom:12px;">
+        <div style="font-weight:600;color:#334155;">${company.name}</div>
+        <div style="color:#ef4444;font-size:13px;margin-top:4px;">⚠️ ${company.error}</div>
+      </div>`
+    }
+
+    const pct = Math.round((company.newThisMonth / 10) * 100)
+    const barColor = pct >= 100 ? '#22c55e' : pct >= 75 ? '#eab308' : '#ef4444'
+    const barWidth = Math.min(pct, 100)
+    const dot = pct >= 100 ? '🟢' : pct >= 75 ? '🟡' : '🔴'
+
+    const stageEntries = Object.entries(company.stageDistribution)
+      .sort((a: any, b: any) => b[1] - a[1])
+    const stageRows = stageEntries.map(([name, count]: [string, any]) =>
+      `<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:12px;"><span style="color:#64748b;">${name}</span><span style="font-weight:600;color:#334155;">${count}</span></div>`
+    ).join('')
+
+    return `<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:20px;margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div>
+          <div style="font-weight:700;font-size:16px;color:#334155;">${company.name}</div>
+          <div style="font-size:12px;color:#94a3b8;">${company.totalLeads} total leads · Campaign: ${company.campaignMonths} months · Avg: ${company.avgLeadsPerMonth}/mo</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:24px;font-weight:800;color:${barColor};">${pct}%</div>
+          <div style="font-size:11px;color:#94a3b8;">${dot} of target</div>
+        </div>
+      </div>
+
+      <!-- Progress bar -->
+      <div style="background:#f1f5f9;border-radius:6px;height:8px;margin-bottom:16px;">
+        <div style="background:${barColor};border-radius:6px;height:8px;width:${barWidth}%;transition:width 0.3s;"></div>
+      </div>
+
+      <div style="display:flex;gap:24px;">
+        <div style="flex:1;">
+          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Monthly Leads</div>
+          <div style="font-size:28px;font-weight:700;color:#334155;">${company.newThisMonth} <span style="font-size:14px;color:#94a3b8;font-weight:400;">/ 10</span></div>
+        </div>
+        <div style="flex:1;">
+          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Freshness Score</div>
+          <div style="font-size:13px;">
+            <span style="color:#22c55e;font-weight:600;">●${company.freshness.high} active</span>&nbsp;
+            <span style="color:#eab308;font-weight:600;">●${company.freshness.medium} warm</span>&nbsp;
+            <span style="color:#ef4444;font-weight:600;">●${company.freshness.low} cold</span>
+          </div>
+        </div>
+      </div>
+
+      ${stageRows ? `<div style="margin-top:12px;padding-top:12px;border-top:1px solid #f1f5f9;">
+        <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Pipeline Stages</div>
+        ${stageRows}
+      </div>` : ''}
+    </div>`
+  }).join('')
+
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<div style="max-width:680px;margin:0 auto;padding:20px;">
+
+  <!-- Header -->
+  <div style="background:linear-gradient(135deg,#6366f1,#4f46e5);border-radius:12px 12px 0 0;padding:32px;text-align:center;">
+    <div style="font-size:14px;color:rgba(255,255,255,0.7);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">Gershon.AI</div>
+    <h1 style="margin:0;color:#fff;font-size:24px;font-weight:700;">Monthly Performance Report</h1>
+    <p style="margin:8px 0 0;color:rgba(255,255,255,0.8);font-size:14px;">${monthLabel}</p>
+  </div>
+
+  <!-- Executive Summary -->
+  <div style="background:#fff;padding:28px;border-left:1px solid #e2e8f0;border-right:1px solid #e2e8f0;">
+    <div style="text-align:center;margin-bottom:24px;">
+      <div style="font-size:13px;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Monthly Target Achievement</div>
+      <div style="font-size:56px;font-weight:800;color:${overallPct >= 100 ? '#22c55e' : overallPct >= 75 ? '#eab308' : '#ef4444'};">${overallPct}%</div>
+      <div style="font-size:15px;color:#64748b;margin-top:8px;">
+        ${statusEmoji} <strong>${totalNewLeads}</strong> new leads across <strong>${activeCompanies}</strong> active companies
+        <br/>Monthly target: <strong>${totalTarget}</strong> leads (10 per company)
+      </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div style="display:flex;gap:12px;text-align:center;">
+      <div style="flex:1;background:#f0fdf4;border-radius:8px;padding:12px;">
+        <div style="font-size:20px;font-weight:700;color:#16a34a;">${data.filter((d: any) => !d.error && d.newThisMonth >= 10).length}</div>
+        <div style="font-size:11px;color:#16a34a;">Hit Target</div>
+      </div>
+      <div style="flex:1;background:#fefce8;border-radius:8px;padding:12px;">
+        <div style="font-size:20px;font-weight:700;color:#ca8a04;">${data.filter((d: any) => !d.error && d.newThisMonth >= 7.5 && d.newThisMonth < 10).length}</div>
+        <div style="font-size:11px;color:#ca8a04;">Close (75%+)</div>
+      </div>
+      <div style="flex:1;background:#fef2f2;border-radius:8px;padding:12px;">
+        <div style="font-size:20px;font-weight:700;color:#dc2626;">${data.filter((d: any) => !d.error && d.newThisMonth < 7.5).length}</div>
+        <div style="font-size:11px;color:#dc2626;">Behind</div>
+      </div>
+      <div style="flex:1;background:#f8fafc;border-radius:8px;padding:12px;">
+        <div style="font-size:20px;font-weight:700;color:#334155;">${data.reduce((sum: number, d: any) => sum + d.totalLeads, 0)}</div>
+        <div style="font-size:11px;color:#64748b;">Total Pipeline</div>
+      </div>
+    </div>
+
+    ${topPerformer ? `<div style="margin-top:16px;padding:12px 16px;background:#f0fdf4;border-radius:8px;border-left:3px solid #22c55e;">
+      <span style="font-size:13px;color:#16a34a;font-weight:600;">🏆 Top Performer:</span>
+      <span style="font-size:13px;color:#334155;"> ${topPerformer.name} — ${topPerformer.newThisMonth} new leads this month (${Math.round((topPerformer.newThisMonth / 10) * 100)}% of target)</span>
+    </div>` : ''}
+
+    ${needsAttention ? `<div style="margin-top:8px;padding:12px 16px;background:#fef2f2;border-radius:8px;border-left:3px solid #ef4444;">
+      <span style="font-size:13px;color:#dc2626;font-weight:600;">⚠️ Needs Attention:</span>
+      <span style="font-size:13px;color:#334155;"> ${needsAttention.name} — only ${needsAttention.newThisMonth} leads (${Math.round((needsAttention.newThisMonth / 10) * 100)}% of target)</span>
+    </div>` : ''}
+  </div>
+
+  <!-- Company Cards -->
+  <div style="background:#f8fafc;padding:20px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;">
+    <h2 style="margin:0 0 16px;font-size:16px;color:#334155;">Company Details</h2>
+    ${companyCards}
+  </div>
+
+  <!-- Footer -->
+  <div style="text-align:center;padding:24px;font-size:12px;color:#94a3b8;">
+    <p style="margin:0;">Sent by <strong>Client by Gershon.AI</strong> · <a href="https://client.gershoncrm.com" style="color:#6366f1;">Open Dashboard</a></p>
+    <p style="margin:4px 0 0;">Monthly target: 10 leads per company · Freshness: Active (>0.5) / Warm (0.2-0.5) / Cold (<0.2)</p>
+  </div>
+
+</div>
+</body>
+</html>`
 }
 
 // Helper function to fetch and parse Network data from Google Sheets
@@ -1848,6 +2219,106 @@ app.get('/api/admin/streak-pipelines', async (c) => {
   }
 })
 
+// ── Report Endpoints ──────────────────────────────────────────────
+
+// Preview weekly report (HTML in browser)
+app.get('/api/reports/weekly', async (c) => {
+  try {
+    const data = await collectReportData(c.env.COMPANIES_KV)
+    const now = new Date()
+    const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    const weekLabel = `Week of ${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+    const html = generateWeeklyReportHtml(data, weekLabel)
+    return c.html(html)
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// Preview monthly report (HTML in browser)
+app.get('/api/reports/monthly', async (c) => {
+  try {
+    const data = await collectReportData(c.env.COMPANIES_KV)
+    const now = new Date()
+    const monthLabel = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    const html = generateMonthlyReportHtml(data, monthLabel)
+    return c.html(html)
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// Send weekly report via email
+app.post('/api/reports/weekly/send', async (c) => {
+  try {
+    if (!c.env.RESEND_API_KEY) {
+      return c.json({ error: 'RESEND_API_KEY not configured' }, 500)
+    }
+    const data = await collectReportData(c.env.COMPANIES_KV)
+    const now = new Date()
+    const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    const weekLabel = `Week of ${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+
+    const totalNewLeads = data.reduce((sum: number, d: any) => sum + d.newThisWeek, 0)
+    const activeCompanies = data.filter((d: any) => !d.error).length
+    const overallPct = activeCompanies > 0 ? Math.round((totalNewLeads / (activeCompanies * 2.5)) * 100) : 0
+    const statusEmoji = overallPct >= 100 ? '🟢' : overallPct >= 75 ? '🟡' : '🔴'
+
+    const html = generateWeeklyReportHtml(data, weekLabel)
+
+    const result = await sendEmail(c.env.RESEND_API_KEY, {
+      from: c.env.REPORT_FROM_EMAIL || 'Gershon.AI Reports <reports@gershoncrm.com>',
+      to: (c.env.REPORT_TO_EMAIL || 'report@gershonconsulting.com').split(',').map((e: string) => e.trim()),
+      subject: `${statusEmoji} Weekly Report — ${overallPct}% of target · ${totalNewLeads} new leads — ${weekLabel}`,
+      html
+    })
+
+    return c.json({ success: true, message: 'Weekly report sent', emailId: result.id, stats: { totalNewLeads, overallPct, companies: data.length } })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// Send monthly report via email
+app.post('/api/reports/monthly/send', async (c) => {
+  try {
+    if (!c.env.RESEND_API_KEY) {
+      return c.json({ error: 'RESEND_API_KEY not configured' }, 500)
+    }
+    const data = await collectReportData(c.env.COMPANIES_KV)
+    const now = new Date()
+    const monthLabel = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+
+    const totalNewLeads = data.reduce((sum: number, d: any) => sum + d.newThisMonth, 0)
+    const activeCompanies = data.filter((d: any) => !d.error).length
+    const overallPct = activeCompanies > 0 ? Math.round((totalNewLeads / (activeCompanies * 10)) * 100) : 0
+    const statusEmoji = overallPct >= 100 ? '🟢' : overallPct >= 75 ? '🟡' : '🔴'
+
+    const html = generateMonthlyReportHtml(data, monthLabel)
+
+    const result = await sendEmail(c.env.RESEND_API_KEY, {
+      from: c.env.REPORT_FROM_EMAIL || 'Gershon.AI Reports <reports@gershoncrm.com>',
+      to: (c.env.REPORT_TO_EMAIL || 'report@gershonconsulting.com').split(',').map((e: string) => e.trim()),
+      subject: `${statusEmoji} Monthly Report — ${overallPct}% of target · ${totalNewLeads} leads — ${monthLabel}`,
+      html
+    })
+
+    return c.json({ success: true, message: 'Monthly report sent', emailId: result.id, stats: { totalNewLeads, overallPct, companies: data.length } })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// JSON endpoint for report data (for debugging)
+app.get('/api/reports/data', async (c) => {
+  try {
+    const data = await collectReportData(c.env.COMPANIES_KV)
+    return c.json({ companies: data, generated: new Date().toISOString() })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
 // Admin Panel Route
 app.get('/admin', (c) => {
   return c.html(`
@@ -2906,7 +3377,6 @@ app.get('/', (c) => {
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
-        <script src="https://accounts.google.com/gsi/client" async defer></script>
         <style>
             @media print {
                 .no-print { display: none !important; }
@@ -2920,101 +3390,109 @@ app.get('/', (c) => {
             .print-table th { background-color: #f3f4f6; padding: 12px 8px; text-align: left; font-weight: 600; border-bottom: 2px solid #e5e7eb; }
             .print-table td { padding: 10px 8px; border-bottom: 1px solid #e5e7eb; }
             .print-table tr:hover { background-color: #f9fafb; }
-
-            /* ── Gershon.AI Sidebar ── */
-            :root{ --brand:#6366f1; --brand-ink:#4f46e5; --brand-soft:#eef0fe; --side-line:#eef0f4; }
-            .sidebar{ width:250px; flex:0 0 250px; background:#fff; color:#475569; border-right:1px solid var(--side-line);
-              display:flex; flex-direction:column; position:fixed; top:0; left:0; height:100vh; z-index:50;
-              font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; box-shadow:1px 0 3px rgba(0,0,0,.04); }
-            .sidebar .brand{ display:flex; align-items:center; gap:9px; padding:22px 20px 4px; }
-            .sidebar .brand .logo{ display:flex; color:var(--brand); } .sidebar .brand .logo svg{ width:24px; height:24px; }
-            .sidebar .brand h1{ font-size:1.35rem; font-weight:800; color:var(--brand); letter-spacing:-0.01em; margin:0; }
-            .brand-meta{ padding:6px 20px 16px; margin-bottom:4px; border-bottom:1px solid var(--side-line); }
-            .brand-meta .eyebrow{ font-size:0.66rem; font-weight:700; letter-spacing:0.13em; color:#94a3b8; text-transform:uppercase; }
-            .brand-meta .ver{ font-size:0.9rem; font-weight:700; color:#334155; margin-top:8px; }
-            .brand-meta .rel{ font-size:0.74rem; color:#94a3b8; margin-top:2px; }
-            .company-select-wrap{ padding:8px 14px 12px; border-bottom:1px solid var(--side-line); }
-            .company-label{ font-size:0.66rem; font-weight:700; letter-spacing:0.13em; color:#94a3b8; text-transform:uppercase; display:block; margin-bottom:4px; }
-            .company-select{ width:100%; background:#f8fafc; color:#334155; border:1px solid var(--side-line); border-radius:9px;
-              padding:8px 28px 8px 10px; font-size:0.88rem; font-weight:600; font-family:inherit; cursor:pointer; outline:none;
-              transition:border-color .15s; -webkit-appearance:none; appearance:none;
-              background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-              background-repeat:no-repeat; background-position:right 10px center; }
-            .company-select:focus{ border-color:var(--brand); box-shadow:0 0 0 3px rgba(99,102,241,0.15); }
-            .nav-items{ padding:6px 12px; display:flex; flex-direction:column; gap:2px; flex:1; overflow-y:auto; }
-            .nav-sec{ font-size:0.66rem; font-weight:700; letter-spacing:0.13em; color:#94a3b8; text-transform:uppercase; padding:16px 12px 6px; }
-            .nav-item{ display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:9px; border:none; background:none;
-              color:#475569; cursor:pointer; font-size:0.92rem; font-weight:600; text-align:left; width:100%;
-              font-family:inherit; transition:background .15s,color .15s; text-decoration:none; }
-            .nav-item:hover{ background:#f5f6fb; color:#1e293b; }
-            .nav-item.active{ background:var(--brand-soft); color:var(--brand-ink); }
-            .nav-item .ico{ width:20px; flex:0 0 20px; display:flex; align-items:center; justify-content:center; }
-            .nav-item .ico svg{ width:18px; height:18px; }
-            .sidebar .foot{ padding:12px 14px 8px; border-top:1px solid var(--side-line); display:flex; flex-direction:column; gap:6px; }
-            .foot-btn{ display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:9px; border:none; background:none; cursor:pointer;
-              font-size:0.9rem; font-weight:600; color:#475569; text-align:left; width:100%; font-family:inherit; text-decoration:none;
-              transition:background .15s,color .15s; }
-            .foot-btn:hover{ background:#f5f6fb; color:#1e293b; }
-            .foot-btn .ico{ width:20px; flex:0 0 20px; display:flex; } .foot-btn .ico svg{ width:18px; height:18px; }
-            .foot-btn.demo.on{ background:var(--brand-soft); color:var(--brand-ink); }
-            .foot-btn.active{ background:var(--brand-soft); color:var(--brand-ink); }
-            .foot-btn.logout{ color:#dc2626; } .foot-btn.logout:hover{ background:#fee2e2; color:#b91c1c; }
-            .foot-domain{ text-align:center; font-size:0.72rem; color:#94a3b8; padding:6px 0 8px; }
-            .gai-main{ margin-left:250px; }
-            @media(max-width:880px){
-              .sidebar{ width:100%; flex:none; height:auto; position:relative; border-right:none; border-bottom:1px solid var(--side-line); box-shadow:none; }
-              .brand-meta,.nav-sec,.sidebar .foot,.company-select-wrap{ display:none; }
-              .nav-items{ flex-direction:row; flex-wrap:wrap; padding:8px; }
-              .nav-item{ width:auto; flex:1 1 auto; justify-content:center; padding:8px 10px; font-size:0.82rem; }
-              .gai-main{ margin-left:0; }
-            }
         </style>
     </head>
     <body class="bg-gray-50 min-h-screen">
         <!-- Fixed Left Sidebar -->
-        <aside id="sidebar" class="sidebar">
-          <div class="brand">
-            <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
-            <h1>Client</h1>
-          </div>
-          <div class="brand-meta">
-            <div class="eyebrow">by Gershon.AI</div>
-            <div style="display:flex;align-items:center;justify-content:space-between;">
-              <div class="ver">v${__APP_VERSION__}</div>
-              <button onclick="refreshDashboard()" style="background:none;border:none;cursor:pointer;color:#94a3b8;padding:4px;border-radius:6px;transition:color .15s;" title="Refresh data" onmouseover="this.style.color='#4f46e5'" onmouseout="this.style.color='#94a3b8'"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
+        <aside id="sidebar" class="fixed top-0 left-0 h-full w-56 bg-gradient-to-b from-blue-700 to-indigo-800 text-white flex flex-col z-50 shadow-xl">
+            <!-- Brand -->
+            <div class="px-5 pt-6 pb-4 border-b border-blue-600/40">
+                <div class="flex items-center mb-1">
+                    <i class="fas fa-chart-line text-xl mr-2"></i>
+                    <span class="font-bold text-lg">Gershon CRM</span>
+                </div>
+                <h1 id="dashboard-title" class="text-xs text-blue-200 font-medium">Client Dashboard</h1>
+                <span class="inline-block bg-white/15 text-blue-100 font-semibold text-[10px] px-2 py-0.5 rounded-full mt-1 tracking-wide">
+                    v${__APP_VERSION__}
+                </span>
             </div>
-            <div class="rel" id="last-updated">Loading...</div>
-          </div>
-          <div class="company-select-wrap">
-            <label class="company-label">Company</label>
-            <select id="company-selector" onchange="switchCompany(this.value)" class="company-select"></select>
-          </div>
-          <nav class="nav-items">
-            <button class="nav-item active" onclick="switchView('executive')" id="tab-executive"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg></span> Dashboard</button>
-            <div class="nav-sec">Channels</div>
-            <button class="nav-item" onclick="switchView('promote')" id="tab-promote"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></span> Promote</button>
-            <button class="nav-item" onclick="switchView('network')" id="tab-network"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> Network</button>
-            <button class="nav-item" onclick="switchView('engage')" id="tab-engage"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></span> Engage</button>
-            <div class="nav-sec">Tools</div>
-            <button class="nav-item" onclick="switchView('onboarding')" id="tab-onboarding"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span> Onboarding</button>
-            <button class="nav-item" onclick="switchView('print')" id="tab-print"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span> Export</button>
-            <button class="nav-item" onclick="switchView('print')" id="tab-report"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span> Report</button>
-            <div class="nav-sec">Links</div>
-            <a class="nav-item" href="/overview"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span> Overview</a>
-            <a class="nav-item" href="/admin"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span> Admin</a>
-            <a id="open-chat-btn" class="nav-item hidden" href="#" target="_blank"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span> Chat</a>
-          </nav>
-          <div class="foot">
-            <button class="foot-btn" onclick="switchView('settings')" id="tab-settings"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span> Settings</button>
-            <button class="foot-btn demo" id="demo-mode-btn" onclick="toggleDemoMode()"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z"/></svg></span> <span id="demoLbl">Demo mode</span></button>
-            <button class="foot-btn logout" onclick="window.location.href='/overview'"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span> Log out</button>
-            <div class="foot-domain">client.gershonCRM.com</div>
-          </div>
+
+            <!-- Company Selector -->
+            <div class="px-4 py-3 border-b border-blue-600/40">
+                <label class="text-blue-200 text-[10px] uppercase tracking-wider font-semibold block mb-1">Company</label>
+                <select id="company-selector" onchange="switchCompany(this.value)" class="w-full bg-blue-600/50 text-white rounded px-2 py-1.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-300 border border-blue-500/40">
+                    <!-- Populated dynamically -->
+                </select>
+            </div>
+
+            <!-- Navigation -->
+            <nav class="flex-1 overflow-y-auto py-3 px-2">
+                <button onclick="switchView('executive')" id="tab-executive" class="sidebar-nav active w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-white bg-white/15 mb-0.5 transition-colors">
+                    <i class="fas fa-tachometer-alt w-5 mr-2.5 text-center"></i>Dashboard
+                </button>
+
+                <div class="mt-3 mb-1 px-3">
+                    <span class="text-blue-300/60 text-[10px] uppercase tracking-wider font-semibold">Channels</span>
+                </div>
+                <button onclick="switchView('promote')" id="tab-promote" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
+                    <i class="fas fa-bullhorn w-5 mr-2.5 text-center"></i>Promote
+                </button>
+                <button onclick="switchView('network')" id="tab-network" class="sidebar-nav w-full flex items-center px-3 py-2 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
+                    <i class="fas fa-users w-5 mr-2.5 text-center"></i>Network
+                </button>
+                <div class="pl-9 space-y-0.5 mb-1">
+                    <button onclick="switchView('network')" class="sidebar-sub w-full flex items-center px-2 py-1.5 rounded text-xs text-blue-200 hover:bg-white/10 transition-colors">
+                        <i class="fas fa-paper-plane w-4 mr-2 text-center text-[10px]"></i>Messaging
+                    </button>
+                    <button onclick="switchView('network')" class="sidebar-sub w-full flex items-center px-2 py-1.5 rounded text-xs text-blue-200 hover:bg-white/10 transition-colors">
+                        <i class="fas fa-envelope w-4 mr-2 text-center text-[10px]"></i>Emailing
+                    </button>
+                </div>
+                <button onclick="switchView('engage')" id="tab-engage" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
+                    <i class="fas fa-handshake w-5 mr-2.5 text-center"></i>Engage
+                </button>
+
+                <div class="mt-3 mb-1 px-3">
+                    <span class="text-blue-300/60 text-[10px] uppercase tracking-wider font-semibold">Tools</span>
+                </div>
+                <button onclick="switchView('onboarding')" id="tab-onboarding" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
+                    <i class="fas fa-rocket w-5 mr-2.5 text-center"></i>Onboarding
+                </button>
+                <button onclick="switchView('print')" id="tab-print" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
+                    <i class="fas fa-file-export w-5 mr-2.5 text-center"></i>Export
+                </button>
+                <button onclick="switchView('print')" id="tab-report" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
+                    <i class="fas fa-chart-bar w-5 mr-2.5 text-center"></i>Report
+                </button>
+                <button onclick="switchView('settings')" id="tab-settings" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
+                    <i class="fas fa-cog w-5 mr-2.5 text-center"></i>Settings
+                </button>
+            </nav>
+
+            <!-- Sidebar Bottom Actions -->
+            <div class="px-3 py-2 border-t border-blue-600/40 space-y-1">
+                <button onclick="refreshDashboard()" class="w-full flex items-center px-3 py-1.5 rounded-lg text-[11px] font-medium text-blue-200 hover:bg-white/10 transition-colors">
+                    <i class="fas fa-sync-alt w-4 mr-2 text-center"></i>Refresh
+                </button>
+                <a href="/overview" class="flex items-center px-3 py-1.5 rounded-lg text-[11px] font-medium text-blue-200 hover:bg-white/10 transition-colors">
+                    <i class="fas fa-th-large w-4 mr-2 text-center"></i>Overview
+                </a>
+                <a href="/admin" class="flex items-center px-3 py-1.5 rounded-lg text-[11px] font-medium text-blue-200 hover:bg-white/10 transition-colors">
+                    <i class="fas fa-shield-alt w-4 mr-2 text-center"></i>Admin
+                </a>
+                <a id="open-chat-btn" href="#" target="_blank" class="hidden items-center px-3 py-1.5 rounded-lg text-[11px] font-medium text-blue-200 hover:bg-white/10 transition-colors">
+                    <i class="fas fa-comments w-4 mr-2 text-center"></i>Chat
+                </a>
+            </div>
+
+            <!-- Demo + Logout -->
+            <div class="px-3 py-3 border-t border-blue-600/40">
+                <button onclick="toggleDemoMode()" id="demo-mode-btn" class="w-full flex items-center justify-center px-3 py-2 rounded-lg text-xs font-semibold bg-amber-500 hover:bg-amber-400 text-white mb-2 transition-colors shadow">
+                    <i class="fas fa-play-circle mr-2"></i>Demo Mode
+                </button>
+                <div class="flex items-center justify-between">
+                    <p class="text-blue-300/50 text-[9px]">
+                        <span id="last-updated" class="font-semibold">Loading...</span>
+                    </p>
+                    <button onclick="window.location.href='/overview'" class="text-blue-200 hover:text-white text-[11px] font-medium transition-colors">
+                        <i class="fas fa-sign-out-alt mr-1"></i>Logout
+                    </button>
+                </div>
+            </div>
         </aside>
-        <span id="dashboard-title" style="display:none;">Client Dashboard</span>
 
         <!-- Main Content Area -->
-        <div class="gai-main min-h-screen">
+        <div class="ml-56 min-h-screen">
         <div class="container mx-auto px-6 py-6">
 
             <!-- Loading State -->
@@ -3579,43 +4057,6 @@ app.get('/', (c) => {
                         <span id="settings-company-name">Company</span> Settings
                     </h2>
                     
-                    <!-- Streak API Key Management -->
-                    <div class="p-6 bg-red-50 border border-red-200 rounded-lg mb-6">
-                        <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center justify-between">
-                            <span><i class="fas fa-key text-red-600 mr-2"></i>Streak API Key</span>
-                            <span id="streak-key-badge" class="text-xs font-semibold px-3 py-1 rounded-full bg-gray-100 text-gray-500">
-                                <i class="fas fa-spinner fa-spin mr-1"></i>Checking...
-                            </span>
-                        </h3>
-                        <p class="text-xs text-gray-600 mb-4">
-                            The Streak API key is shared across all companies. Sign in with Google to view or update it.
-                        </p>
-                        
-                        <div id="streak-key-auth" class="mb-4">
-                            <div id="settings-google-signin"></div>
-                        </div>
-                        
-                        <div id="streak-key-panel" class="hidden space-y-3">
-                            <div class="flex items-center gap-3">
-                                <span class="text-sm font-medium text-gray-700">Current key:</span>
-                                <code id="streak-key-masked" class="bg-white px-3 py-1 rounded border text-sm font-mono text-gray-600">—</code>
-                            </div>
-                            <div>
-                                <label class="text-sm font-medium text-gray-700">New API Key:</label>
-                                <div class="flex gap-2 mt-1">
-                                    <input type="password" id="streak-key-input" placeholder="Paste new Streak API key..." class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 font-mono text-sm" />
-                                    <button type="button" onclick="toggleKeyVisibility()" class="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-500" title="Show/hide key">
-                                        <i id="key-eye-icon" class="fas fa-eye"></i>
-                                    </button>
-                                    <button type="button" onclick="saveStreakKeyFromSettings()" class="px-5 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold text-sm transition-colors">
-                                        <i class="fas fa-save mr-1"></i>Save Key
-                                    </button>
-                                </div>
-                            </div>
-                            <div id="streak-key-message" class="hidden"></div>
-                        </div>
-                    </div>
-
                     <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
                         <p class="text-sm text-blue-800">
                             <i class="fas fa-info-circle mr-2"></i>
@@ -4434,8 +4875,9 @@ app.get('/', (c) => {
                 if (isDemoMode) {
                     realData = currentData;
                     currentData = generateDemoData();
-                    document.getElementById('demoLbl').textContent = 'Live data';
-                    btn.classList.add('on');
+                    btn.innerHTML = '<i class="fas fa-stop-circle mr-2"></i>Exit Demo';
+                    btn.classList.remove('bg-amber-500', 'hover:bg-amber-400');
+                    btn.classList.add('bg-red-500', 'hover:bg-red-400');
                     document.getElementById('dashboard-title').textContent = 'Acme Corporation - Pipeline Report';
                     document.getElementById('loading').classList.add('hidden');
                     document.getElementById('dashboard').classList.remove('hidden');
@@ -4445,8 +4887,9 @@ app.get('/', (c) => {
                     switchView('executive');
                 } else {
                     currentData = realData;
-                    document.getElementById('demoLbl').textContent = 'Demo mode';
-                    btn.classList.remove('on');
+                    btn.innerHTML = '<i class="fas fa-play-circle mr-2"></i>Demo Mode';
+                    btn.classList.remove('bg-red-500', 'hover:bg-red-400');
+                    btn.classList.add('bg-amber-500', 'hover:bg-amber-400');
                     if (currentData) {
                         var cn = currentData.company || 'Company';
                         document.getElementById('dashboard-title').textContent = cn + ' - Pipeline Report';
@@ -4607,8 +5050,9 @@ app.get('/', (c) => {
                 });
                 
                 // Remove active class from all tabs
-                document.querySelectorAll('.nav-item, .foot-btn').forEach(tab => {
-                    tab.classList.remove('active');
+                document.querySelectorAll('.sidebar-nav').forEach(tab => {
+                    tab.classList.remove('active', 'bg-white/15', 'text-white');
+                    tab.classList.add('text-blue-100');
                 });
                 
                 // Show selected view
@@ -4616,7 +5060,8 @@ app.get('/', (c) => {
                 
                 // Add active class to selected tab
                 const activeTab = document.getElementById('tab-' + viewName);
-                if (activeTab) activeTab.classList.add('active');
+                activeTab.classList.add('active', 'bg-white/15', 'text-white');
+                activeTab.classList.remove('text-blue-100');
                 
                 // Render view-specific content
                 if (currentData) {
@@ -5968,117 +6413,6 @@ app.get('/', (c) => {
                     btn.classList.add('hidden');
                 }
             }
-
-            // ── Streak API Key Management in Settings ──
-            var settingsGoogleToken = null;
-
-            function initSettingsGoogleSignIn() {
-                if (typeof google === 'undefined' || !google.accounts) {
-                    setTimeout(initSettingsGoogleSignIn, 500);
-                    return;
-                }
-                google.accounts.id.initialize({
-                    client_id: '122652289881-c1tl6o48nvebuskflujembp28qfgvv36.apps.googleusercontent.com',
-                    callback: onSettingsGoogleSignIn
-                });
-                google.accounts.id.renderButton(
-                    document.getElementById('settings-google-signin'),
-                    { theme: 'outline', size: 'medium', text: 'signin_with', shape: 'rectangular' }
-                );
-                // Also check current key status right away
-                checkStreakKeyStatus();
-            }
-
-            function onSettingsGoogleSignIn(response) {
-                settingsGoogleToken = response.credential;
-                document.getElementById('streak-key-auth').classList.add('hidden');
-                document.getElementById('streak-key-panel').classList.remove('hidden');
-                checkStreakKeyStatus();
-            }
-
-            function checkStreakKeyStatus() {
-                fetch('/api/admin/streak-health')
-                .then(function(r) { return r.json(); })
-                .then(function(data) {
-                    var badge = document.getElementById('streak-key-badge');
-                    if (data.ok) {
-                        badge.className = 'text-xs font-semibold px-3 py-1 rounded-full bg-green-100 text-green-700';
-                        badge.innerHTML = '<i class="fas fa-check-circle mr-1"></i>Connected (' + data.latency + 'ms)';
-                    } else {
-                        badge.className = 'text-xs font-semibold px-3 py-1 rounded-full bg-red-100 text-red-700';
-                        badge.innerHTML = '<i class="fas fa-times-circle mr-1"></i>Error: ' + (data.error || 'Failed');
-                    }
-                })
-                .catch(function() {
-                    var badge = document.getElementById('streak-key-badge');
-                    badge.className = 'text-xs font-semibold px-3 py-1 rounded-full bg-red-100 text-red-700';
-                    badge.innerHTML = '<i class="fas fa-times-circle mr-1"></i>Cannot reach server';
-                });
-                // Also fetch masked key
-                fetch('/api/admin/streak-key/status')
-                .then(function(r) { return r.json(); })
-                .then(function(data) {
-                    var el = document.getElementById('streak-key-masked');
-                    if (data.configured && data.maskedKey) {
-                        el.textContent = data.maskedKey;
-                    } else {
-                        el.textContent = 'Not configured';
-                    }
-                }).catch(function(){});
-            }
-
-            function toggleKeyVisibility() {
-                var inp = document.getElementById('streak-key-input');
-                var ico = document.getElementById('key-eye-icon');
-                if (inp.type === 'password') {
-                    inp.type = 'text';
-                    ico.className = 'fas fa-eye-slash';
-                } else {
-                    inp.type = 'password';
-                    ico.className = 'fas fa-eye';
-                }
-            }
-
-            function saveStreakKeyFromSettings() {
-                var key = document.getElementById('streak-key-input').value.trim();
-                if (!key) { showStreakKeyMessage('error', 'Please enter an API key.'); return; }
-                if (!settingsGoogleToken) { showStreakKeyMessage('error', 'Please sign in with Google first.'); return; }
-                
-                fetch('/api/admin/streak-key', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token: settingsGoogleToken, key: key })
-                })
-                .then(function(r) { return r.json(); })
-                .then(function(data) {
-                    if (data.success) {
-                        showStreakKeyMessage('success', 'API key saved! Reload the page to use the new key.');
-                        document.getElementById('streak-key-input').value = '';
-                        checkStreakKeyStatus();
-                    } else {
-                        showStreakKeyMessage('error', data.error || 'Failed to save key.');
-                    }
-                })
-                .catch(function(err) {
-                    showStreakKeyMessage('error', 'Network error: ' + err.message);
-                });
-            }
-
-            function showStreakKeyMessage(type, msg) {
-                var el = document.getElementById('streak-key-message');
-                el.classList.remove('hidden');
-                if (type === 'success') {
-                    el.className = 'bg-green-50 border-l-4 border-green-500 p-3 rounded text-sm text-green-800';
-                    el.innerHTML = '<i class="fas fa-check-circle mr-2"></i>' + msg;
-                } else {
-                    el.className = 'bg-red-50 border-l-4 border-red-500 p-3 rounded text-sm text-red-800';
-                    el.innerHTML = '<i class="fas fa-exclamation-circle mr-2"></i>' + msg;
-                }
-                setTimeout(function() { el.classList.add('hidden'); }, 6000);
-            }
-
-            // Initialize Google Sign-In for Settings when page loads
-            setTimeout(initSettingsGoogleSignIn, 1000);
 
             // Streak API Key management in Settings (no Google Sign-In required)
             function checkStreakKeyStatus() {
