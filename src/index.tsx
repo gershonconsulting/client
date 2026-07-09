@@ -2341,6 +2341,35 @@ app.post('/api/reports/monthly/send', async (c) => {
 })
 
 // JSON endpoint for report data (for debugging)
+// DEBUG: Raw Streak box fields inspection
+app.get('/api/debug/raw-box-fields', async (c) => {
+  try {
+    const companies = await getAllCompanies(c.env.COMPANIES_KV)
+    const firstCompany = companies.find((co: any) => !co.archived && co.pipelineKey)
+    if (!firstCompany) return c.json({ error: 'No company with pipeline' })
+    const boxes = await callStreakAPI(`/pipelines/${firstCompany.pipelineKey}/boxes`)
+    const allBoxes = Array.isArray(boxes) ? boxes : []
+    if (allBoxes.length === 0) return c.json({ error: 'No boxes found', company: firstCompany.name })
+    const box = allBoxes[0]
+    const timestampFields: Record<string, any> = {}
+    for (const key of Object.keys(box)) {
+      if (key.toLowerCase().includes('time') || key.toLowerCase().includes('date') || key.toLowerCase().includes('creat') || key.toLowerCase().includes('update') || key.toLowerCase().includes('saved')) {
+        timestampFields[key] = box[key]
+      }
+    }
+    return c.json({
+      company: firstCompany.name,
+      totalBoxes: allBoxes.length,
+      boxName: box.name,
+      allFieldNames: Object.keys(box).sort(),
+      timestampFields,
+      rawBoxSample: box
+    })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
 app.get('/api/reports/data', async (c) => {
   try {
     const data = await collectReportData(c.env.COMPANIES_KV)
