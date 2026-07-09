@@ -229,12 +229,35 @@ async function collectReportData(kv: any) {
 
       const allBoxes = Array.isArray(boxes) ? boxes : []
       const now = Date.now()
-      const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000
-      const oneMonthAgo = now - 30 * 24 * 60 * 60 * 1000
 
-      // Count new leads this week and this month
-      const newThisWeek = allBoxes.filter((b: any) => b.createdTimestamp > oneWeekAgo).length
-      const newThisMonth = allBoxes.filter((b: any) => b.createdTimestamp > oneMonthAgo).length
+      // Calendar-based boundaries for accurate period calculations
+      const today = new Date()
+
+      // This week: Monday 00:00 to now
+      const dayOfWeek = today.getDay()
+      const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1  // Monday = 0 offset
+      const thisWeekStart = new Date(today.getFullYear(), today.getMonth(), today.getDate() - mondayOffset).getTime()
+
+      // Last week: previous Monday 00:00 to this Monday 00:00
+      const lastWeekStart = thisWeekStart - 7 * 24 * 60 * 60 * 1000
+
+      // This month: 1st of current month 00:00
+      const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1).getTime()
+
+      // Last month: 1st of previous month to 1st of current month
+      const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1).getTime()
+
+      // Count new leads per period using creationTimestamp (ms) from Streak API
+      const newThisWeek = allBoxes.filter((b: any) => (b.creationTimestamp || 0) >= thisWeekStart).length
+      const newLastWeek = allBoxes.filter((b: any) => {
+        const ts = b.creationTimestamp || 0
+        return ts >= lastWeekStart && ts < thisWeekStart
+      }).length
+      const newThisMonth = allBoxes.filter((b: any) => (b.creationTimestamp || 0) >= thisMonthStart).length
+      const newLastMonth = allBoxes.filter((b: any) => {
+        const ts = b.creationTimestamp || 0
+        return ts >= lastMonthStart && ts < thisMonthStart
+      }).length
 
       // Stage distribution
       const stageMap = pipeline.stageOrder || []
@@ -250,24 +273,30 @@ async function collectReportData(kv: any) {
         stageDistribution[stageName] = (stageDistribution[stageName] || 0) + 1
       })
 
-      // Calculate campaign duration in months
-      const oldestBox = allBoxes.reduce((oldest: any, box: any) => {
-        return (!oldest || box.createdTimestamp < oldest.createdTimestamp) ? box : oldest
-      }, null)
-      const campaignStartMs = oldestBox ? oldestBox.createdTimestamp : now
+      // Calculate campaign duration in months using creationTimestamp
+      const timestamps = allBoxes.map((b: any) => b.creationTimestamp).filter(Boolean)
+      const campaignStartMs = timestamps.length > 0 ? Math.min(...timestamps) : now
       const campaignMonths = Math.max(1, Math.round((now - campaignStartMs) / (30 * 24 * 60 * 60 * 1000)))
 
-      // Freshness
-      const highFreshness = allBoxes.filter((b: any) => (b.freshness || 0) > 0.5).length
-      const medFreshness = allBoxes.filter((b: any) => (b.freshness || 0) >= 0.2 && (b.freshness || 0) <= 0.5).length
-      const lowFreshness = allBoxes.filter((b: any) => (b.freshness || 0) < 0.2).length
+      // Freshness based on lastUpdatedTimestamp (raw Streak API, in ms)
+      const freshnessScores = allBoxes.map((b: any) => {
+        const lastUpdated = b.lastUpdatedTimestamp || b.lastSavedTimestamp || 0
+        if (!lastUpdated) return 0
+        const daysSince = (now - lastUpdated) / (24 * 60 * 60 * 1000)
+        return Math.max(0, Math.min(1, 1 - (daysSince / 30)))
+      })
+      const highFreshness = freshnessScores.filter((f: number) => f > 0.5).length
+      const medFreshness = freshnessScores.filter((f: number) => f >= 0.2 && f <= 0.5).length
+      const lowFreshness = freshnessScores.filter((f: number) => f < 0.2).length
 
       results.push({
         key: company.key,
         name: company.name,
         totalLeads: allBoxes.length,
         newThisWeek,
+        newLastWeek,
         newThisMonth,
+        newLastMonth,
         avgLeadsPerMonth: Math.round((allBoxes.length / campaignMonths) * 10) / 10,
         campaignMonths,
         stageDistribution,
@@ -281,7 +310,9 @@ async function collectReportData(kv: any) {
         error: (err as Error).message,
         totalLeads: 0,
         newThisWeek: 0,
+        newLastWeek: 0,
         newThisMonth: 0,
+        newLastMonth: 0,
         avgLeadsPerMonth: 0,
         campaignMonths: 0,
         stageDistribution: {},
