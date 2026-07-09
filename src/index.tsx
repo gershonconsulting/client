@@ -2339,7 +2339,7 @@ app.post('/api/reports/weekly/send', async (c) => {
 
     const result = await sendEmail(resendKey, {
       from: c.env.REPORT_FROM_EMAIL || 'Gershon.AI Reports <onboarding@resend.dev>',
-      to: (c.env.REPORT_TO_EMAIL || 'report@gershonconsulting.com').split(',').map((e: string) => e.trim()),
+      to: (c.env.REPORT_TO_EMAIL || 'oattia@gmail.com').split(',').map((e: string) => e.trim()),
       subject: `${statusEmoji} Weekly Report — ${overallPct}% of target · ${totalNewLeads} new leads — ${weekLabel}`,
       html
     })
@@ -2370,7 +2370,7 @@ app.post('/api/reports/monthly/send', async (c) => {
 
     const result = await sendEmail(resendKey, {
       from: c.env.REPORT_FROM_EMAIL || 'Gershon.AI Reports <onboarding@resend.dev>',
-      to: (c.env.REPORT_TO_EMAIL || 'report@gershonconsulting.com').split(',').map((e: string) => e.trim()),
+      to: (c.env.REPORT_TO_EMAIL || 'oattia@gmail.com').split(',').map((e: string) => e.trim()),
       subject: `${statusEmoji} Monthly Report — ${overallPct}% of target · ${totalNewLeads} leads — ${monthLabel}`,
       html
     })
