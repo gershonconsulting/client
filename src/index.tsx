@@ -42,6 +42,7 @@ app.use('/static/*', serveStatic({ root: './public' }))
 // Streak API configuration
 let streakApiKey: string = ''
 const STREAK_API_BASE = 'https://www.streak.com/api/v1'
+const RESEND_API_KEY_FALLBACK = 're_NDg8hBLP_9Zyt2n5VTRSQnz2Zpf5osH3a'
 
 // Authorized admin emails
 const ADMIN_EMAILS = [
@@ -191,6 +192,10 @@ async function callStreakAPI(endpoint: string) {
 }
 
 // ── Email Reports via Resend ──────────────────────────────────────
+
+function getResendApiKey(env: any): string {
+  return env.RESEND_API_KEY || RESEND_API_KEY_FALLBACK
+}
 
 async function sendEmail(resendApiKey: string, options: { from: string, to: string[], subject: string, html: string }) {
   const response = await fetch('https://api.resend.com/emails', {
@@ -2297,7 +2302,8 @@ app.get('/api/reports/monthly', async (c) => {
 // Send weekly report via email
 app.post('/api/reports/weekly/send', async (c) => {
   try {
-    if (!c.env.RESEND_API_KEY) {
+    const resendKey = getResendApiKey(c.env)
+    if (!resendKey) {
       return c.json({ error: 'RESEND_API_KEY not configured' }, 500)
     }
     const data = await collectReportData(c.env.COMPANIES_KV)
@@ -2330,7 +2336,7 @@ app.post('/api/reports/weekly/send', async (c) => {
 
     const html = generateWeeklyReportHtml(data, weekLabel, period)
 
-    const result = await sendEmail(c.env.RESEND_API_KEY, {
+    const result = await sendEmail(resendKey, {
       from: c.env.REPORT_FROM_EMAIL || 'Gershon.AI Reports <reports@gershoncrm.com>',
       to: (c.env.REPORT_TO_EMAIL || 'report@gershonconsulting.com').split(',').map((e: string) => e.trim()),
       subject: `${statusEmoji} Weekly Report — ${overallPct}% of target · ${totalNewLeads} new leads — ${weekLabel}`,
@@ -2346,7 +2352,8 @@ app.post('/api/reports/weekly/send', async (c) => {
 // Send monthly report via email
 app.post('/api/reports/monthly/send', async (c) => {
   try {
-    if (!c.env.RESEND_API_KEY) {
+    const resendKey = getResendApiKey(c.env)
+    if (!resendKey) {
       return c.json({ error: 'RESEND_API_KEY not configured' }, 500)
     }
     const data = await collectReportData(c.env.COMPANIES_KV)
@@ -2360,7 +2367,7 @@ app.post('/api/reports/monthly/send', async (c) => {
 
     const html = generateMonthlyReportHtml(data, monthLabel)
 
-    const result = await sendEmail(c.env.RESEND_API_KEY, {
+    const result = await sendEmail(resendKey, {
       from: c.env.REPORT_FROM_EMAIL || 'Gershon.AI Reports <reports@gershoncrm.com>',
       to: (c.env.REPORT_TO_EMAIL || 'report@gershonconsulting.com').split(',').map((e: string) => e.trim()),
       subject: `${statusEmoji} Monthly Report — ${overallPct}% of target · ${totalNewLeads} leads — ${monthLabel}`,
