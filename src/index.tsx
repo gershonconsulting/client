@@ -2024,7 +2024,7 @@ app.get('/api/overview', async (c) => {
           // Scale goal (10 leads/month) to the period
           const monthlyGoal = 10
           let periodGoal = monthlyGoal
-          if (period === 'week') periodGoal = Math.round((monthlyGoal / 30) * 7)
+          if (period === 'week') periodGoal = 2.5  // 10 leads/month pro-rated to weekly
           else if (period === 'year') periodGoal = monthlyGoal * 12
           else if (period === 'all') {
             const timestamps = allBoxes.map((b: any) => b.creationTimestamp).filter(Boolean)
@@ -2093,6 +2093,7 @@ app.get('/api/overview', async (c) => {
             key: company.key,
             name: company.name,
             periodLeads,
+            periodGoal,
             totalLeads,
             weekLeads,
             lastMonthLeads,
@@ -3314,9 +3315,11 @@ app.get('/overview', (c) => {
                         ? '<span class="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full"><i class="fas fa-clock mr-1"></i>' + co.campaignMonths + ' mo</span>'
                         : '';
 
-                    var engageVal = co.lastMonthLeads || 0;
-                    var engageC = kpiColor(engageVal, 10);
-                    var engagePct = Math.min(Math.round((engageVal / 10) * 100), 100);
+                    // Use period-appropriate leads count and goal
+                    var engageVal = co.periodLeads || 0;
+                    var periodGoalVal = co.periodGoal || 10;
+                    var engageC = kpiColor(engageVal, periodGoalVal);
+                    var engagePct = Math.min(Math.round((engageVal / periodGoalVal) * 100), 100);
 
                     var html = '<div class="bg-white rounded-xl shadow-md border border-gray-100 hover:shadow-lg transition-shadow flex flex-col overflow-hidden">';
 
@@ -3329,8 +3332,8 @@ app.get('/overview', (c) => {
                     // Main KPI: Leads last month
                     html += '<div class="px-5 pb-3">'
                         + '<div class="flex items-end justify-between mb-1">'
-                        + '<span class="text-xs text-gray-400 uppercase font-semibold">Leads last month</span>'
-                        + '<span class="text-lg font-extrabold ' + engageC.text + '">' + engageVal + '<span class="text-xs font-normal text-gray-400">/10</span></span>'
+                        + '<span class="text-xs text-gray-400 uppercase font-semibold">Leads — ' + periodLabel(currentPeriod) + '</span>'
+                        + '<span class="text-lg font-extrabold ' + engageC.text + '">' + engageVal + '<span class="text-xs font-normal text-gray-400">/' + periodGoalVal + '</span></span>'
                         + '</div>'
                         + '<div class="w-full bg-gray-100 rounded-full h-2"><div class="' + engageC.bar + ' h-2 rounded-full transition-all" style="width:' + engagePct + '%"></div></div>'
                         + '</div>';
