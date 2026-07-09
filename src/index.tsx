@@ -325,20 +325,22 @@ async function collectReportData(kv: any) {
   return results
 }
 
-function generateWeeklyReportHtml(data: any[], weekLabel: string) {
-  const totalNewLeads = data.reduce((sum: number, d: any) => sum + d.newThisWeek, 0)
+function generateWeeklyReportHtml(data: any[], weekLabel: string, period: 'thisWeek' | 'lastWeek' = 'thisWeek') {
+  const leadsField = period === 'lastWeek' ? 'newLastWeek' : 'newThisWeek'
+  const totalNewLeads = data.reduce((sum: number, d: any) => sum + (d[leadsField] || 0), 0)
   const totalTarget = data.filter((d: any) => !d.error).length * 2.5
   const overallPct = totalTarget > 0 ? Math.round((totalNewLeads / totalTarget) * 100) : 0
 
   // Sort by performance (new leads this week, descending)
-  const sorted = [...data].sort((a: any, b: any) => b.newThisWeek - a.newThisWeek)
+  const sorted = [...data].sort((a: any, b: any) => (b[leadsField] || 0) - (a[leadsField] || 0))
 
   const statusEmoji = overallPct >= 100 ? '🟢' : overallPct >= 75 ? '🟡' : '🔴'
   const statusLabel = overallPct >= 100 ? 'ON TRACK' : overallPct >= 75 ? 'CLOSE' : 'BEHIND'
 
   const companyRows = sorted.map((company: any) => {
     const weeklyTarget = 2.5
-    const pct = Math.round((company.newThisWeek / weeklyTarget) * 100)
+    const leadsCount = company[leadsField] || 0
+    const pct = Math.round((leadsCount / weeklyTarget) * 100)
     const barColor = pct >= 100 ? '#22c55e' : pct >= 75 ? '#eab308' : '#ef4444'
     const barWidth = Math.min(pct, 100)
     const dot = pct >= 100 ? '🟢' : pct >= 75 ? '🟡' : '🔴'
@@ -363,7 +365,7 @@ function generateWeeklyReportHtml(data: any[], weekLabel: string) {
         <div style="font-size:11px;color:#94a3b8;margin-top:2px;">${company.totalLeads} total leads · ${company.campaignMonths}mo</div>
       </td>
       <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9;text-align:center;">
-        <span style="font-size:20px;font-weight:700;color:#334155;">${company.newThisWeek}</span>
+        <span style="font-size:20px;font-weight:700;color:#334155;">${company[leadsField] || 0}</span>
         <div style="font-size:11px;color:#94a3b8;">/ 2.5 target</div>
       </td>
       <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9;text-align:center;">
@@ -2254,12 +2256,25 @@ app.get('/api/admin/streak-pipelines', async (c) => {
 
 // Preview weekly report (HTML in browser)
 app.get('/api/reports/weekly', async (c) => {
+  // ?period=lastWeek to preview last week's report
+  const period = (c.req.query('period') === 'lastWeek' ? 'lastWeek' : 'thisWeek') as 'thisWeek' | 'lastWeek'
+  const leadsField = period === 'lastWeek' ? 'newLastWeek' : 'newThisWeek'
   try {
     const data = await collectReportData(c.env.COMPANIES_KV)
     const now = new Date()
-    const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-    const weekLabel = `Week of ${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-    const html = generateWeeklyReportHtml(data, weekLabel)
+    let weekLabel: string
+    if (period === 'lastWeek') {
+      const dayOfWeek = now.getDay()
+      const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+      const thisMonday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - mondayOffset)
+      const lastMonday = new Date(thisMonday.getTime() - 7 * 24 * 60 * 60 * 1000)
+      const lastSunday = new Date(thisMonday.getTime() - 1 * 24 * 60 * 60 * 1000)
+      weekLabel = `Week of ${lastMonday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — ${lastSunday.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+    } else {
+      const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+      weekLabel = `Week of ${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+    }
+    const html = generateWeeklyReportHtml(data, weekLabel, period)
     return c.html(html)
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
@@ -2286,16 +2301,34 @@ app.post('/api/reports/weekly/send', async (c) => {
       return c.json({ error: 'RESEND_API_KEY not configured' }, 500)
     }
     const data = await collectReportData(c.env.COMPANIES_KV)
-    const now = new Date()
-    const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-    const weekLabel = `Week of ${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
 
-    const totalNewLeads = data.reduce((sum: number, d: any) => sum + d.newThisWeek, 0)
+    // Determine period: default to lastWeek (Monday send = last week recap)
+    const body = await c.req.json().catch(() => ({})) as { period?: string }
+    const period = (body.period === 'thisWeek' ? 'thisWeek' : 'lastWeek') as 'thisWeek' | 'lastWeek'
+    const leadsField = period === 'lastWeek' ? 'newLastWeek' : 'newThisWeek'
+
+    // Build the week label based on period
+    const now = new Date()
+    let weekLabel: string
+    if (period === 'lastWeek') {
+      // Last week: previous Monday to previous Sunday
+      const dayOfWeek = now.getDay()
+      const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+      const thisMonday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - mondayOffset)
+      const lastMonday = new Date(thisMonday.getTime() - 7 * 24 * 60 * 60 * 1000)
+      const lastSunday = new Date(thisMonday.getTime() - 1 * 24 * 60 * 60 * 1000)
+      weekLabel = `Week of ${lastMonday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — ${lastSunday.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+    } else {
+      const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+      weekLabel = `Week of ${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+    }
+
+    const totalNewLeads = data.reduce((sum: number, d: any) => sum + (d[leadsField] || 0), 0)
     const activeCompanies = data.filter((d: any) => !d.error).length
     const overallPct = activeCompanies > 0 ? Math.round((totalNewLeads / (activeCompanies * 2.5)) * 100) : 0
     const statusEmoji = overallPct >= 100 ? '🟢' : overallPct >= 75 ? '🟡' : '🔴'
 
-    const html = generateWeeklyReportHtml(data, weekLabel)
+    const html = generateWeeklyReportHtml(data, weekLabel, period)
 
     const result = await sendEmail(c.env.RESEND_API_KEY, {
       from: c.env.REPORT_FROM_EMAIL || 'Gershon.AI Reports <reports@gershoncrm.com>',
@@ -2304,7 +2337,7 @@ app.post('/api/reports/weekly/send', async (c) => {
       html
     })
 
-    return c.json({ success: true, message: 'Weekly report sent', emailId: result.id, stats: { totalNewLeads, overallPct, companies: data.length } })
+    return c.json({ success: true, message: 'Weekly report sent', emailId: result.id, stats: { totalNewLeads, overallPct, companies: data.length, period } })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
   }
