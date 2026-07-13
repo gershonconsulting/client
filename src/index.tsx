@@ -3329,7 +3329,7 @@ app.get('/overview', (c) => {
                         + durationBadge
                         + '</div>';
 
-                    // Main KPI: Leads last month
+                    // Main KPI: Leads for selected period
                     html += '<div class="px-5 pb-3">'
                         + '<div class="flex items-end justify-between mb-1">'
                         + '<span class="text-xs text-gray-400 uppercase font-semibold">Leads — ' + periodLabel(currentPeriod) + '</span>'
