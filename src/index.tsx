@@ -42,7 +42,6 @@ app.use('/static/*', serveStatic({ root: './public' }))
 // Streak API configuration
 let streakApiKey: string = ''
 const STREAK_API_BASE = 'https://www.streak.com/api/v1'
-const RESEND_API_KEY_FALLBACK = 're_NDg8hBLP_9Zyt2n5VTRSQnz2Zpf5osH3a'
 
 // Authorized admin emails
 const ADMIN_EMAILS = [
@@ -115,7 +114,7 @@ const COMPANIES = {
       promote: '',
       network: 'https://docs.google.com/spreadsheets/d/1NzUlKfHTW6v7i-S59GjtBFlzQwTX2AaeK4gQ4fVSAsw/edit?gid=910674612#gid=910674612',
       engage: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgOqI26zZCAw'
-    }
+    },
   },
   'finance-montreal': {
     name: 'Finance Montreal (Steve)',
@@ -193,10 +192,6 @@ async function callStreakAPI(endpoint: string) {
 
 // ── Email Reports via Resend ──────────────────────────────────────
 
-function getResendApiKey(env: any): string {
-  return env.RESEND_API_KEY || RESEND_API_KEY_FALLBACK
-}
-
 async function sendEmail(resendApiKey: string, options: { from: string, to: string[], subject: string, html: string }) {
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -234,35 +229,12 @@ async function collectReportData(kv: any) {
 
       const allBoxes = Array.isArray(boxes) ? boxes : []
       const now = Date.now()
+      const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000
+      const oneMonthAgo = now - 30 * 24 * 60 * 60 * 1000
 
-      // Calendar-based boundaries for accurate period calculations
-      const today = new Date()
-
-      // This week: Monday 00:00 to now
-      const dayOfWeek = today.getDay()
-      const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1  // Monday = 0 offset
-      const thisWeekStart = new Date(today.getFullYear(), today.getMonth(), today.getDate() - mondayOffset).getTime()
-
-      // Last week: previous Monday 00:00 to this Monday 00:00
-      const lastWeekStart = thisWeekStart - 7 * 24 * 60 * 60 * 1000
-
-      // This month: 1st of current month 00:00
-      const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1).getTime()
-
-      // Last month: 1st of previous month to 1st of current month
-      const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1).getTime()
-
-      // Count new leads per period using creationTimestamp (ms) from Streak API
-      const newThisWeek = allBoxes.filter((b: any) => (b.creationTimestamp || 0) >= thisWeekStart).length
-      const newLastWeek = allBoxes.filter((b: any) => {
-        const ts = b.creationTimestamp || 0
-        return ts >= lastWeekStart && ts < thisWeekStart
-      }).length
-      const newThisMonth = allBoxes.filter((b: any) => (b.creationTimestamp || 0) >= thisMonthStart).length
-      const newLastMonth = allBoxes.filter((b: any) => {
-        const ts = b.creationTimestamp || 0
-        return ts >= lastMonthStart && ts < thisMonthStart
-      }).length
+      // Count new leads this week and this month
+      const newThisWeek = allBoxes.filter((b: any) => b.createdTimestamp > oneWeekAgo).length
+      const newThisMonth = allBoxes.filter((b: any) => b.createdTimestamp > oneMonthAgo).length
 
       // Stage distribution
       const stageMap = pipeline.stageOrder || []
@@ -278,30 +250,24 @@ async function collectReportData(kv: any) {
         stageDistribution[stageName] = (stageDistribution[stageName] || 0) + 1
       })
 
-      // Calculate campaign duration in months using creationTimestamp
-      const timestamps = allBoxes.map((b: any) => b.creationTimestamp).filter(Boolean)
-      const campaignStartMs = timestamps.length > 0 ? Math.min(...timestamps) : now
+      // Calculate campaign duration in months
+      const oldestBox = allBoxes.reduce((oldest: any, box: any) => {
+        return (!oldest || box.createdTimestamp < oldest.createdTimestamp) ? box : oldest
+      }, null)
+      const campaignStartMs = oldestBox ? oldestBox.createdTimestamp : now
       const campaignMonths = Math.max(1, Math.round((now - campaignStartMs) / (30 * 24 * 60 * 60 * 1000)))
 
-      // Freshness based on lastUpdatedTimestamp (raw Streak API, in ms)
-      const freshnessScores = allBoxes.map((b: any) => {
-        const lastUpdated = b.lastUpdatedTimestamp || b.lastSavedTimestamp || 0
-        if (!lastUpdated) return 0
-        const daysSince = (now - lastUpdated) / (24 * 60 * 60 * 1000)
-        return Math.max(0, Math.min(1, 1 - (daysSince / 30)))
-      })
-      const highFreshness = freshnessScores.filter((f: number) => f > 0.5).length
-      const medFreshness = freshnessScores.filter((f: number) => f >= 0.2 && f <= 0.5).length
-      const lowFreshness = freshnessScores.filter((f: number) => f < 0.2).length
+      // Freshness
+      const highFreshness = allBoxes.filter((b: any) => (b.freshness || 0) > 0.5).length
+      const medFreshness = allBoxes.filter((b: any) => (b.freshness || 0) >= 0.2 && (b.freshness || 0) <= 0.5).length
+      const lowFreshness = allBoxes.filter((b: any) => (b.freshness || 0) < 0.2).length
 
       results.push({
         key: company.key,
         name: company.name,
         totalLeads: allBoxes.length,
         newThisWeek,
-        newLastWeek,
         newThisMonth,
-        newLastMonth,
         avgLeadsPerMonth: Math.round((allBoxes.length / campaignMonths) * 10) / 10,
         campaignMonths,
         stageDistribution,
@@ -315,9 +281,7 @@ async function collectReportData(kv: any) {
         error: (err as Error).message,
         totalLeads: 0,
         newThisWeek: 0,
-        newLastWeek: 0,
         newThisMonth: 0,
-        newLastMonth: 0,
         avgLeadsPerMonth: 0,
         campaignMonths: 0,
         stageDistribution: {},
@@ -330,22 +294,20 @@ async function collectReportData(kv: any) {
   return results
 }
 
-function generateWeeklyReportHtml(data: any[], weekLabel: string, period: 'thisWeek' | 'lastWeek' = 'thisWeek') {
-  const leadsField = period === 'lastWeek' ? 'newLastWeek' : 'newThisWeek'
-  const totalNewLeads = data.reduce((sum: number, d: any) => sum + (d[leadsField] || 0), 0)
+function generateWeeklyReportHtml(data: any[], weekLabel: string) {
+  const totalNewLeads = data.reduce((sum: number, d: any) => sum + d.newThisWeek, 0)
   const totalTarget = data.filter((d: any) => !d.error).length * 2.5
   const overallPct = totalTarget > 0 ? Math.round((totalNewLeads / totalTarget) * 100) : 0
 
   // Sort by performance (new leads this week, descending)
-  const sorted = [...data].sort((a: any, b: any) => (b[leadsField] || 0) - (a[leadsField] || 0))
+  const sorted = [...data].sort((a: any, b: any) => b.newThisWeek - a.newThisWeek)
 
   const statusEmoji = overallPct >= 100 ? '🟢' : overallPct >= 75 ? '🟡' : '🔴'
   const statusLabel = overallPct >= 100 ? 'ON TRACK' : overallPct >= 75 ? 'CLOSE' : 'BEHIND'
 
   const companyRows = sorted.map((company: any) => {
     const weeklyTarget = 2.5
-    const leadsCount = company[leadsField] || 0
-    const pct = Math.round((leadsCount / weeklyTarget) * 100)
+    const pct = Math.round((company.newThisWeek / weeklyTarget) * 100)
     const barColor = pct >= 100 ? '#22c55e' : pct >= 75 ? '#eab308' : '#ef4444'
     const barWidth = Math.min(pct, 100)
     const dot = pct >= 100 ? '🟢' : pct >= 75 ? '🟡' : '🔴'
@@ -370,7 +332,7 @@ function generateWeeklyReportHtml(data: any[], weekLabel: string, period: 'thisW
         <div style="font-size:11px;color:#94a3b8;margin-top:2px;">${company.totalLeads} total leads · ${company.campaignMonths}mo</div>
       </td>
       <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9;text-align:center;">
-        <span style="font-size:20px;font-weight:700;color:#334155;">${company[leadsField] || 0}</span>
+        <span style="font-size:20px;font-weight:700;color:#334155;">${company.newThisWeek}</span>
         <div style="font-size:11px;color:#94a3b8;">/ 2.5 target</div>
       </td>
       <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9;text-align:center;">
@@ -725,6 +687,42 @@ async function fetchNetworkData(urlOrGid: string) {
   }
 }
 
+async function fetchStraightInData(reportId: string) {
+  try {
+    const url = `https://prospecthub.straight-in.com/api/retain/public/campaign-reports/${reportId}`
+    const response = await fetch(url)
+    if (!response.ok) throw new Error(`Straight-in API error: ${response.statusText}`)
+    const data = await response.json() as any
+    const totals = data?.snapshot?.totals || {}
+    const prevTotals = data?.snapshot?.previousTotals || {}
+    const deltas = data?.snapshot?.deltas || {}
+    const funnel = data?.snapshot?.funnel || {}
+    const opportunities = data?.snapshot?.opportunities || []
+    return {
+      connectionsSent: totals.connectionsSent || 0,
+      accepted: totals.accepted || 0,
+      acceptanceRate: totals.acceptanceRate || 0,
+      messages: totals.messages || 0,
+      opportunityCount: totals.opportunityCount || 0,
+      followUps: totals.followUps || 0,
+      openProfileInmails: totals.openProfileInmails || 0,
+      pageInvites: totals.pageInvites || 0,
+      profileVisits: totals.openProfileVisits || 0,
+      prevConnectionsSent: prevTotals.connectionsSent || 0,
+      prevAccepted: prevTotals.accepted || 0,
+      prevMessages: prevTotals.messages || 0,
+      prevOpportunityCount: prevTotals.opportunityCount || 0,
+      deltas,
+      funnel,
+      opportunities,
+      configured: true
+    }
+  } catch (error) {
+    console.error('Error fetching Straight-in data:', error)
+    return null
+  }
+}
+
 async function fetchEmailingData(urlOrGid: string) {
   try {
     const { sheetId, gid } = parseSheetUrl(urlOrGid)
@@ -1065,7 +1063,7 @@ app.get('/api/companies', async (c) => {
 app.post('/api/companies', async (c) => {
   try {
     const body = await c.req.json()
-    const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, notionUrl, networkGid, key: providedKey, googleChatUrl, googleChatWebhookUrl, emailingUrl, messages } = body
+    const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, notionUrl, networkGid, key: providedKey, googleChatUrl, googleChatWebhookUrl, emailingUrl, straightInReportId, messages } = body
 
     if (!name || !pipelineKey) {
       return c.json({ error: 'name and pipelineKey are required' }, 400)
@@ -1087,13 +1085,14 @@ app.post('/api/companies', async (c) => {
         network: networkUrl || '',
         engage: engageUrl || `https://www.streak.com/a/pipelines/${pipelineKey}`,
         notion: notionUrl || ''
-      }
+      },
     }
     if (networkGid) company.networkSheetGid = networkGid
     if (googleChatUrl) company.googleChatUrl = googleChatUrl
     if (googleChatWebhookUrl) company.googleChatWebhookUrl = googleChatWebhookUrl
     if (messages && messages.length > 0) company.messages = messages
     if (emailingUrl) company.emailingUrl = emailingUrl
+    if (straightInReportId) company.straightInReportId = straightInReportId
 
     await c.env.COMPANIES_KV.put(`company:${key}`, JSON.stringify(company))
     return c.json({ success: true, company })
@@ -1309,7 +1308,7 @@ app.put('/api/companies/:key', async (c) => {
   try {
     const key = c.req.param('key')
     const body = await c.req.json()
-    const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, networkGid, googleChatUrl, googleChatWebhookUrl, emailingUrl, messages } = body
+    const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, networkGid, googleChatUrl, googleChatWebhookUrl, emailingUrl, straightInReportId, messages } = body
 
     // Load existing company (include archived so we can restore)
     const all = await getAllCompanies(c.env.COMPANIES_KV, true)
@@ -1342,6 +1341,10 @@ app.put('/api/companies/:key', async (c) => {
     if (googleChatWebhookUrl !== undefined) updated.googleChatWebhookUrl = googleChatWebhookUrl
     if (messages !== undefined) updated.messages = messages
     if (body.emailingUrl !== undefined) updated.emailingUrl = body.emailingUrl
+    if (straightInReportId !== undefined) {
+      if (straightInReportId) updated.straightInReportId = straightInReportId
+      else delete updated.straightInReportId
+    }
 
     await c.env.COMPANIES_KV.put(`company:${key}`, JSON.stringify(updated))
     return c.json({ success: true, company: updated })
@@ -1986,11 +1989,13 @@ app.get('/api/overview', async (c) => {
           const networkGid = company.networkSheetGid || (company.sources?.network || '')
 
           const emailingSource = company.sources?.emailing || ''
-          const [boxes, promoteData, networkData, emailingData] = await Promise.all([
+          const straightInReportId = company.straightInReportId || ''
+          const [boxes, promoteData, networkData, emailingData, straightInData] = await Promise.all([
             callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`).catch(() => []),
             promoteUrl ? fetchPromoteData(promoteUrl).catch(() => ({ platforms: {} })) : Promise.resolve({ platforms: {} }),
             networkGid ? fetchNetworkData(networkGid).catch(() => ({ avgAcceptanceRate: 0, totalInvitations: 0, totalAccepted: 0 })) : Promise.resolve({ avgAcceptanceRate: 0, totalInvitations: 0, totalAccepted: 0 }),
-            emailingSource ? fetchEmailingData(emailingSource).catch(() => ({ campaigns: [], totals: { emailsSent: 0, humanReplies: 0, humanReplyRate: 0, positiveReplies: 0, positiveReplyRate: 0, leads: 0, campaignCount: 0 } })) : Promise.resolve({ campaigns: [], totals: { emailsSent: 0, humanReplies: 0, humanReplyRate: 0, positiveReplies: 0, positiveReplyRate: 0, leads: 0, campaignCount: 0 } })
+            emailingSource ? fetchEmailingData(emailingSource).catch(() => ({ campaigns: [], totals: { emailsSent: 0, humanReplies: 0, humanReplyRate: 0, positiveReplies: 0, positiveReplyRate: 0, leads: 0, campaignCount: 0 } })) : Promise.resolve({ campaigns: [], totals: { emailsSent: 0, humanReplies: 0, humanReplyRate: 0, positiveReplies: 0, positiveReplyRate: 0, leads: 0, campaignCount: 0 } }),
+            straightInReportId ? fetchStraightInData(straightInReportId).catch(() => null) : Promise.resolve(null)
           ])
 
           const allBoxes = Array.isArray(boxes) ? boxes : []
@@ -2024,7 +2029,7 @@ app.get('/api/overview', async (c) => {
           // Scale goal (10 leads/month) to the period
           const monthlyGoal = 10
           let periodGoal = monthlyGoal
-          if (period === 'week') periodGoal = 2.5  // 10 leads/month pro-rated to weekly
+          if (period === 'week') periodGoal = Math.round((monthlyGoal / 30) * 7)
           else if (period === 'year') periodGoal = monthlyGoal * 12
           else if (period === 'all') {
             const timestamps = allBoxes.map((b: any) => b.creationTimestamp).filter(Boolean)
@@ -2050,9 +2055,10 @@ app.get('/api/overview', async (c) => {
             promotePostsPerDay = totalDays > 0 ? Math.round((totalPosts / totalDays) * 10) / 10 : 0
           }
 
-          // --- KPI: Network — acceptance rate ---
-          const networkAcceptanceRate = (networkData as any).avgAcceptanceRate || 0
-          const networkConfigured = !!networkGid
+          // --- KPI: Network — Straight-in data takes priority, fallback to Google Sheet ---
+          const siData = straightInData as any
+          const networkConfigured = !!(siData && siData.configured) || !!networkGid
+          const networkAcceptanceRate = siData?.configured ? (siData.acceptanceRate || 0) : ((networkData as any).avgAcceptanceRate || 0)
 
           // --- KPI: Engage — % of 10 meetings/month ---
           // Count leads created this month as proxy for meetings
@@ -2075,9 +2081,16 @@ app.get('/api/overview', async (c) => {
             }
           }
 
-          // Network totals
-          const networkInvitations = (networkData as any).totalInvitations || 0
-          const networkAccepted = (networkData as any).totalAccepted || 0
+          // Network totals — prefer Straight-in data
+          const networkInvitations = siData?.configured ? (siData.connectionsSent || 0) : ((networkData as any).totalInvitations || 0)
+          const networkAccepted = siData?.configured ? (siData.accepted || 0) : ((networkData as any).totalAccepted || 0)
+          const networkMessages = siData?.messages || 0
+          const networkOpportunities = siData?.opportunityCount || 0
+          const networkFollowUps = siData?.followUps || 0
+          const networkInmails = siData?.openProfileInmails || 0
+          const networkPageInvites = siData?.pageInvites || 0
+          const networkProfileVisits = siData?.profileVisits || 0
+          const networkStraightInConfigured = !!(siData && siData.configured)
 
           // Emailing totals
           const emailTotals = (emailingData as any)?.totals || {}
@@ -2093,7 +2106,6 @@ app.get('/api/overview', async (c) => {
             key: company.key,
             name: company.name,
             periodLeads,
-            periodGoal,
             totalLeads,
             weekLeads,
             lastMonthLeads,
@@ -2109,6 +2121,13 @@ app.get('/api/overview', async (c) => {
             networkConfigured,
             networkInvitations,
             networkAccepted,
+            networkMessages,
+            networkOpportunities,
+            networkFollowUps,
+            networkInmails,
+            networkPageInvites,
+            networkProfileVisits,
+            networkStraightInConfigured,
             engageMeetingsPct,
             engageThisMonthLeads: thisMonthLeads,
             emailsSent,
@@ -2124,7 +2143,7 @@ app.get('/api/overview', async (c) => {
             error: false
           }
         } catch (_err) {
-          return { key: company.key, name: company.name, periodLeads: 0, totalLeads: 0, weekLeads: 0, lastMonthLeads: 0, recentActivity: 0, stageCount: 0, goalPct: 0, promotePostsPerDay: 0, promoteConfigured: false, promoteTotalPosts: 0, promoteTotalImpressions: 0, promoteFollowers: 0, networkAcceptanceRate: 0, networkConfigured: false, networkInvitations: 0, networkAccepted: 0, engageMeetingsPct: 0, engageThisMonthLeads: 0, emailsSent: 0, emailHumanReplies: 0, emailReplyRate: 0, emailPositiveReplies: 0, emailPositiveRate: 0, emailLeads: 0, emailCampaignCount: 0, emailConfigured: false, campaignMonths: 0, firstLeadTs: 0, error: true }
+          return { key: company.key, name: company.name, periodLeads: 0, totalLeads: 0, weekLeads: 0, lastMonthLeads: 0, recentActivity: 0, stageCount: 0, goalPct: 0, promotePostsPerDay: 0, promoteConfigured: false, promoteTotalPosts: 0, promoteTotalImpressions: 0, promoteFollowers: 0, networkAcceptanceRate: 0, networkConfigured: false, networkInvitations: 0, networkAccepted: 0, networkMessages: 0, networkOpportunities: 0, networkFollowUps: 0, networkInmails: 0, networkPageInvites: 0, networkProfileVisits: 0, networkStraightInConfigured: false, engageMeetingsPct: 0, engageThisMonthLeads: 0, emailsSent: 0, emailHumanReplies: 0, emailReplyRate: 0, emailPositiveReplies: 0, emailPositiveRate: 0, emailLeads: 0, emailCampaignCount: 0, emailConfigured: false, campaignMonths: 0, firstLeadTs: 0, error: true }
         }
       })
     )
@@ -2262,25 +2281,12 @@ app.get('/api/admin/streak-pipelines', async (c) => {
 
 // Preview weekly report (HTML in browser)
 app.get('/api/reports/weekly', async (c) => {
-  // ?period=lastWeek to preview last week's report
-  const period = (c.req.query('period') === 'lastWeek' ? 'lastWeek' : 'thisWeek') as 'thisWeek' | 'lastWeek'
-  const leadsField = period === 'lastWeek' ? 'newLastWeek' : 'newThisWeek'
   try {
     const data = await collectReportData(c.env.COMPANIES_KV)
     const now = new Date()
-    let weekLabel: string
-    if (period === 'lastWeek') {
-      const dayOfWeek = now.getDay()
-      const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1
-      const thisMonday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - mondayOffset)
-      const lastMonday = new Date(thisMonday.getTime() - 7 * 24 * 60 * 60 * 1000)
-      const lastSunday = new Date(thisMonday.getTime() - 1 * 24 * 60 * 60 * 1000)
-      weekLabel = `Week of ${lastMonday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — ${lastSunday.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-    } else {
-      const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-      weekLabel = `Week of ${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-    }
-    const html = generateWeeklyReportHtml(data, weekLabel, period)
+    const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    const weekLabel = `Week of ${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+    const html = generateWeeklyReportHtml(data, weekLabel)
     return c.html(html)
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
@@ -2303,48 +2309,29 @@ app.get('/api/reports/monthly', async (c) => {
 // Send weekly report via email
 app.post('/api/reports/weekly/send', async (c) => {
   try {
-    const resendKey = getResendApiKey(c.env)
-    if (!resendKey) {
+    if (!c.env.RESEND_API_KEY) {
       return c.json({ error: 'RESEND_API_KEY not configured' }, 500)
     }
     const data = await collectReportData(c.env.COMPANIES_KV)
-
-    // Determine period: default to lastWeek (Monday send = last week recap)
-    const body = await c.req.json().catch(() => ({})) as { period?: string }
-    const period = (body.period === 'thisWeek' ? 'thisWeek' : 'lastWeek') as 'thisWeek' | 'lastWeek'
-    const leadsField = period === 'lastWeek' ? 'newLastWeek' : 'newThisWeek'
-
-    // Build the week label based on period
     const now = new Date()
-    let weekLabel: string
-    if (period === 'lastWeek') {
-      // Last week: previous Monday to previous Sunday
-      const dayOfWeek = now.getDay()
-      const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1
-      const thisMonday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - mondayOffset)
-      const lastMonday = new Date(thisMonday.getTime() - 7 * 24 * 60 * 60 * 1000)
-      const lastSunday = new Date(thisMonday.getTime() - 1 * 24 * 60 * 60 * 1000)
-      weekLabel = `Week of ${lastMonday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — ${lastSunday.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-    } else {
-      const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-      weekLabel = `Week of ${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-    }
+    const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    const weekLabel = `Week of ${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
 
-    const totalNewLeads = data.reduce((sum: number, d: any) => sum + (d[leadsField] || 0), 0)
+    const totalNewLeads = data.reduce((sum: number, d: any) => sum + d.newThisWeek, 0)
     const activeCompanies = data.filter((d: any) => !d.error).length
     const overallPct = activeCompanies > 0 ? Math.round((totalNewLeads / (activeCompanies * 2.5)) * 100) : 0
     const statusEmoji = overallPct >= 100 ? '🟢' : overallPct >= 75 ? '🟡' : '🔴'
 
-    const html = generateWeeklyReportHtml(data, weekLabel, period)
+    const html = generateWeeklyReportHtml(data, weekLabel)
 
-    const result = await sendEmail(resendKey, {
-      from: c.env.REPORT_FROM_EMAIL || 'Gershon.AI Reports <onboarding@resend.dev>',
-      to: (c.env.REPORT_TO_EMAIL || 'oattia@gmail.com').split(',').map((e: string) => e.trim()),
+    const result = await sendEmail(c.env.RESEND_API_KEY, {
+      from: c.env.REPORT_FROM_EMAIL || 'Gershon.AI Reports <reports@gershoncrm.com>',
+      to: (c.env.REPORT_TO_EMAIL || 'report@gershonconsulting.com').split(',').map((e: string) => e.trim()),
       subject: `${statusEmoji} Weekly Report — ${overallPct}% of target · ${totalNewLeads} new leads — ${weekLabel}`,
       html
     })
 
-    return c.json({ success: true, message: 'Weekly report sent', emailId: result.id, stats: { totalNewLeads, overallPct, companies: data.length, period } })
+    return c.json({ success: true, message: 'Weekly report sent', emailId: result.id, stats: { totalNewLeads, overallPct, companies: data.length } })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
   }
@@ -2353,8 +2340,7 @@ app.post('/api/reports/weekly/send', async (c) => {
 // Send monthly report via email
 app.post('/api/reports/monthly/send', async (c) => {
   try {
-    const resendKey = getResendApiKey(c.env)
-    if (!resendKey) {
+    if (!c.env.RESEND_API_KEY) {
       return c.json({ error: 'RESEND_API_KEY not configured' }, 500)
     }
     const data = await collectReportData(c.env.COMPANIES_KV)
@@ -2368,9 +2354,9 @@ app.post('/api/reports/monthly/send', async (c) => {
 
     const html = generateMonthlyReportHtml(data, monthLabel)
 
-    const result = await sendEmail(resendKey, {
-      from: c.env.REPORT_FROM_EMAIL || 'Gershon.AI Reports <onboarding@resend.dev>',
-      to: (c.env.REPORT_TO_EMAIL || 'oattia@gmail.com').split(',').map((e: string) => e.trim()),
+    const result = await sendEmail(c.env.RESEND_API_KEY, {
+      from: c.env.REPORT_FROM_EMAIL || 'Gershon.AI Reports <reports@gershoncrm.com>',
+      to: (c.env.REPORT_TO_EMAIL || 'report@gershonconsulting.com').split(',').map((e: string) => e.trim()),
       subject: `${statusEmoji} Monthly Report — ${overallPct}% of target · ${totalNewLeads} leads — ${monthLabel}`,
       html
     })
@@ -2651,6 +2637,8 @@ app.get('/admin', (c) => {
                             required
                         />
                     </div>
+
+
 
                     <!-- Streak Pipeline Key (ENGAGE) -->
                     <div class="md:col-span-2">
@@ -3299,7 +3287,13 @@ app.get('/overview', (c) => {
                     return;
                 }
                 var avg = overviewAverages;
+
                 grid.innerHTML = companies.map(function(co) {
+                    return renderSingleCard(co, avg);
+                }).join('');
+            }
+
+            function renderSingleCard(co, avg) {
                     var errBadge = co.error ? '<span class="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full ml-2">API Error</span>' : '';
 
                     function kpiColor(val, target) {
@@ -3315,9 +3309,8 @@ app.get('/overview', (c) => {
                         ? '<span class="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full"><i class="fas fa-clock mr-1"></i>' + co.campaignMonths + ' mo</span>'
                         : '';
 
-                    // Use period-appropriate leads count and goal
+                    var periodGoalVal = { week: 2.5, 'last-month': 10, 'this-month': 10, year: 120, all: 10 }[currentPeriod] || 10;
                     var engageVal = co.periodLeads || 0;
-                    var periodGoalVal = co.periodGoal || 10;
                     var engageC = kpiColor(engageVal, periodGoalVal);
                     var engagePct = Math.min(Math.round((engageVal / periodGoalVal) * 100), 100);
 
@@ -3332,7 +3325,7 @@ app.get('/overview', (c) => {
                     // Main KPI: Leads for selected period
                     html += '<div class="px-5 pb-3">'
                         + '<div class="flex items-end justify-between mb-1">'
-                        + '<span class="text-xs text-gray-400 uppercase font-semibold">Leads — ' + periodLabel(currentPeriod) + '</span>'
+                        + '<span class="text-xs text-gray-400 uppercase font-semibold">' + periodLabel(currentPeriod) + '</span>'
                         + '<span class="text-lg font-extrabold ' + engageC.text + '">' + engageVal + '<span class="text-xs font-normal text-gray-400">/' + periodGoalVal + '</span></span>'
                         + '</div>'
                         + '<div class="w-full bg-gray-100 rounded-full h-2"><div class="' + engageC.bar + ' h-2 rounded-full transition-all" style="width:' + engagePct + '%"></div></div>'
@@ -3359,7 +3352,19 @@ app.get('/overview', (c) => {
                     // NETWORK
                     html += '<div class="px-3 py-3">'
                         + '<p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-2 text-center"><i class="fas fa-user-plus text-blue-400 mr-1"></i>Network</p>';
-                    if (co.networkConfigured) {
+                    if (co.networkStraightInConfigured) {
+                        html += '<div class="space-y-0.5 text-center">'
+                            + '<p class="text-lg font-bold text-gray-800">' + (co.networkAcceptanceRate || 0) + '<span class="text-[10px] text-gray-400">%</span></p>'
+                            + '<p class="text-[10px] text-gray-400">' + fmtNum(co.networkInvitations || 0) + ' conn. sent</p>'
+                            + '<p class="text-[10px] text-gray-400">' + fmtNum(co.networkAccepted || 0) + ' accepted</p>'
+                            + '<p class="text-[10px] text-gray-400">' + fmtNum(co.networkMessages || 0) + ' messages</p>'
+                            + '<p class="text-[10px] text-gray-400">' + fmtNum(co.networkOpportunities || 0) + ' opportunities</p>'
+                            + '<p class="text-[10px] text-gray-400">' + fmtNum(co.networkFollowUps || 0) + ' follow-ups</p>'
+                            + '<p class="text-[10px] text-gray-400">' + fmtNum(co.networkInmails || 0) + ' InMails</p>'
+                            + '<p class="text-[10px] text-gray-400">' + fmtNum(co.networkPageInvites || 0) + ' page inv.</p>'
+                            + '<p class="text-[10px] text-gray-400">' + fmtNum(co.networkProfileVisits || 0) + ' profile visits</p>'
+                            + '</div>';
+                    } else if (co.networkConfigured) {
                         html += '<div class="space-y-0.5 text-center">'
                             + '<p class="text-lg font-bold text-gray-800">' + (co.networkAcceptanceRate || 0) + '<span class="text-[10px] text-gray-400">%</span></p>'
                             + '<p class="text-[10px] text-gray-400">' + fmtNum(co.networkInvitations || 0) + ' sent</p>'
@@ -3399,7 +3404,6 @@ app.get('/overview', (c) => {
 
                     html += '</div>';
                     return html;
-                }).join('');
             }
 
             async function loadOverview(period) {
@@ -4193,6 +4197,27 @@ app.get('/', (c) => {
                             </div>
                         </div>
 
+                        <!-- STRAIGHT-IN (LinkedIn Outreach) -->
+                        <div class="p-6 bg-cyan-50 border border-cyan-200 rounded-lg">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center justify-between">
+                                <span><i class="fab fa-linkedin text-cyan-600 mr-2"></i>Straight-in LinkedIn Outreach</span>
+                                <span id="status-straightin" class="hidden text-xs font-semibold px-2 py-1 rounded-full bg-cyan-100 text-cyan-700"><i class="fas fa-check-circle mr-1"></i>Configured</span>
+                            </h3>
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium text-gray-700">Report ID:</label>
+                                <input
+                                    type="text"
+                                    id="edit-straightin-report-id"
+                                    placeholder="e.g., crp_q0CBl-1utF3wWfppyIX8SgVJo1mWOBB1"
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 font-mono text-sm"
+                                />
+                                <p class="text-xs text-gray-500">
+                                    <i class="fas fa-link mr-1"></i>
+                                    From the Straight-in weekly report URL: prospecthub.straight-in.com/r/campaign-report/<strong>REPORT_ID</strong>
+                                </p>
+                            </div>
+                        </div>
+
                         <!-- ENGAGE Source -->
                         <div class="p-6 bg-green-50 border border-green-200 rounded-lg">
                             <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center justify-between">
@@ -4365,14 +4390,15 @@ app.get('/', (c) => {
                                 <p class="text-xs text-gray-500 mt-1">Lowercase letters, numbers, and hyphens only (e.g., acme-corp)</p>
                             </div>
 
+                            <!-- Group -->
                             <!-- Streak Pipeline Key -->
                             <div>
                                 <label class="block text-sm font-semibold text-gray-700 mb-2">
                                     <i class="fas fa-database text-green-600 mr-2"></i>
                                     Streak Pipeline Key *
                                 </label>
-                                <textarea 
-                                    id="new-pipeline-key" 
+                                <textarea
+                                    id="new-pipeline-key"
                                     rows="3"
                                     placeholder="e.g., agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F..."
                                     class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
@@ -4428,6 +4454,22 @@ app.get('/', (c) => {
                                     class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono"
                                 />
                                 <p class="text-xs text-gray-500 mt-1">The gid parameter from your Google Sheets URL (numbers only)</p>
+                            </div>
+
+                            <!-- Straight-in Report ID (Optional) -->
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    <i class="fab fa-linkedin text-cyan-600 mr-2"></i>
+                                    Straight-in Report ID
+                                    <span class="text-gray-400 text-xs ml-2">(Optional)</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    id="new-straightin-report-id"
+                                    placeholder="e.g., crp_q0CBl-1utF3wWfppyIX8SgVJo1mWOBB1"
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 font-mono text-sm"
+                                />
+                                <p class="text-xs text-gray-500 mt-1">From the Straight-in weekly report URL</p>
                             </div>
 
                             <!-- PROMOTE URL (Optional) -->
@@ -6557,6 +6599,7 @@ app.get('/', (c) => {
                 document.getElementById('edit-promote-url').value = sources.promote || '';
                 document.getElementById('edit-network-url').value = sources.network || '';
                 document.getElementById('edit-network-gid').value = company.networkSheetGid || '';
+                document.getElementById('edit-straightin-report-id').value = company.straightInReportId || '';
                 document.getElementById('edit-engage-url').value = sources.engage || company.url || '';
 
                 // Populate Google Chat fields
@@ -6599,6 +6642,7 @@ app.get('/', (c) => {
                 const googleChatUrl = document.getElementById('edit-googlechat-url').value.trim();
                 const emailingUrlEl = document.getElementById('edit-emailing-url'); const emailingUrl = emailingUrlEl ? emailingUrlEl.value.trim() : '';
                 const googleChatWebhookUrl = document.getElementById('edit-googlechat-webhook').value.trim();
+                const straightInReportId = document.getElementById('edit-straightin-report-id').value.trim();
 
                 // Validate URLs if provided
                 if (promoteUrl && !isValidURL(promoteUrl)) {
@@ -6633,7 +6677,7 @@ app.get('/', (c) => {
                     const res = await fetch(\`/api/companies/\${currentCompany}\`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ promoteUrl, networkUrl, networkGid, engageUrl, googleChatUrl, googleChatWebhookUrl, emailingUrl, messages })
+                        body: JSON.stringify({ promoteUrl, networkUrl, networkGid, engageUrl, googleChatUrl, googleChatWebhookUrl, emailingUrl, straightInReportId, messages })
                     });
                     const data = await res.json();
                     if (!res.ok) throw new Error(data.error || 'Save failed');
@@ -6643,6 +6687,7 @@ app.get('/', (c) => {
                     company.sources.promote = promoteUrl;
                     company.sources.network = networkUrl;
                     company.sources.engage = engageUrl || company.url;
+                    company.straightInReportId = straightInReportId;
                     if (networkGid) { company.networkSheetGid = networkGid; } else { delete company.networkSheetGid; }
                     if (engageUrl) company.url = engageUrl;
                     company.googleChatUrl = googleChatUrl || '';
@@ -6712,6 +6757,7 @@ app.get('/', (c) => {
                 const engageUrl = document.getElementById('new-engage-url').value.trim();
                 const networkUrl = document.getElementById('new-network-url').value.trim();
                 const networkGid = document.getElementById('new-network-gid').value.trim();
+                const straightInReportId = document.getElementById('new-straightin-report-id').value.trim();
                 const promoteUrl = document.getElementById('new-promote-url').value.trim();
                 const googleChatUrl = document.getElementById('new-googlechat-url').value.trim();
                 const googleChatWebhookUrl = document.getElementById('new-googlechat-webhook').value.trim();
@@ -6748,6 +6794,7 @@ app.get('/', (c) => {
 
                 // Add optional fields
                 if (networkGid) newCompany.networkSheetGid = networkGid;
+                if (straightInReportId) newCompany.straightInReportId = straightInReportId;
                 if (googleChatUrl) newCompany.googleChatUrl = googleChatUrl;
                 if (googleChatWebhookUrl) newCompany.googleChatWebhookUrl = googleChatWebhookUrl;
 
@@ -6755,7 +6802,7 @@ app.get('/', (c) => {
                     const res = await fetch('/api/companies', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name, pipelineKey, networkUrl, promoteUrl, engageUrl, networkGid, key, googleChatUrl, googleChatWebhookUrl })
+                        body: JSON.stringify({ name, pipelineKey, networkUrl, promoteUrl, engageUrl, networkGid, key, googleChatUrl, googleChatWebhookUrl, straightInReportId })
                     });
                     const data = await res.json();
                     if (!res.ok) throw new Error(data.error || 'Failed to add company');
@@ -6795,10 +6842,11 @@ app.get('/', (c) => {
                 document.getElementById('new-engage-url').value = '';
                 document.getElementById('new-network-url').value = '';
                 document.getElementById('new-network-gid').value = '';
+                document.getElementById('new-straightin-report-id').value = '';
                 document.getElementById('new-promote-url').value = '';
                 document.getElementById('new-googlechat-url').value = '';
                 document.getElementById('new-googlechat-webhook').value = '';
-                
+
                 // Hide message
                 const messageEl = document.getElementById('add-company-message');
                 messageEl.classList.add('hidden');
