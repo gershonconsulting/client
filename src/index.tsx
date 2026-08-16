@@ -3427,119 +3427,534 @@ app.get('/overview', (c) => {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Overview — Gershon CRM</title>
+        <meta name="robots" content="noindex, nofollow">
+        <title>Campaign Effectiveness — client.gershonCRM</title>
         <script src="https://cdn.tailwindcss.com"></script>
-        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
         <style>
-            body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-            .skeleton { animation: pulse 1.5s cubic-bezier(0.4,0,0.6,1) infinite; background-color: #e5e7eb; border-radius: 0.375rem; }
+            body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: #f9f9f7; }
+            /* Status palette — fixed, never themed. Paired with icon + label everywhere. */
+            :root {
+                --good: #0ca30c; --warn: #fab219; --crit: #d03b3b; --none: #c3c2b7;
+                --good-ink: #006300; --warn-ink: #7a5300; --crit-ink: #a32a2a; --none-ink: #6b6a65;
+                --good-wash: #e8f6e8; --warn-wash: #fdf3dc; --crit-wash: #fbeaea; --none-wash: #f1f1ee;
+                --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+                --grid: #e1e0d9; --axis: #c3c2b7;
+            }
+            .skeleton { animation: pulse 1.5s cubic-bezier(0.4,0,0.6,1) infinite; background:#e5e7eb; border-radius:.375rem; }
             @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-            .period-btn { transition: all 0.15s ease; cursor: pointer; }
-            .period-btn.active { background: white; color: #4338ca; box-shadow: 0 1px 4px rgba(0,0,0,0.15); font-weight: 700; }
+            .period-btn { transition: all .15s ease; cursor: pointer; }
+            .period-btn.active { background:#fff; color:#1e40af; box-shadow:0 1px 4px rgba(0,0,0,.15); font-weight:700; }
+            .nav-item { transition: background .15s ease; }
+            .nav-item.active { background: rgba(255,255,255,.15); color:#fff; font-weight:600; }
+            /* 2px surface gap between adjacent fills, never a border */
+            .seg + .seg { margin-left: 2px; }
+            .rowbar { transition: opacity .12s ease; }
+            .cli-row:hover .rowbar { opacity: .85; }
+            .tip { position: fixed; z-index: 60; pointer-events: none; background:#0b0b0b; color:#fff;
+                   font-size:12px; line-height:1.35; padding:8px 10px; border-radius:8px; max-width:280px;
+                   box-shadow:0 6px 20px rgba(0,0,0,.25); opacity:0; transition:opacity .1s ease; }
+            .tip.on { opacity:1; }
+            th.sortable { cursor:pointer; user-select:none; }
+            th.sortable:hover { color:#0b0b0b; }
+            .refetching { opacity:.45; transition:opacity .15s ease; }
+            @media print { .no-print { display:none !important; } }
         </style>
     </head>
-    <body class="bg-gray-50 min-h-screen">
-        <div class="container mx-auto px-4 py-8 max-w-7xl">
+    <body class="min-h-screen">
+    <div class="flex min-h-screen">
 
-            <!-- Header -->
-            <div class="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-lg shadow-xl p-8 mb-8 text-white">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h1 class="text-4xl font-bold mb-4">
-                            <i class="fas fa-th-large mr-3"></i>
-                            Gershon CRM — Client Overview
-                        </h1>
-                        <div class="flex items-center space-x-3">
-                            <a href="/" class="bg-blue-500 hover:bg-blue-400 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors shadow-md">
-                                <i class="fas fa-arrow-left mr-2"></i>Dashboard
-                            </a>
-                            <a href="/admin" class="bg-purple-500 hover:bg-purple-400 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors shadow-md">
-                                <i class="fas fa-shield-alt mr-2"></i>Admin Panel
-                            </a>
-                        </div>
-                    </div>
-                    <div class="text-right">
-                        <span class="inline-block bg-white text-indigo-700 font-bold text-sm px-3 py-1 rounded-full shadow-md tracking-wide mb-3">
-                            v${__APP_VERSION__}
-                        </span>
-                        <p class="text-blue-100 text-sm">
-                            <i class="fas fa-building mr-1"></i>All active client pipelines
-                        </p>
-                    </div>
-                </div>
+      <!-- ============ LEFT SIDEBAR ============ -->
+      <div class="no-print w-60 shrink-0 bg-gradient-to-b from-blue-800 to-indigo-900">
+      <aside class="w-60 text-white flex flex-col sticky top-0 h-screen">
+        <div class="px-5 py-5 border-b border-white/10">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center"><i class="fas fa-chart-line text-sm"></i></div>
+            <div>
+              <p class="font-bold text-sm leading-tight">client.gershonCRM</p>
+              <p class="text-[10px] text-blue-200">v${__APP_VERSION__}</p>
             </div>
-
-            <!-- Period filter bar -->
-            <div class="bg-white rounded-lg shadow p-4 mb-6 flex flex-wrap items-center gap-3">
-                <span class="text-gray-500 text-sm font-medium">
-                    <i class="fas fa-calendar-alt mr-1"></i>Period:
-                </span>
-                <div class="flex bg-gray-100 rounded-lg p-1 gap-1">
-                    <button class="period-btn active px-4 py-2 rounded-md text-sm" data-period="week">Last Week</button>
-                    <button class="period-btn px-4 py-2 rounded-md text-sm text-gray-600" data-period="last-month">Last Month</button>
-                    <button class="period-btn px-4 py-2 rounded-md text-sm text-gray-600" data-period="this-month">This Month</button>
-                    <button class="period-btn px-4 py-2 rounded-md text-sm text-gray-600" data-period="year">This Year</button>
-                    <button class="period-btn px-4 py-2 rounded-md text-sm text-gray-600" data-period="all">All Time</button>
-                </div>
-                <button onclick="loadOverview(currentPeriod)" class="ml-auto bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors">
-                    <i class="fas fa-sync-alt mr-2"></i>Refresh
-                </button>
-            </div>
-
-            <!-- Summary row -->
-            <div id="summary-row" class="bg-white rounded-lg shadow p-5 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div class="flex gap-8">
-                    <div><div class="skeleton h-4 w-32 mb-2"></div><div class="skeleton h-8 w-16"></div></div>
-                    <div><div class="skeleton h-4 w-32 mb-2"></div><div class="skeleton h-8 w-16"></div></div>
-                    <div><div class="skeleton h-4 w-32 mb-2"></div><div class="skeleton h-8 w-16"></div></div>
-                </div>
-            </div>
-
-            <!-- Cards grid -->
-            <div id="cards-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div class="bg-white rounded-lg shadow p-6"><div class="skeleton h-6 w-3/4 mb-4"></div><div class="skeleton h-14 w-20 mb-3"></div><div class="skeleton h-3 w-full mb-2"></div><div class="skeleton h-3 w-2/3 mb-4"></div><div class="skeleton h-2 w-full mb-4"></div><div class="skeleton h-10 w-full"></div></div>
-                <div class="bg-white rounded-lg shadow p-6"><div class="skeleton h-6 w-3/4 mb-4"></div><div class="skeleton h-14 w-20 mb-3"></div><div class="skeleton h-3 w-full mb-2"></div><div class="skeleton h-3 w-2/3 mb-4"></div><div class="skeleton h-2 w-full mb-4"></div><div class="skeleton h-10 w-full"></div></div>
-                <div class="bg-white rounded-lg shadow p-6"><div class="skeleton h-6 w-3/4 mb-4"></div><div class="skeleton h-14 w-20 mb-3"></div><div class="skeleton h-3 w-full mb-2"></div><div class="skeleton h-3 w-2/3 mb-4"></div><div class="skeleton h-2 w-full mb-4"></div><div class="skeleton h-10 w-full"></div></div>
-            </div>
-
-            <!-- Error state -->
-            <div id="error-state" class="hidden bg-red-50 border border-red-200 rounded-lg p-6 mt-4">
-                <div class="flex items-center">
-                    <i class="fas fa-exclamation-circle text-red-500 text-2xl mr-3"></i>
-                    <div>
-                        <h3 class="text-red-800 font-semibold">Error Loading Overview</h3>
-                        <p id="error-message" class="text-red-600 text-sm mt-1"></p>
-                    </div>
-                </div>
-            </div>
+          </div>
         </div>
 
-        <script>
-            let currentPeriod = 'week';
+        <nav class="flex-1 overflow-y-auto py-4 px-2.5">
+          <p class="px-3 mb-1.5 text-[10px] uppercase tracking-wider font-semibold text-blue-300/70">Analytics</p>
+          <button onclick="switchView('effectiveness')" id="nav-effectiveness"
+                  class="nav-item active w-full flex items-center px-3 py-2.5 rounded-lg text-sm text-blue-100 hover:bg-white/10 mb-1">
+            <i class="fas fa-gauge-high w-5 mr-2.5 text-center"></i>Effectiveness
+          </button>
+          <button onclick="switchView('summary')" id="nav-summary"
+                  class="nav-item w-full flex items-center px-3 py-2.5 rounded-lg text-sm text-blue-100 hover:bg-white/10 mb-1">
+            <i class="fas fa-th-large w-5 mr-2.5 text-center"></i>Summary
+          </button>
 
-            document.querySelectorAll('.period-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    document.querySelectorAll('.period-btn').forEach(b => {
-                        b.classList.remove('active');
-                        b.classList.add('text-gray-600');
-                    });
-                    btn.classList.add('active');
-                    btn.classList.remove('text-gray-600');
-                    currentPeriod = btn.dataset.period;
-                    loadOverview(currentPeriod);
-                });
-            });
+          <p class="px-3 mt-5 mb-1.5 text-[10px] uppercase tracking-wider font-semibold text-blue-300/70">Clients</p>
+          <div class="px-3 mb-2">
+            <select id="client-jump" onchange="if(this.value) window.location.href='/?company='+this.value"
+                    class="w-full bg-blue-700/50 border border-blue-500/40 text-white text-xs rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300">
+              <option value="">Open a client…</option>
+            </select>
+          </div>
 
-            function goalColor(pct) {
-                if (pct >= 100) return { bar: 'bg-green-500', text: 'text-green-700', badge: 'bg-green-100 text-green-700 border-green-200' };
-                if (pct >= 50)  return { bar: 'bg-yellow-400', text: 'text-yellow-700', badge: 'bg-yellow-100 text-yellow-700 border-yellow-200' };
-                return { bar: 'bg-red-400', text: 'text-red-600', badge: 'bg-red-100 text-red-600 border-red-200' };
-            }
+          <p class="px-3 mt-5 mb-1.5 text-[10px] uppercase tracking-wider font-semibold text-blue-300/70">Manage</p>
+          <a href="/admin" class="nav-item w-full flex items-center px-3 py-2.5 rounded-lg text-sm text-blue-100 hover:bg-white/10 mb-1">
+            <i class="fas fa-shield-halved w-5 mr-2.5 text-center"></i>Admin Panel
+          </a>
+        </nav>
 
-            function periodLabel(p) {
-                return { week:'Last Week', 'last-month':'Last Month', 'this-month':'This Month', year:'This Year', all:'All Time' }[p] || p;
-            }
+        <div class="px-3 py-3 border-t border-white/10 space-y-1">
+          <button onclick="loadOverview(currentPeriod)" class="w-full flex items-center px-3 py-1.5 rounded-lg text-[11px] text-blue-200 hover:bg-white/10">
+            <i class="fas fa-sync-alt w-4 mr-2 text-center"></i>Refresh
+          </button>
+          <button onclick="window.print()" class="w-full flex items-center px-3 py-1.5 rounded-lg text-[11px] text-blue-200 hover:bg-white/10">
+            <i class="fas fa-file-export w-4 mr-2 text-center"></i>Print / PDF
+          </button>
+          <a href="/api/auth/logout" class="flex items-center px-3 py-1.5 rounded-lg text-[11px] text-blue-200 hover:bg-white/10">
+            <i class="fas fa-right-from-bracket w-4 mr-2 text-center"></i>Sign out
+          </a>
+        </div>
+      </aside>
+      </div>
 
+      <!-- ============ MAIN ============ -->
+      <main class="flex-1 min-w-0">
+        <div class="max-w-[1400px] mx-auto px-8 py-8">
+
+          <header class="mb-6">
+            <h1 id="view-title" class="text-2xl font-extrabold tracking-tight" style="color:var(--ink)">Campaign Effectiveness</h1>
+            <p id="view-sub" class="text-sm mt-1" style="color:var(--ink2)">How every client campaign is performing against its targets.</p>
+          </header>
+
+          <!-- ONE filter row, above everything it scopes -->
+          <div class="no-print bg-white rounded-xl border border-gray-200 p-3 mb-6 flex flex-wrap items-center gap-3">
+            <span class="text-xs font-semibold uppercase tracking-wide ml-1" style="color:var(--muted)">Period</span>
+            <div class="flex bg-gray-100 rounded-lg p-1 gap-1">
+              <button class="period-btn px-3 py-1.5 rounded-md text-sm text-gray-600" data-period="week">Last Week</button>
+              <button class="period-btn px-3 py-1.5 rounded-md text-sm text-gray-600" data-period="last-month">Last Month</button>
+              <button class="period-btn active px-3 py-1.5 rounded-md text-sm" data-period="this-month">This Month</button>
+              <button class="period-btn px-3 py-1.5 rounded-md text-sm text-gray-600" data-period="year">This Year</button>
+              <button class="period-btn px-3 py-1.5 rounded-md text-sm text-gray-600" data-period="all">All Time</button>
+            </div>
+            <span id="updated-at" class="ml-auto text-xs" style="color:var(--muted)"></span>
+          </div>
+
+          <div id="error-state" class="hidden bg-red-50 border border-red-200 rounded-xl p-5 mb-6">
+            <div class="flex items-center">
+              <i class="fas fa-circle-exclamation text-xl mr-3" style="color:var(--crit)"></i>
+              <div><h3 class="font-semibold" style="color:var(--crit-ink)">Couldn't load the data</h3>
+                   <p id="error-message" class="text-sm mt-0.5" style="color:var(--ink2)"></p></div>
+            </div>
+          </div>
+
+          <!-- ============ VIEW: EFFECTIVENESS ============ -->
+          <section id="view-effectiveness">
+
+            <div id="hero-tiles" class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              <div class="bg-white rounded-xl border border-gray-200 p-5"><div class="skeleton h-3 w-24 mb-3"></div><div class="skeleton h-9 w-20"></div></div>
+              <div class="bg-white rounded-xl border border-gray-200 p-5"><div class="skeleton h-3 w-24 mb-3"></div><div class="skeleton h-9 w-20"></div></div>
+              <div class="bg-white rounded-xl border border-gray-200 p-5"><div class="skeleton h-3 w-24 mb-3"></div><div class="skeleton h-9 w-20"></div></div>
+              <div class="bg-white rounded-xl border border-gray-200 p-5"><div class="skeleton h-3 w-24 mb-3"></div><div class="skeleton h-9 w-20"></div></div>
+            </div>
+
+            <!-- Channel health -->
+            <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+              <div class="flex items-start justify-between mb-1">
+                <h2 class="font-bold" style="color:var(--ink)">Channel health across the portfolio</h2>
+                <div id="rag-legend" class="flex items-center gap-4 text-xs"></div>
+              </div>
+              <p class="text-xs mb-5" style="color:var(--muted)">How many clients are hitting target in each channel. Hover a band for the client names.</p>
+              <div id="channel-health"></div>
+            </div>
+
+            <!-- Client effectiveness matrix -->
+            <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+              <div class="flex flex-wrap items-start justify-between gap-3 mb-1">
+                <div>
+                  <h2 class="font-bold" style="color:var(--ink)">Effectiveness by client</h2>
+                  <p class="text-xs mt-1" style="color:var(--muted)">
+                    Score is actual ÷ target. Promote and Network are campaign-to-date; Engage follows the period above.
+                  </p>
+                </div>
+                <div class="no-print flex items-center gap-2">
+                  <div class="flex bg-gray-100 rounded-lg p-1 gap-1 text-xs">
+                    <button id="mode-chart" onclick="setMatrixMode('chart')" class="px-3 py-1.5 rounded-md font-semibold bg-white shadow-sm">Chart</button>
+                    <button id="mode-table" onclick="setMatrixMode('table')" class="px-3 py-1.5 rounded-md text-gray-600">Table</button>
+                  </div>
+                </div>
+              </div>
+              <div id="matrix-chart" class="mt-5"></div>
+              <div id="matrix-table" class="mt-5 hidden overflow-x-auto"></div>
+            </div>
+
+            <!-- Momentum -->
+            <div class="bg-white rounded-xl border border-gray-200 p-6">
+              <h2 class="font-bold" style="color:var(--ink)">Momentum — this month vs last month</h2>
+              <p class="text-xs mt-1 mb-5" style="color:var(--muted)">Pace-adjusted: last month is scaled to the same number of days elapsed, so a mid-month reading is a fair comparison. Arrow and value carry the meaning; colour reinforces it.</p>
+              <div id="momentum"></div>
+            </div>
+
+          </section>
+
+          <!-- ============ VIEW: SUMMARY ============ -->
+          <section id="view-summary" class="hidden">
+            <div id="summary-row" class="bg-white rounded-xl border border-gray-200 p-5 mb-6"></div>
+            <div id="cards-grid" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6"></div>
+          </section>
+
+        </div>
+      </main>
+    </div>
+
+    <div id="tip" class="tip"></div>
+
+    <script>
+      // ---------- state ----------
+      var currentPeriod = 'this-month';
+      var currentView = 'effectiveness';
+      var matrixMode = 'chart';
+      var matrixSort = 'overall';
+      var matrixDir = -1;
+      var lastData = null;
+      var overviewAverages = {};
+
+      var PERIOD_GOAL = { week: 2.5, 'last-month': 10, 'this-month': 10, year: 120, all: 10 };
+      var TARGET_POSTS_PER_DAY = 1;
+      var TARGET_ACCEPTANCE = 30;
+
+      // ---------- helpers ----------
+      function periodLabel(p) {
+        return { week:'Last Week', 'last-month':'Last Month', 'this-month':'This Month', year:'This Year', all:'All Time' }[p] || p;
+      }
+      function fmtNum(n) { n = n || 0; return n >= 1000 ? (n/1000).toFixed(1).replace(/\\.0$/,'') + 'k' : String(Math.round(n)); }
+      function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]; }); }
+
+      // RAG banding — the one place the thresholds live
+      function band(score) {
+        if (score === null || score === undefined) return 'none';
+        if (score >= 80) return 'good';
+        if (score >= 40) return 'warn';
+        return 'crit';
+      }
+      var BAND_META = {
+        good: { label: 'Good',      icon: 'fa-circle-check',        color: 'var(--good)', ink: 'var(--good-ink)', wash: 'var(--good-wash)' },
+        warn: { label: 'OK',        icon: 'fa-triangle-exclamation',color: 'var(--warn)', ink: 'var(--warn-ink)', wash: 'var(--warn-wash)' },
+        crit: { label: 'Off track', icon: 'fa-circle-xmark',        color: 'var(--crit)', ink: 'var(--crit-ink)', wash: 'var(--crit-wash)' },
+        none: { label: 'Not set up',icon: 'fa-circle-minus',        color: 'var(--none)', ink: 'var(--none-ink)', wash: 'var(--none-wash)' }
+      };
+      var BAND_ORDER = ['good','warn','crit','none'];
+
+      function scoreCompany(co) {
+        var goal = PERIOD_GOAL[currentPeriod] || 10;
+        var promote = co.promoteConfigured ? (co.promotePostsPerDay / TARGET_POSTS_PER_DAY) * 100 : null;
+        var network = co.networkConfigured ? (co.networkAcceptanceRate / TARGET_ACCEPTANCE) * 100 : null;
+        var engage  = (co.periodLeads / goal) * 100;
+        var parts = [promote, network, engage].filter(function(v){ return v !== null; });
+        var overall = parts.length ? parts.reduce(function(a,b){ return a+b; }, 0) / parts.length : null;
+        return { promote: promote, network: network, engage: engage, overall: overall, goal: goal };
+      }
+
+      // status chip — icon + label + value, never colour alone
+      function chip(scoreBand, text) {
+        var m = BAND_META[scoreBand];
+        return '<span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap"'
+             + ' style="background:' + m.wash + ';color:' + m.ink + '">'
+             + '<i class="fas ' + m.icon + '" style="color:' + m.color + '"></i>' + esc(text) + '</span>';
+      }
+
+      // ---------- tooltip layer ----------
+      var tipEl = document.getElementById('tip');
+      function showTip(html, ev) {
+        tipEl.innerHTML = html; tipEl.classList.add('on');
+        var x = ev.clientX + 14, y = ev.clientY + 14;
+        var r = tipEl.getBoundingClientRect();
+        if (x + r.width > window.innerWidth - 8) x = ev.clientX - r.width - 14;
+        if (y + r.height > window.innerHeight - 8) y = ev.clientY - r.height - 14;
+        tipEl.style.left = x + 'px'; tipEl.style.top = y + 'px';
+      }
+      function hideTip() { tipEl.classList.remove('on'); }
+      document.addEventListener('mouseover', function(e) {
+        var t = e.target.closest('[data-tip]');
+        if (t) showTip(t.getAttribute('data-tip'), e);
+      });
+      document.addEventListener('mousemove', function(e) {
+        var t = e.target.closest('[data-tip]');
+        if (t) showTip(t.getAttribute('data-tip'), e); else hideTip();
+      });
+      document.addEventListener('focusin', function(e) {
+        var t = e.target.closest('[data-tip]');
+        if (t) { var r = t.getBoundingClientRect(); showTip(t.getAttribute('data-tip'), { clientX: r.left, clientY: r.bottom }); }
+      });
+      document.addEventListener('focusout', hideTip);
+
+      // ---------- view switching ----------
+      function switchView(v) {
+        currentView = v;
+        ['effectiveness','summary'].forEach(function(name) {
+          document.getElementById('view-' + name).classList.toggle('hidden', name !== v);
+          var nav = document.getElementById('nav-' + name);
+          if (nav) { nav.classList.toggle('active', name === v); nav.classList.toggle('text-blue-100', name !== v); }
+        });
+        var t = document.getElementById('view-title'), s = document.getElementById('view-sub');
+        if (v === 'effectiveness') {
+          t.textContent = 'Campaign Effectiveness';
+          s.textContent = 'How every client campaign is performing against its targets.';
+        } else {
+          t.textContent = 'Summary';
+          s.textContent = 'One card per client, with the raw numbers behind each channel.';
+        }
+        if (lastData) render(lastData);
+      }
+
+      document.querySelectorAll('.period-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          document.querySelectorAll('.period-btn').forEach(function(b) { b.classList.remove('active'); b.classList.add('text-gray-600'); });
+          btn.classList.add('active'); btn.classList.remove('text-gray-600');
+          currentPeriod = btn.dataset.period;
+          loadOverview(currentPeriod);
+        });
+      });
+
+      function setMatrixMode(m) {
+        matrixMode = m;
+        document.getElementById('matrix-chart').classList.toggle('hidden', m !== 'chart');
+        document.getElementById('matrix-table').classList.toggle('hidden', m !== 'table');
+        document.getElementById('mode-chart').className = m === 'chart'
+          ? 'px-3 py-1.5 rounded-md font-semibold bg-white shadow-sm' : 'px-3 py-1.5 rounded-md text-gray-600';
+        document.getElementById('mode-table').className = m === 'table'
+          ? 'px-3 py-1.5 rounded-md font-semibold bg-white shadow-sm' : 'px-3 py-1.5 rounded-md text-gray-600';
+      }
+      function setSort(key) {
+        if (matrixSort === key) matrixDir = -matrixDir; else { matrixSort = key; matrixDir = -1; }
+        if (lastData) render(lastData);
+      }
+
+      // ---------- renderers ----------
+      function renderLegend() {
+        document.getElementById('rag-legend').innerHTML = BAND_ORDER.map(function(b) {
+          var m = BAND_META[b];
+          return '<span class="inline-flex items-center gap-1.5" style="color:var(--ink2)">'
+               + '<i class="fas ' + m.icon + '" style="color:' + m.color + '"></i>' + m.label + '</span>';
+        }).join('');
+      }
+
+      function renderHero(rows, data) {
+        var scored = rows.filter(function(r){ return r.s.overall !== null; });
+        var avg = scored.length ? Math.round(scored.reduce(function(a,r){ return a + r.s.overall; }, 0) / scored.length) : 0;
+        var counts = { good:0, warn:0, crit:0, none:0 };
+        rows.forEach(function(r){ counts[band(r.s.overall)]++; });
+        var goal = PERIOD_GOAL[currentPeriod] || 10;
+        var portfolioGoal = Math.round(goal * rows.length);
+        var leads = data.totalPeriodLeads || 0;
+        var leadsBand = band(portfolioGoal ? (leads / portfolioGoal) * 100 : null);
+
+        function tile(label, value, sub, b, tip) {
+          var m = BAND_META[b];
+          return '<div class="bg-white rounded-xl border border-gray-200 p-5" ' + (tip ? 'data-tip="' + esc(tip) + '" tabindex="0"' : '') + '>'
+            + '<p class="text-[11px] uppercase tracking-wider font-semibold mb-2" style="color:var(--muted)">' + esc(label) + '</p>'
+            + '<p class="text-4xl font-extrabold leading-none" style="color:var(--ink)">' + value + '</p>'
+            + '<div class="mt-3 flex items-center gap-1.5 text-xs font-semibold" style="color:' + m.ink + '">'
+            + '<i class="fas ' + m.icon + '" style="color:' + m.color + '"></i>' + esc(sub) + '</div>'
+            + '</div>';
+        }
+
+        document.getElementById('hero-tiles').innerHTML =
+            tile('Portfolio effectiveness', avg + '<span class="text-xl font-bold" style="color:var(--muted)">%</span>',
+                 BAND_META[band(avg)].label + ' overall', band(avg),
+                 'Average of all client scores. 100% means every channel is hitting its target.')
+          + tile('Clients on track', counts.good + '<span class="text-xl font-bold" style="color:var(--muted)">/' + rows.length + '</span>',
+                 counts.good === rows.length ? 'All clients good' : (rows.length - counts.good) + ' below target',
+                 counts.good === 0 ? 'crit' : (counts.good >= rows.length / 2 ? 'good' : 'warn'),
+                 'Clients whose overall score is 80% or better.')
+          + tile('Need attention', String(counts.crit),
+                 counts.crit === 0 ? 'Nothing off track' : 'Below 40% of target', counts.crit === 0 ? 'good' : 'crit',
+                 'Clients scoring under 40% of target — the ones to talk about first.')
+          + tile('Leads — ' + periodLabel(currentPeriod), fmtNum(leads),
+                 'Target ' + portfolioGoal + ' across ' + rows.length + ' clients', leadsBand,
+                 'Total leads in the selected period against the combined target.');
+      }
+
+      function renderChannelHealth(rows) {
+        var channels = [
+          { key:'promote', name:'Promote', icon:'fa-bullhorn', target:'1 post / day' },
+          { key:'network', name:'Network', icon:'fa-users',    target:'30% acceptance' },
+          { key:'engage',  name:'Engage',  icon:'fa-handshake',target:(PERIOD_GOAL[currentPeriod]||10) + ' meetings' }
+        ];
+        var html = '';
+        channels.forEach(function(ch) {
+          var buckets = { good:[], warn:[], crit:[], none:[] };
+          rows.forEach(function(r) { buckets[band(r.s[ch.key])].push(r.co.name); });
+          var total = rows.length || 1;
+
+          html += '<div class="mb-5 last:mb-0">'
+               + '<div class="flex items-baseline justify-between mb-2">'
+               + '<span class="text-sm font-semibold" style="color:var(--ink)"><i class="fas ' + ch.icon + ' mr-2" style="color:var(--muted)"></i>' + ch.name + '</span>'
+               + '<span class="text-xs" style="color:var(--muted)">target ' + esc(ch.target) + '</span>'
+               + '</div>'
+               + '<div class="flex items-stretch h-7">';
+
+          BAND_ORDER.forEach(function(b) {
+            var n = buckets[b].length;
+            if (!n) return;
+            var m = BAND_META[b];
+            var pct = (n / total) * 100;
+            var names = buckets[b].slice(0, 8).map(esc).join('<br>') + (buckets[b].length > 8 ? '<br>+' + (buckets[b].length - 8) + ' more' : '');
+            var showLabel = pct >= 12;
+            html += '<div class="seg rounded-[4px] flex items-center justify-center overflow-hidden" tabindex="0"'
+                 + ' style="width:' + pct + '%;background:' + m.color + '"'
+                 + ' data-tip="<b>' + m.label + ' — ' + n + ' client' + (n>1?'s':'') + '</b><br>' + names + '">'
+                 + (showLabel ? '<span class="text-[11px] font-bold" style="color:' + (b==='warn'?'#3d2900':'#fff') + '">' + n + '</span>' : '')
+                 + '</div>';
+          });
+
+          html += '</div></div>';
+        });
+        document.getElementById('channel-health').innerHTML = html;
+      }
+
+      function renderMatrix(rows) {
+        var sorted = rows.slice().sort(function(a, b) {
+          if (matrixSort === 'name') return a.co.name.localeCompare(b.co.name) * -matrixDir;
+          var av, bv;
+          if (matrixSort === 'leads') { av = a.co.periodLeads; bv = b.co.periodLeads; }
+          else { av = a.s[matrixSort]; bv = b.s[matrixSort]; }
+          av = (av === null || av === undefined) ? -1 : av;
+          bv = (bv === null || bv === undefined) ? -1 : bv;
+          return (av - bv) * matrixDir;
+        });
+
+        // --- chart view: one row per client, bar length = overall score, chips = per channel ---
+        var chartHtml = '<div class="space-y-1">';
+        sorted.forEach(function(r) {
+          var b = band(r.s.overall);
+          var m = BAND_META[b];
+          var pct = r.s.overall === null ? 0 : Math.max(2, Math.min(100, r.s.overall));
+          var scoreTxt = r.s.overall === null ? 'n/a' : Math.round(r.s.overall) + '%';
+
+          function cell(k, label, valueTxt, tip) {
+            var cb = band(r.s[k]);
+            var cm = BAND_META[cb];
+            return '<div class="flex items-center gap-1.5 justify-center" tabindex="0" data-tip="' + esc(tip) + '">'
+                 + '<i class="fas ' + cm.icon + ' text-[13px]" style="color:' + cm.color + '"></i>'
+                 + '<span class="text-xs font-semibold tabular-nums" style="color:var(--ink2)">' + esc(valueTxt) + '</span></div>';
+          }
+
+          chartHtml += '<a href="/?company=' + encodeURIComponent(r.co.key) + '" class="cli-row grid items-center gap-3 rounded-lg px-2 py-2.5 hover:bg-gray-50"'
+            + ' style="grid-template-columns: minmax(140px,1.6fr) 1fr 1fr 1fr minmax(150px,1.4fr)">'
+            + '<div class="min-w-0"><p class="text-sm font-semibold truncate" style="color:var(--ink)">' + esc(r.co.name) + '</p>'
+            + '<p class="text-[11px]" style="color:var(--muted)">' + r.co.periodLeads + ' leads · ' + (r.co.campaignMonths||0) + ' mo</p></div>'
+            + cell('promote','Promote', r.co.promoteConfigured ? (r.co.promotePostsPerDay||0).toFixed(1) + '/d' : 'n/a',
+                   r.co.name + ' — Promote: ' + (r.co.promoteConfigured ? (r.co.promotePostsPerDay||0).toFixed(1) + ' posts/day against a target of 1/day (' + Math.round(r.s.promote) + '%)' : 'not set up'))
+            + cell('network','Network', r.co.networkConfigured ? Math.round(r.co.networkAcceptanceRate) + '%' : 'n/a',
+                   r.co.name + ' — Network: ' + (r.co.networkConfigured ? Math.round(r.co.networkAcceptanceRate) + '% acceptance against a 30% target (' + Math.round(r.s.network) + '%). ' + r.co.networkInvitations + ' sent, ' + r.co.networkAccepted + ' accepted' : 'not set up'))
+            + cell('engage','Engage', String(r.co.periodLeads),
+                   r.co.name + ' — Engage: ' + r.co.periodLeads + ' leads against a target of ' + r.s.goal + ' for ' + periodLabel(currentPeriod) + ' (' + Math.round(r.s.engage) + '%)')
+            + '<div class="flex items-center gap-2" tabindex="0" data-tip="' + esc(r.co.name + ' — overall ' + scoreTxt + ' (' + m.label + '), the average of its configured channels') + '">'
+            + '<div class="flex-1 h-2.5 rounded-full" style="background:#f0efec">'
+            + '<div class="rowbar h-2.5 rounded-full" style="width:' + pct + '%;background:' + m.color + '"></div></div>'
+            + '<span class="text-sm font-bold tabular-nums w-12 text-right" style="color:' + m.ink + '">' + scoreTxt + '</span>'
+            + '</div>'
+            + '</a>';
+        });
+        chartHtml += '</div>';
+
+        // header row
+        var head = '<div class="grid gap-3 px-2 pb-2 mb-1 border-b" style="border-color:var(--grid);grid-template-columns: minmax(140px,1.6fr) 1fr 1fr 1fr minmax(150px,1.4fr)">'
+          + '<button onclick="setSort(\\'name\\')" class="text-left text-[11px] uppercase tracking-wider font-semibold hover:underline" style="color:var(--muted)">Client</button>'
+          + '<button onclick="setSort(\\'promote\\')" class="text-[11px] uppercase tracking-wider font-semibold hover:underline" style="color:var(--muted)">Promote</button>'
+          + '<button onclick="setSort(\\'network\\')" class="text-[11px] uppercase tracking-wider font-semibold hover:underline" style="color:var(--muted)">Network</button>'
+          + '<button onclick="setSort(\\'engage\\')" class="text-[11px] uppercase tracking-wider font-semibold hover:underline" style="color:var(--muted)">Engage</button>'
+          + '<button onclick="setSort(\\'overall\\')" class="text-right text-[11px] uppercase tracking-wider font-semibold hover:underline" style="color:var(--muted)">Overall score</button>'
+          + '</div>';
+
+        document.getElementById('matrix-chart').innerHTML = head + chartHtml;
+
+        // --- table view (the WCAG-clean twin) ---
+        var t = '<table class="w-full text-sm"><thead><tr class="border-b" style="border-color:var(--grid)">'
+          + ['Client','Promote (posts/day)','Network (acceptance)','Engage (leads)','Overall','Status']
+              .map(function(h,i){ return '<th class="' + (i? 'text-right':'text-left') + ' py-2 px-3 text-[11px] uppercase tracking-wider font-semibold" style="color:var(--muted)">' + h + '</th>'; }).join('')
+          + '</tr></thead><tbody>';
+        sorted.forEach(function(r) {
+          var b = band(r.s.overall), m = BAND_META[b];
+          t += '<tr class="border-b" style="border-color:var(--grid)">'
+            + '<td class="py-2 px-3 font-medium" style="color:var(--ink)">' + esc(r.co.name) + '</td>'
+            + '<td class="py-2 px-3 text-right tabular-nums" style="color:var(--ink2)">' + (r.co.promoteConfigured ? (r.co.promotePostsPerDay||0).toFixed(1) : '—') + '</td>'
+            + '<td class="py-2 px-3 text-right tabular-nums" style="color:var(--ink2)">' + (r.co.networkConfigured ? Math.round(r.co.networkAcceptanceRate) + '%' : '—') + '</td>'
+            + '<td class="py-2 px-3 text-right tabular-nums" style="color:var(--ink2)">' + r.co.periodLeads + ' / ' + r.s.goal + '</td>'
+            + '<td class="py-2 px-3 text-right tabular-nums font-semibold" style="color:var(--ink)">' + (r.s.overall === null ? '—' : Math.round(r.s.overall) + '%') + '</td>'
+            + '<td class="py-2 px-3 text-right">' + chip(b, m.label) + '</td>'
+            + '</tr>';
+        });
+        t += '</tbody></table>';
+        document.getElementById('matrix-table').innerHTML = t;
+      }
+
+      // Always this-month vs last-month — both are period-independent on the API,
+      // so this panel stays honest whatever the period filter says.
+      // Month-to-date against a FULL previous month would make every client look
+      // like it is collapsing on the 5th, so last month is scaled to the same
+      // number of elapsed days before comparing.
+      function pacedPrev(co) {
+        var now = new Date();
+        var elapsed = now.getDate();
+        var daysLastMonth = new Date(now.getFullYear(), now.getMonth(), 0).getDate();
+        var factor = Math.min(1, elapsed / daysLastMonth);
+        return (co.lastMonthLeads || 0) * factor;
+      }
+      function momentumDelta(co) { return (co.engageThisMonthLeads || 0) - pacedPrev(co); }
+
+      function renderMomentum(rows) {
+        var items = rows.slice().sort(function(a,b) { return momentumDelta(b.co) - momentumDelta(a.co); });
+        var max = Math.max.apply(null, items.map(function(r){ return Math.abs(momentumDelta(r.co)); }).concat([1]));
+        var html = '<div class="grid sm:grid-cols-2 gap-x-8 gap-y-1">';
+        items.forEach(function(r) {
+          var now = r.co.engageThisMonthLeads || 0;
+          var prev = Math.round(pacedPrev(r.co) * 10) / 10;
+          var d = Math.round((now - prev) * 10) / 10;
+          var dir = d > 0 ? 'up' : (d < 0 ? 'down' : 'flat');
+          var color = d > 0 ? 'var(--good)' : (d < 0 ? 'var(--crit)' : 'var(--none)');
+          var ink   = d > 0 ? 'var(--good-ink)' : (d < 0 ? 'var(--crit-ink)' : 'var(--none-ink)');
+          var icon  = d > 0 ? 'fa-arrow-trend-up' : (d < 0 ? 'fa-arrow-trend-down' : 'fa-minus');
+          var w = (Math.abs(d) / max) * 50;
+          html += '<div class="flex items-center gap-3 py-1.5" tabindex="0" data-tip="' + esc(r.co.name + ': ' + now + ' leads so far this month vs ' + prev + ' expected at last month\\u2019s pace (' + (r.co.lastMonthLeads||0) + ' over the full month)') + '">'
+            + '<span class="text-sm truncate flex-1 min-w-0" style="color:var(--ink)">' + esc(r.co.name) + '</span>'
+            + '<div class="flex items-center w-32 shrink-0">'
+            + '<div class="w-1/2 flex justify-end"><div class="h-2 rounded-l-[4px]" style="width:' + (d<0?w*2:0) + '%;background:' + color + '"></div></div>'
+            + '<div class="w-px h-3" style="background:var(--axis)"></div>'
+            + '<div class="w-1/2"><div class="h-2 rounded-r-[4px]" style="width:' + (d>0?w*2:0) + '%;background:' + color + '"></div></div>'
+            + '</div>'
+            + '<span class="text-xs font-bold tabular-nums w-14 text-right shrink-0" style="color:' + ink + '">'
+            + '<i class="fas ' + icon + ' mr-1"></i>' + (d>0?'+':'') + d + '</span>'
+            + '</div>';
+        });
+        html += '</div>';
+        document.getElementById('momentum').innerHTML = html;
+      }
+
+      function renderClientPicker(rows) {
+        var sel = document.getElementById('client-jump');
+        if (sel.options.length > 1) return;
+        rows.slice().sort(function(a,b){ return a.co.name.localeCompare(b.co.name); }).forEach(function(r) {
+          var o = document.createElement('option');
+          o.value = r.co.key; o.textContent = r.co.name;
+          sel.appendChild(o);
+        });
+      }
+
+      function render(data) {
+        var rows = data.companies.map(function(co) { return { co: co, s: scoreCompany(co) }; });
+        renderClientPicker(rows);
+        if (currentView === 'effectiveness') {
+          renderLegend();
+          renderHero(rows, data);
+          renderChannelHealth(rows);
+          renderMatrix(rows);
+          renderMomentum(rows);
+        } else {
+          renderSummary(data);
+          renderCards(data.companies);
+        }
+        document.getElementById('updated-at').innerHTML = '<i class="fas fa-clock mr-1"></i>Updated ' + new Date().toLocaleTimeString();
+      }
             function renderSummary(data) {
                 var avg = data.averages || {};
                 document.getElementById('summary-row').innerHTML = '<div class="flex flex-wrap gap-8">'
@@ -3570,16 +3985,6 @@ app.get('/overview', (c) => {
                     + '<i class="fas fa-clock mr-1"></i>Updated ' + new Date().toLocaleTimeString()
                     + '</p>';
             }
-
-            function compareBadge(val, avg) {
-                if (avg === 0) return '<span class="text-xs text-gray-400">—</span>';
-                var diff = Math.round(((val - avg) / avg) * 100);
-                if (diff > 0) return '<span class="text-xs text-green-600 font-semibold">+' + diff + '% vs avg</span>';
-                if (diff < 0) return '<span class="text-xs text-red-500 font-semibold">' + diff + '% vs avg</span>';
-                return '<span class="text-xs text-gray-500">= avg</span>';
-            }
-
-            var overviewAverages = {};
 
             function renderCards(companies) {
                 var grid = document.getElementById('cards-grid');
@@ -3707,32 +4112,34 @@ app.get('/overview', (c) => {
                     return html;
             }
 
-            async function loadOverview(period) {
-                document.getElementById('error-state').classList.add('hidden');
-                document.getElementById('summary-row').innerHTML = '<div class="flex gap-8"><div><div class="skeleton h-4 w-32 mb-2"></div><div class="skeleton h-8 w-16"></div></div><div><div class="skeleton h-4 w-32 mb-2"></div><div class="skeleton h-8 w-16"></div></div><div><div class="skeleton h-4 w-32 mb-2"></div><div class="skeleton h-8 w-16"></div></div></div>';
-                document.getElementById('cards-grid').innerHTML = '<div class="bg-white rounded-lg shadow p-6"><div class="skeleton h-6 w-3/4 mb-4"></div><div class="skeleton h-14 w-20 mb-3"></div><div class="skeleton h-3 w-full mb-2"></div><div class="skeleton h-2 w-full mb-4"></div><div class="skeleton h-10 w-full"></div></div>'.repeat(6);
-                try {
-                    const res = await fetch('/api/overview?period=' + period);
-                    if (!res.ok) throw new Error('HTTP ' + res.status);
-                    const data = await res.json();
-                    overviewAverages = data.averages || {};
-                    data.companies.sort(function(a, b) {
-                    if (a.error && !b.error) return 1;
-                    if (!a.error && b.error) return -1;
-                    return (b.firstLeadTs || 0) - (a.firstLeadTs || 0);
-                });
-                renderSummary(data);
-                    renderCards(data.companies);
-                } catch (err) {
-                    document.getElementById('error-message').textContent = err.message;
-                    document.getElementById('error-state').classList.remove('hidden');
-                    document.getElementById('summary-row').innerHTML = '';
-                    document.getElementById('cards-grid').innerHTML = '';
-                }
-            }
+      // ---------- data ----------
+      async function loadOverview(period) {
+        document.getElementById('error-state').classList.add('hidden');
+        var main = document.querySelector('main');
+        if (lastData) { main.classList.add('refetching'); }   // hold previous render, no skeleton flash
+        try {
+          var res = await fetch('/api/overview?period=' + period);
+          if (res.status === 401) { window.location.href = '/login?next=' + encodeURIComponent('/overview'); return; }
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          var data = await res.json();
+          overviewAverages = data.averages || {};
+          data.companies.sort(function(a, b) {
+            if (a.error && !b.error) return 1;
+            if (!a.error && b.error) return -1;
+            return (b.firstLeadTs || 0) - (a.firstLeadTs || 0);
+          });
+          lastData = data;
+          render(data);
+        } catch (err) {
+          document.getElementById('error-message').textContent = err.message;
+          document.getElementById('error-state').classList.remove('hidden');
+        } finally {
+          main.classList.remove('refetching');
+        }
+      }
 
-            loadOverview(currentPeriod);
-        </script>
+      loadOverview(currentPeriod);
+    </script>
     </body>
     </html>
   `)
