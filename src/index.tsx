@@ -87,11 +87,13 @@ app.post('/api/auth/login', async (c) => {
     next = String(form.next || '/')
   }
 
-  const expectedUser = (c.env.AUTH_USER || DEFAULT_AUTH_USER).toLowerCase()
+  const logins = allowedLogins(c.env)
+  const expectedUser = logins[0]
   const expectedHash = (c.env.AUTH_PASSWORD_HASH || DEFAULT_AUTH_PASSWORD_HASH).toLowerCase()
   const providedHash = await sha256Hex(password)
 
-  const ok = safeEqual(email.trim().toLowerCase(), expectedUser) && safeEqual(providedHash, expectedHash)
+  const userOk = logins.includes(email.trim().toLowerCase())
+  const ok = userOk && safeEqual(providedHash, expectedHash)
 
   if (!ok) {
     if (wantsJson) return c.json({ error: 'Invalid credentials' }, 401)
@@ -150,6 +152,7 @@ const PUBLIC_PATH_PREFIXES = [
   '/api/chat/',
 ]
 const PUBLIC_EXACT_PATHS = [
+  '/', // landing page when signed out; the handler redirects to the dashboard when signed in
   '/api/reports/weekly/send',
   '/api/reports/monthly/send',
 ]
@@ -157,6 +160,21 @@ const PUBLIC_EXACT_PATHS = [
 function isPublicPath(path: string): boolean {
   if (PUBLIC_EXACT_PATHS.includes(path)) return true
   return PUBLIC_PATH_PREFIXES.some(p => path.startsWith(p))
+}
+
+// The configured login is `admin@gershonconsulting` (no TLD). People naturally
+// type the .com form, so accept both — they identify the same single account.
+function allowedLogins(env: Bindings): string[] {
+  const primary = (env.AUTH_USER || DEFAULT_AUTH_USER).trim().toLowerCase()
+  const logins = [primary]
+  const at = primary.lastIndexOf('@')
+  if (at > 0) {
+    const local = primary.slice(0, at)
+    const domain = primary.slice(at + 1)
+    if (!domain.includes('.')) logins.push(`${local}@${domain}.com`)
+    else if (domain.endsWith('.com')) logins.push(`${local}@${domain.slice(0, -4)}`)
+  }
+  return logins
 }
 
 async function sha256Hex(text: string): Promise<string> {
@@ -214,6 +232,176 @@ function readCookie(header: string | undefined, name: string): string | null {
   return null
 }
 
+function renderHomePage(): string {
+  const feature = (icon: string, color: string, title: string, body: string) => `
+    <div class="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-lg transition-shadow">
+      <div class="w-11 h-11 rounded-xl ${color} flex items-center justify-center mb-4">
+        <i class="fas ${icon} text-white"></i>
+      </div>
+      <h3 class="font-bold text-gray-900 mb-2">${title}</h3>
+      <p class="text-sm text-gray-600 leading-relaxed">${body}</p>
+    </div>`
+
+  const step = (n: string, title: string, body: string) => `
+    <div class="relative">
+      <div class="w-10 h-10 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center mb-4">${n}</div>
+      <h3 class="font-bold text-gray-900 mb-2">${title}</h3>
+      <p class="text-sm text-gray-600 leading-relaxed">${body}</p>
+    </div>`
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>client.gershonCRM — Client Performance Dashboard</title>
+  <meta name="description" content="One live view of every campaign Gershon Consulting runs for a client: social reach, LinkedIn network growth, and meetings booked.">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-white text-gray-900 antialiased">
+
+  <!-- Nav -->
+  <header class="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-gray-100">
+    <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center">
+          <i class="fas fa-chart-line text-white text-sm"></i>
+        </div>
+        <span class="font-bold tracking-tight">client.gershonCRM</span>
+      </div>
+      <nav class="flex items-center gap-6 text-sm">
+        <a href="#how" class="hidden sm:block text-gray-600 hover:text-gray-900">How it works</a>
+        <a href="#channels" class="hidden sm:block text-gray-600 hover:text-gray-900">Channels</a>
+        <a href="/login" class="bg-gray-900 hover:bg-gray-800 text-white px-4 py-2 rounded-lg font-medium transition-colors">Sign in</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="relative overflow-hidden">
+    <div class="absolute inset-0 bg-gradient-to-br from-blue-50 via-white to-indigo-50"></div>
+    <div class="relative max-w-6xl mx-auto px-6 pt-20 pb-24 text-center">
+      <span class="inline-flex items-center gap-2 text-xs font-semibold text-blue-700 bg-blue-100 px-3 py-1.5 rounded-full mb-6">
+        <i class="fas fa-lock text-[10px]"></i>Gershon Consulting — client reporting
+      </span>
+      <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight leading-[1.1] max-w-3xl mx-auto">
+        Every campaign you run for a client — on one page.
+      </h1>
+      <p class="mt-6 text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed">
+        Social reach, LinkedIn network growth and meetings booked all live in different tools.
+        This dashboard pulls the three together, per client, and answers the only question that
+        matters on a review call: is it working?
+      </p>
+      <div class="mt-9 flex flex-col sm:flex-row gap-3 justify-center">
+        <a href="/login" class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold px-7 py-3.5 rounded-xl shadow-lg transition-all">
+          Open your dashboard
+        </a>
+        <a href="#how" class="bg-white border border-gray-300 hover:border-gray-400 text-gray-700 font-semibold px-7 py-3.5 rounded-xl transition-colors">
+          See what's inside →
+        </a>
+      </div>
+      <p class="mt-5 text-xs text-gray-400">Private platform — access is by account only.</p>
+    </div>
+  </section>
+
+  <!-- Channels -->
+  <section id="channels" class="py-20 border-t border-gray-100">
+    <div class="max-w-6xl mx-auto px-6">
+      <h2 class="text-3xl font-extrabold tracking-tight text-center">Three channels, one scoreboard</h2>
+      <p class="mt-4 text-gray-600 text-center max-w-2xl mx-auto">
+        Each client campaign runs across three motions. The dashboard scores all three side by side,
+        so a channel that has gone quiet is obvious at a glance.
+      </p>
+      <div class="mt-12 grid md:grid-cols-3 gap-6">
+        ${feature('fa-bullhorn', 'bg-orange-500', 'Promote', 'Posts published, impressions, reach and follower growth — the top of the funnel. Measured as posts per day against target.')}
+        ${feature('fa-users', 'bg-blue-500', 'Network', 'Connection requests sent and accepted, messages, InMails, page invites and profile visits. Measured as acceptance rate.')}
+        ${feature('fa-handshake', 'bg-green-500', 'Engage', 'Leads and meetings landing in the pipeline — the outcome the client actually pays for. Measured against the monthly meetings goal.')}
+      </div>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section id="how" class="py-20 bg-gray-50 border-y border-gray-100">
+    <div class="max-w-6xl mx-auto px-6">
+      <h2 class="text-3xl font-extrabold tracking-tight text-center">How it works</h2>
+      <div class="mt-12 grid md:grid-cols-3 gap-10">
+        ${step('1', 'Connect the sources', 'Each client is configured once with its pipeline and its reporting links. No manual data entry after that.')}
+        ${step('2', 'Data refreshes itself', 'The platform reads each source directly and recomputes every metric on load — no stale spreadsheet, no copy-paste.')}
+        ${step('3', 'Report and decide', 'Open one client for the full breakdown, or the overview for every client at once. Export or email the weekly and monthly reports.')}
+      </div>
+    </div>
+  </section>
+
+  <!-- Where the data comes from -->
+  <section class="py-20">
+    <div class="max-w-6xl mx-auto px-6">
+      <h2 class="text-3xl font-extrabold tracking-tight text-center">Where the numbers come from</h2>
+      <p class="mt-4 text-gray-600 text-center max-w-2xl mx-auto">Every figure traces back to a named source. Nothing is estimated.</p>
+      <div class="mt-12 max-w-3xl mx-auto divide-y divide-gray-100 border border-gray-200 rounded-2xl overflow-hidden">
+        <div class="flex items-center gap-4 p-5 bg-white">
+          <div class="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center shrink-0"><i class="fas fa-bullhorn text-orange-500"></i></div>
+          <div><p class="font-semibold">Promote</p><p class="text-sm text-gray-600">Collected from social.gershonCRM.com</p></div>
+        </div>
+        <div class="flex items-center gap-4 p-5 bg-white">
+          <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center shrink-0"><i class="fas fa-users text-blue-500"></i></div>
+          <div><p class="font-semibold">Network</p><p class="text-sm text-gray-600">Campaign reports supplied each week, per client</p></div>
+        </div>
+        <div class="flex items-center gap-4 p-5 bg-white">
+          <div class="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center shrink-0"><i class="fas fa-handshake text-green-500"></i></div>
+          <div><p class="font-semibold">Engage</p><p class="text-sm text-gray-600">Read live from the Streak CRM pipeline</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Also inside -->
+  <section class="py-20 bg-gray-50 border-y border-gray-100">
+    <div class="max-w-6xl mx-auto px-6">
+      <h2 class="text-3xl font-extrabold tracking-tight text-center">Also inside</h2>
+      <div class="mt-12 grid md:grid-cols-3 gap-6">
+        ${feature('fa-th-large', 'bg-indigo-500', 'Cross-client overview', 'Every client as a scored card — leads against goal, plus the three channel columns. Spot the account that needs attention before the client calls.')}
+        ${feature('fa-rocket', 'bg-purple-500', 'Onboarding tracker', 'Where each new client sits in setup, so nothing stalls silently between signature and first campaign.')}
+        ${feature('fa-envelope-open-text', 'bg-teal-500', 'Weekly & monthly reports', 'Generated from the same live data and sent by email — the client review writes itself.')}
+      </div>
+    </div>
+  </section>
+
+  <!-- Access -->
+  <section class="py-20">
+    <div class="max-w-3xl mx-auto px-6 text-center">
+      <div class="w-14 h-14 rounded-2xl bg-gray-900 flex items-center justify-center mx-auto mb-6">
+        <i class="fas fa-shield-halved text-white text-xl"></i>
+      </div>
+      <h2 class="text-3xl font-extrabold tracking-tight">Client data, kept in-house</h2>
+      <p class="mt-4 text-gray-600 leading-relaxed">
+        This platform holds live commercial data for every client on the books. It sits behind a
+        sign-in, sessions expire, and it is excluded from search engines. Access is granted per person —
+        there is no public sign-up.
+      </p>
+      <a href="/login" class="inline-block mt-8 bg-gray-900 hover:bg-gray-800 text-white font-semibold px-7 py-3.5 rounded-xl transition-colors">
+        Sign in →
+      </a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="border-t border-gray-100 py-10">
+    <div class="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-500">
+      <p>Client performance reporting for Gershon Consulting.</p>
+      <div class="flex items-center gap-6">
+        <a href="mailto:tools@gershonconsulting.com" class="hover:text-gray-900">tools@gershonconsulting.com</a>
+        <a href="/login" class="hover:text-gray-900">Sign in</a>
+      </div>
+    </div>
+    <p class="text-center text-xs text-gray-400 mt-6">Gershon Consulting — Internal Use Only</p>
+  </footer>
+
+</body>
+</html>`
+}
+
 function renderLoginPage(next: string, error?: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -241,7 +429,7 @@ function renderLoginPage(next: string, error?: string): string {
         <input type="hidden" name="next" value="${next.replace(/"/g, '&quot;')}" />
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1" for="email">Email address</label>
-          <input id="email" name="email" type="email" autocomplete="username" required autofocus
+          <input id="email" name="email" type="text" inputmode="email" autocapitalize="none" spellcheck="false" autocomplete="username" required autofocus
                  class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" />
         </div>
         <div>
@@ -3550,8 +3738,14 @@ app.get('/overview', (c) => {
   `)
 })
 
-// Default route - redirect to overview unless ?company= specified
-app.get('/', (c) => {
+// Default route — public landing page when signed out, dashboard when signed in
+app.get('/', async (c) => {
+  const token = readCookie(c.req.header('Cookie'), SESSION_COOKIE)
+  const signedIn = token ? await verifySessionToken(c.env, token) : null
+  if (!signedIn) {
+    return c.html(renderHomePage())
+  }
+
   const companyKey = c.req.query('company')
   if (!companyKey) {
     return c.redirect('/overview')
