@@ -11,6 +11,9 @@ type Bindings = {
   REPORT_SECRET?: string
   REPORT_FROM_EMAIL?: string
   REPORT_TO_EMAIL?: string
+  AUTH_USER?: string
+  AUTH_PASSWORD_HASH?: string
+  SESSION_SECRET?: string
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -36,6 +39,80 @@ app.use('*', async (c, next) => {
   await next()
 })
 
+// Require a valid session for every page and API route except the public ones
+app.use('*', async (c, next) => {
+  const path = new URL(c.req.url).pathname
+  if (isPublicPath(path)) return next()
+
+  const token = readCookie(c.req.header('Cookie'), SESSION_COOKIE)
+  const user = token ? await verifySessionToken(c.env, token) : null
+
+  if (!user) {
+    if (path.startsWith('/api/')) {
+      return c.json({ error: 'Unauthorized' }, 401)
+    }
+    const next_ = encodeURIComponent(path + (new URL(c.req.url).search || ''))
+    return c.redirect(`/login?next=${next_}`, 302)
+  }
+
+  c.set('authUser' as never, user as never)
+  await next()
+})
+
+// Login page
+app.get('/login', (c) => {
+  const next = c.req.query('next') || '/'
+  const error = c.req.query('error') === '1' ? 'Incorrect email or password.' : undefined
+  return c.html(renderLoginPage(next, error))
+})
+
+// Login submit — accepts both form posts and JSON
+app.post('/api/auth/login', async (c) => {
+  let email = ''
+  let password = ''
+  let next = '/'
+  let wantsJson = false
+
+  const contentType = c.req.header('Content-Type') || ''
+  if (contentType.includes('application/json')) {
+    wantsJson = true
+    const body = await c.req.json().catch(() => ({} as any))
+    email = String(body.email || '')
+    password = String(body.password || '')
+    next = String(body.next || '/')
+  } else {
+    const form = await c.req.parseBody()
+    email = String(form.email || '')
+    password = String(form.password || '')
+    next = String(form.next || '/')
+  }
+
+  const expectedUser = (c.env.AUTH_USER || DEFAULT_AUTH_USER).toLowerCase()
+  const expectedHash = (c.env.AUTH_PASSWORD_HASH || DEFAULT_AUTH_PASSWORD_HASH).toLowerCase()
+  const providedHash = await sha256Hex(password)
+
+  const ok = safeEqual(email.trim().toLowerCase(), expectedUser) && safeEqual(providedHash, expectedHash)
+
+  if (!ok) {
+    if (wantsJson) return c.json({ error: 'Invalid credentials' }, 401)
+    return c.redirect(`/login?error=1&next=${encodeURIComponent(next)}`, 302)
+  }
+
+  const token = await createSessionToken(c.env, expectedUser)
+  c.header('Set-Cookie', `${SESSION_COOKIE}=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL_SECONDS}`)
+
+  // Only allow same-origin redirects
+  const safeNext = next.startsWith('/') && !next.startsWith('//') ? next : '/'
+  if (wantsJson) return c.json({ ok: true, redirect: safeNext })
+  return c.redirect(safeNext, 302)
+})
+
+// Logout
+app.all('/api/auth/logout', (c) => {
+  c.header('Set-Cookie', `${SESSION_COOKIE}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`)
+  return c.redirect('/login', 302)
+})
+
 // Serve static files
 app.use('/static/*', serveStatic({ root: './public' }))
 
@@ -51,6 +128,139 @@ const ADMIN_EMAILS = [
   'winnielauren3@gmail.com',
   'zakaria.omahdi@mabsilico.com',
 ]
+
+// --- Authentication ---------------------------------------------------------
+// Credentials are configurable via Cloudflare secrets. The plaintext password is
+// NEVER stored here — only a SHA-256 hash, which can be overridden at runtime:
+//   wrangler pages secret put AUTH_USER
+//   wrangler pages secret put AUTH_PASSWORD_HASH   (sha256 hex of the password)
+//   wrangler pages secret put SESSION_SECRET       (any long random string)
+const DEFAULT_AUTH_USER = 'admin@gershonconsulting'
+const DEFAULT_AUTH_PASSWORD_HASH = '08a8efbf4b670e4792692a590ef3096e0365b793d9c13cb6f24fcea9c41200f5'
+const SESSION_COOKIE = 'gcrm_session'
+const SESSION_TTL_SECONDS = 60 * 60 * 12 // 12 hours
+
+// Paths that must stay reachable without a session (login flow, static assets,
+// and the cron-triggered endpoints that external schedulers call).
+const PUBLIC_PATH_PREFIXES = [
+  '/login',
+  '/api/auth/',
+  '/static/',
+  '/favicon',
+  '/api/chat/',
+]
+const PUBLIC_EXACT_PATHS = [
+  '/api/reports/weekly/send',
+  '/api/reports/monthly/send',
+]
+
+function isPublicPath(path: string): boolean {
+  if (PUBLIC_EXACT_PATHS.includes(path)) return true
+  return PUBLIC_PATH_PREFIXES.some(p => path.startsWith(p))
+}
+
+async function sha256Hex(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+function sessionSecret(env: Bindings): string {
+  return env.SESSION_SECRET || env.ENCRYPTION_KEY || (env.AUTH_PASSWORD_HASH || DEFAULT_AUTH_PASSWORD_HASH)
+}
+
+async function hmacHex(secret: string, payload: string): Promise<string> {
+  const enc = new TextEncoder()
+  const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(payload))
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+// Constant-time-ish string comparison
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  return diff === 0
+}
+
+async function createSessionToken(env: Bindings, user: string): Promise<string> {
+  const expires = Date.now() + SESSION_TTL_SECONDS * 1000
+  const payload = `${expires}|${user}`
+  const sig = await hmacHex(sessionSecret(env), payload)
+  return `${btoa(payload).replace(/=+$/, '')}.${sig}`
+}
+
+async function verifySessionToken(env: Bindings, token: string): Promise<string | null> {
+  try {
+    const [encoded, sig] = token.split('.')
+    if (!encoded || !sig) return null
+    const payload = atob(encoded)
+    const expected = await hmacHex(sessionSecret(env), payload)
+    if (!safeEqual(sig, expected)) return null
+    const [expires, user] = payload.split('|')
+    if (!expires || Number(expires) < Date.now()) return null
+    return user || null
+  } catch {
+    return null
+  }
+}
+
+function readCookie(header: string | undefined, name: string): string | null {
+  if (!header) return null
+  for (const part of header.split(';')) {
+    const [k, ...rest] = part.trim().split('=')
+    if (k === name) return rest.join('=')
+  }
+  return null
+}
+
+function renderLoginPage(next: string, error?: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Sign in — client.gershonCRM</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="min-h-screen bg-gradient-to-br from-blue-700 via-blue-800 to-indigo-900 flex items-center justify-center px-4">
+  <div class="w-full max-w-md">
+    <div class="text-center mb-8">
+      <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white/10 border border-white/20 mb-4">
+        <i class="fas fa-chart-line text-white text-2xl"></i>
+      </div>
+      <h1 class="text-2xl font-bold text-white">client.gershonCRM</h1>
+      <p class="text-blue-200 text-sm mt-1">Client Performance Dashboard</p>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-2xl p-8">
+      ${error ? `<div class="mb-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3"><i class="fas fa-circle-exclamation mr-2"></i>${error}</div>` : ''}
+      <form method="POST" action="/api/auth/login" class="space-y-4">
+        <input type="hidden" name="next" value="${next.replace(/"/g, '&quot;')}" />
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1" for="email">Email address</label>
+          <input id="email" name="email" type="email" autocomplete="username" required autofocus
+                 class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1" for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required
+                 class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" />
+        </div>
+        <button type="submit"
+                class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-3 rounded-lg transition-all shadow">
+          Sign in
+        </button>
+      </form>
+    </div>
+
+    <p class="text-center text-blue-300/70 text-xs mt-6">Gershon Consulting — Internal Use Only</p>
+  </div>
+</body>
+</html>`
+}
 
 // --- Encryption helpers (AES-GCM via Web Crypto API) ---
 
@@ -723,73 +933,6 @@ async function fetchStraightInData(reportId: string) {
   }
 }
 
-async function fetchEmailingData(urlOrGid: string) {
-  try {
-    const { sheetId, gid } = parseSheetUrl(urlOrGid)
-    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`
-    const response = await fetch(url)
-    if (!response.ok) throw new Error(`Google Sheets error: ${response.statusText}`)
-    const csvText = await response.text()
-    const lines = csvText.split('\n').filter(line => line.trim())
-    if (lines.length < 2) return { campaigns: [], totals: { emailsSent: 0, allReplies: 0, humanReplies: 0, positiveReplies: 0, humanReplyRate: 0, positiveReplyRate: 0 } }
-
-    // Parse CSV with proper quoting support
-    function parseCSVLine(line: string): string[] {
-      const result: string[] = []
-      let current = ''
-      let inQuotes = false
-      for (let i = 0; i < line.length; i++) {
-        const ch = line[i]
-        if (ch === '"') { inQuotes = !inQuotes }
-        else if (ch === ',' && !inQuotes) { result.push(current.trim()); current = '' }
-        else { current += ch }
-      }
-      result.push(current.trim())
-      return result
-    }
-
-    const campaigns: any[] = []
-    for (let i = 1; i < lines.length; i++) {
-      const cols = parseCSVLine(lines[i])
-      if (cols.length < 10) continue
-      campaigns.push({
-        id: cols[0],
-        name: cols[1],
-        account: cols[2],
-        company: cols[3],
-        emailsSent: parseInt(cols[4]) || 0,
-        allReplies: parseInt(cols[5]) || 0,
-        humanReplies: parseInt(cols[6]) || 0,
-        positiveReplies: parseInt(cols[7]) || 0,
-        humanReplyRate: parseFloat(cols[8]) || 0,
-        positiveReplyRate: parseFloat(cols[9]) || 0,
-        targeting: cols.length > 10 ? cols[10] : '',
-        leads: cols.length > 11 ? (parseInt(cols[11]) || 0) : 0
-      })
-    }
-
-    const totals = {
-      emailsSent: campaigns.reduce((s, c) => s + c.emailsSent, 0),
-      allReplies: campaigns.reduce((s, c) => s + c.allReplies, 0),
-      humanReplies: campaigns.reduce((s, c) => s + c.humanReplies, 0),
-      positiveReplies: campaigns.reduce((s, c) => s + c.positiveReplies, 0),
-      humanReplyRate: 0,
-      positiveReplyRate: 0,
-      leads: campaigns.reduce((s, c) => s + c.leads, 0),
-      campaignCount: campaigns.length
-    }
-    if (totals.allReplies > 0) {
-      totals.humanReplyRate = (totals.humanReplies / totals.allReplies) * 100
-      totals.positiveReplyRate = (totals.positiveReplies / totals.allReplies) * 100
-    }
-
-    return { campaigns, totals }
-  } catch (error) {
-    console.error('Error fetching emailing data:', error)
-    return { campaigns: [], totals: { emailsSent: 0, allReplies: 0, humanReplies: 0, positiveReplies: 0, humanReplyRate: 0, positiveReplyRate: 0, leads: 0, campaignCount: 0 } }
-  }
-}
-
 // API Routes
 
 // Get pipeline information
@@ -1063,7 +1206,7 @@ app.get('/api/companies', async (c) => {
 app.post('/api/companies', async (c) => {
   try {
     const body = await c.req.json()
-    const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, notionUrl, networkGid, key: providedKey, googleChatUrl, googleChatWebhookUrl, emailingUrl, straightInReportId, messages } = body
+    const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, notionUrl, networkGid, key: providedKey, googleChatUrl, googleChatWebhookUrl, straightInReportId, messages } = body
 
     if (!name || !pipelineKey) {
       return c.json({ error: 'name and pipelineKey are required' }, 400)
@@ -1091,7 +1234,6 @@ app.post('/api/companies', async (c) => {
     if (googleChatUrl) company.googleChatUrl = googleChatUrl
     if (googleChatWebhookUrl) company.googleChatWebhookUrl = googleChatWebhookUrl
     if (messages && messages.length > 0) company.messages = messages
-    if (emailingUrl) company.emailingUrl = emailingUrl
     if (straightInReportId) company.straightInReportId = straightInReportId
 
     await c.env.COMPANIES_KV.put(`company:${key}`, JSON.stringify(company))
@@ -1308,7 +1450,7 @@ app.put('/api/companies/:key', async (c) => {
   try {
     const key = c.req.param('key')
     const body = await c.req.json()
-    const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, networkGid, googleChatUrl, googleChatWebhookUrl, emailingUrl, straightInReportId, messages } = body
+    const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, networkGid, googleChatUrl, googleChatWebhookUrl, straightInReportId, messages } = body
 
     // Load existing company (include archived so we can restore)
     const all = await getAllCompanies(c.env.COMPANIES_KV, true)
@@ -1340,7 +1482,6 @@ app.put('/api/companies/:key', async (c) => {
     if (googleChatUrl !== undefined) updated.googleChatUrl = googleChatUrl
     if (googleChatWebhookUrl !== undefined) updated.googleChatWebhookUrl = googleChatWebhookUrl
     if (messages !== undefined) updated.messages = messages
-    if (body.emailingUrl !== undefined) updated.emailingUrl = body.emailingUrl
     if (straightInReportId !== undefined) {
       if (straightInReportId) updated.straightInReportId = straightInReportId
       else delete updated.straightInReportId
@@ -1713,13 +1854,6 @@ app.get('/api/analytics', async (c) => {
       networkData = await fetchNetworkData(networkSource)
     }
 
-    // Fetch emailing campaign data if configured
-    let emailingData = null
-    const emailingSource = company.emailingUrl
-    if (emailingSource) {
-      emailingData = await fetchEmailingData(emailingSource)
-    }
-    
     return c.json({
       company: company.name,
       companyKey: companyKey,
@@ -1727,7 +1861,6 @@ app.get('/api/analytics', async (c) => {
       campaignDurationMonths,
       firstLeadDate: firstLeadDate ? firstLeadDate.toISOString() : null,
       networkData,
-      emailingData,
       stageDistribution,
       originDistribution,
       fitDistribution,
@@ -1988,13 +2121,11 @@ app.get('/api/overview', async (c) => {
           const promoteUrl = company.sources?.promote || ''
           const networkGid = company.networkSheetGid || (company.sources?.network || '')
 
-          const emailingSource = company.sources?.emailing || ''
           const straightInReportId = company.straightInReportId || ''
-          const [boxes, promoteData, networkData, emailingData, straightInData] = await Promise.all([
+          const [boxes, promoteData, networkData, straightInData] = await Promise.all([
             callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`).catch(() => []),
             promoteUrl ? fetchPromoteData(promoteUrl).catch(() => ({ platforms: {} })) : Promise.resolve({ platforms: {} }),
             networkGid ? fetchNetworkData(networkGid).catch(() => ({ avgAcceptanceRate: 0, totalInvitations: 0, totalAccepted: 0 })) : Promise.resolve({ avgAcceptanceRate: 0, totalInvitations: 0, totalAccepted: 0 }),
-            emailingSource ? fetchEmailingData(emailingSource).catch(() => ({ campaigns: [], totals: { emailsSent: 0, humanReplies: 0, humanReplyRate: 0, positiveReplies: 0, positiveReplyRate: 0, leads: 0, campaignCount: 0 } })) : Promise.resolve({ campaigns: [], totals: { emailsSent: 0, humanReplies: 0, humanReplyRate: 0, positiveReplies: 0, positiveReplyRate: 0, leads: 0, campaignCount: 0 } }),
             straightInReportId ? fetchStraightInData(straightInReportId).catch(() => null) : Promise.resolve(null)
           ])
 
@@ -2092,16 +2223,6 @@ app.get('/api/overview', async (c) => {
           const networkProfileVisits = siData?.profileVisits || 0
           const networkStraightInConfigured = !!(siData && siData.configured)
 
-          // Emailing totals
-          const emailTotals = (emailingData as any)?.totals || {}
-          const emailsSent = emailTotals.emailsSent || 0
-          const emailHumanReplies = emailTotals.humanReplies || 0
-          const emailReplyRate = emailTotals.humanReplyRate || 0
-          const emailPositiveReplies = emailTotals.positiveReplies || 0
-          const emailPositiveRate = emailTotals.positiveReplyRate || 0
-          const emailLeads = emailTotals.leads || 0
-          const emailCampaignCount = (emailingData as any)?.campaigns?.length || 0
-
           return {
             key: company.key,
             name: company.name,
@@ -2130,20 +2251,12 @@ app.get('/api/overview', async (c) => {
             networkStraightInConfigured,
             engageMeetingsPct,
             engageThisMonthLeads: thisMonthLeads,
-            emailsSent,
-            emailHumanReplies,
-            emailReplyRate,
-            emailPositiveReplies,
-            emailPositiveRate,
-            emailLeads,
-            emailCampaignCount,
-            emailConfigured: !!emailingSource,
             campaignMonths,
             firstLeadTs,
             error: false
           }
         } catch (_err) {
-          return { key: company.key, name: company.name, periodLeads: 0, totalLeads: 0, weekLeads: 0, lastMonthLeads: 0, recentActivity: 0, stageCount: 0, goalPct: 0, promotePostsPerDay: 0, promoteConfigured: false, promoteTotalPosts: 0, promoteTotalImpressions: 0, promoteFollowers: 0, networkAcceptanceRate: 0, networkConfigured: false, networkInvitations: 0, networkAccepted: 0, networkMessages: 0, networkOpportunities: 0, networkFollowUps: 0, networkInmails: 0, networkPageInvites: 0, networkProfileVisits: 0, networkStraightInConfigured: false, engageMeetingsPct: 0, engageThisMonthLeads: 0, emailsSent: 0, emailHumanReplies: 0, emailReplyRate: 0, emailPositiveReplies: 0, emailPositiveRate: 0, emailLeads: 0, emailCampaignCount: 0, emailConfigured: false, campaignMonths: 0, firstLeadTs: 0, error: true }
+          return { key: company.key, name: company.name, periodLeads: 0, totalLeads: 0, weekLeads: 0, lastMonthLeads: 0, recentActivity: 0, stageCount: 0, goalPct: 0, promotePostsPerDay: 0, promoteConfigured: false, promoteTotalPosts: 0, promoteTotalImpressions: 0, promoteFollowers: 0, networkAcceptanceRate: 0, networkConfigured: false, networkInvitations: 0, networkAccepted: 0, networkMessages: 0, networkOpportunities: 0, networkFollowUps: 0, networkInmails: 0, networkPageInvites: 0, networkProfileVisits: 0, networkStraightInConfigured: false, engageMeetingsPct: 0, engageThisMonthLeads: 0, campaignMonths: 0, firstLeadTs: 0, error: true }
         }
       })
     )
@@ -3375,15 +3488,15 @@ app.get('/overview', (c) => {
                     }
                     html += '</div>';
 
-                    // EMAILING
+                    // ENGAGE (Streak pipeline)
                     html += '<div class="px-3 py-3">'
-                        + '<p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-2 text-center"><i class="fas fa-envelope text-purple-400 mr-1"></i>Emailing</p>';
-                    if (co.emailConfigured && co.emailsSent > 0) {
+                        + '<p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-2 text-center"><i class="fas fa-handshake text-green-400 mr-1"></i>Engage</p>';
+                    if (co.totalLeads > 0 || co.engageThisMonthLeads > 0) {
                         html += '<div class="space-y-0.5 text-center">'
-                            + '<p class="text-lg font-bold text-gray-800">' + (co.emailReplyRate || 0).toFixed(1) + '<span class="text-[10px] text-gray-400">%</span></p>'
-                            + '<p class="text-[10px] text-gray-400">' + fmtNum(co.emailsSent || 0) + ' sent</p>'
-                            + '<p class="text-[10px] text-gray-400">' + fmtNum(co.emailHumanReplies || 0) + ' replies</p>'
-                            + '<p class="text-[10px] text-gray-400">' + (co.emailCampaignCount || 0) + ' campaigns</p>'
+                            + '<p class="text-lg font-bold text-gray-800">' + (co.engageMeetingsPct || 0) + '<span class="text-[10px] text-gray-400">%</span></p>'
+                            + '<p class="text-[10px] text-gray-400">' + fmtNum(co.engageThisMonthLeads || 0) + ' this month</p>'
+                            + '<p class="text-[10px] text-gray-400">' + fmtNum(co.weekLeads || 0) + ' this week</p>'
+                            + '<p class="text-[10px] text-gray-400">' + fmtNum(co.totalLeads || 0) + ' total leads</p>'
                             + '</div>';
                     } else {
                         html += '<p class="text-sm text-gray-300 text-center mt-2">N/A</p>';
@@ -3512,9 +3625,6 @@ app.get('/', (c) => {
                     <button onclick="switchView('network')" class="sidebar-sub w-full flex items-center px-2 py-1.5 rounded text-xs text-blue-200 hover:bg-white/10 transition-colors">
                         <i class="fas fa-paper-plane w-4 mr-2 text-center text-[10px]"></i>Messaging
                     </button>
-                    <button onclick="switchView('network')" class="sidebar-sub w-full flex items-center px-2 py-1.5 rounded text-xs text-blue-200 hover:bg-white/10 transition-colors">
-                        <i class="fas fa-envelope w-4 mr-2 text-center text-[10px]"></i>Emailing
-                    </button>
                 </div>
                 <button onclick="switchView('engage')" id="tab-engage" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
                     <i class="fas fa-handshake w-5 mr-2.5 text-center"></i>Engage
@@ -3550,6 +3660,9 @@ app.get('/', (c) => {
                 </a>
                 <a id="open-chat-btn" href="#" target="_blank" class="hidden items-center px-3 py-1.5 rounded-lg text-[11px] font-medium text-blue-200 hover:bg-white/10 transition-colors">
                     <i class="fas fa-comments w-4 mr-2 text-center"></i>Chat
+                </a>
+                <a href="/api/auth/logout" class="flex items-center px-3 py-1.5 rounded-lg text-[11px] font-medium text-blue-200 hover:bg-white/10 transition-colors">
+                    <i class="fas fa-right-from-bracket w-4 mr-2 text-center"></i>Sign out
                 </a>
             </div>
 
@@ -3671,7 +3784,7 @@ app.get('/', (c) => {
                     </div>
 
                     <!-- Channel Summary Row -->
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                         <!-- NETWORK Summary -->
                         <div class="bg-white rounded-xl shadow p-6">
                             <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
@@ -3681,18 +3794,6 @@ app.get('/', (c) => {
                                 <div class="flex justify-between"><span class="text-gray-500">Total Invitations</span><span class="font-semibold" id="exec-net-invitations">—</span></div>
                                 <div class="flex justify-between"><span class="text-gray-500">Accepted</span><span class="font-semibold" id="exec-net-accepted">—</span></div>
                                 <div class="flex justify-between"><span class="text-gray-500">Avg Rate</span><span class="font-semibold" id="exec-net-rate">—</span></div>
-                            </div>
-                        </div>
-
-                        <!-- EMAILING Summary -->
-                        <div class="bg-white rounded-xl shadow p-6">
-                            <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                                <i class="fas fa-envelope text-indigo-500 mr-2"></i>Emailing Campaigns
-                            </h3>
-                            <div id="exec-emailing-summary" class="space-y-3">
-                                <div class="flex justify-between"><span class="text-gray-500">Emails Sent</span><span class="font-semibold" id="exec-em-sent">—</span></div>
-                                <div class="flex justify-between"><span class="text-gray-500">Human Replies</span><span class="font-semibold" id="exec-em-replies">—</span></div>
-                                <div class="flex justify-between"><span class="text-gray-500">Reply Rate</span><span class="font-semibold" id="exec-em-rate">—</span></div>
                             </div>
                         </div>
 
@@ -3706,16 +3807,6 @@ app.get('/', (c) => {
                                 <div class="flex justify-between"><span class="text-gray-500">Campaign Duration</span><span class="font-semibold" id="exec-eng-duration">—</span></div>
                                 <div class="flex justify-between"><span class="text-gray-500">Avg Leads/Month</span><span class="font-semibold" id="exec-eng-avg">—</span></div>
                             </div>
-                        </div>
-                    </div>
-
-                    <!-- Emailing Campaigns Table -->
-                    <div class="bg-white rounded-xl shadow p-6" id="exec-emailing-table-container">
-                        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                            <i class="fas fa-mail-bulk text-indigo-500 mr-2"></i>Emailing Campaign Details
-                        </h3>
-                        <div id="exec-emailing-table" class="overflow-x-auto">
-                            <p class="text-gray-400 text-sm">No emailing data configured. Add an Emailing Data URL in Settings.</p>
                         </div>
                     </div>
                 </div>
@@ -4275,27 +4366,6 @@ app.get('/', (c) => {
                             </div>
                         </div>
 
-
-                        <!-- EMAILING DATA SOURCE -->
-                        <div class="p-6 bg-indigo-50 border border-indigo-200 rounded-lg">
-                            <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-                                <i class="fas fa-envelope text-indigo-600 mr-2"></i>Emailing Campaign Data
-                                <span id="status-emailing" class="hidden ml-2 text-xs font-semibold px-2 py-1 rounded-full bg-indigo-100 text-indigo-700"><i class="fas fa-check-circle mr-1"></i>Configured</span>
-                            </h3>
-                            <div>
-                                <label class="text-sm font-medium text-gray-700">Emailing Data URL (Google Sheets):</label>
-                                <input
-                                    type="url"
-                                    id="edit-emailing-url"
-                                    placeholder="https://docs.google.com/spreadsheets/d/..."
-                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono text-sm"
-                                />
-                                <p class="text-xs text-gray-500 mt-1">
-                                    <i class="fas fa-table mr-1"></i>
-                                    CSV with columns: campaign name, emails sent, replies, human replies, positive replies, rates, targeting, leads
-                                </p>
-                            </div>
-                        </div>
 
                         <!-- SCHEDULED MESSAGES -->
                         <div class="p-6 bg-orange-50 border border-orange-200 rounded-lg">
@@ -4950,15 +5020,6 @@ app.get('/', (c) => {
                             };
                         })
                     },
-                    emailingData: {
-                        campaigns: [
-                            { name: 'Enterprise Decision Makers', emailsSent: 4250, allReplies: 340, humanReplies: 285, positiveReplies: 128, humanReplyRate: 6.7, positiveReplyRate: 3.0, targeting: 'VP/C-Suite at Fortune 500 companies in Tech & Finance', leads: 42 },
-                            { name: 'Mid-Market Growth Leaders', emailsSent: 3180, allReplies: 254, humanReplies: 210, positiveReplies: 95, humanReplyRate: 6.6, positiveReplyRate: 3.0, targeting: 'Directors at companies with 200-1000 employees in SaaS', leads: 31 },
-                            { name: 'Healthcare Innovation Heads', emailsSent: 2890, allReplies: 202, humanReplies: 175, positiveReplies: 78, humanReplyRate: 6.1, positiveReplyRate: 2.7, targeting: 'Chief Innovation Officers at healthcare systems', leads: 24 },
-                            { name: 'EMEA Expansion Targets', emailsSent: 1950, allReplies: 156, humanReplies: 130, positiveReplies: 58, humanReplyRate: 6.7, positiveReplyRate: 3.0, targeting: 'Managing Directors at European enterprises', leads: 18 }
-                        ],
-                        totals: { emailsSent: 12270, allReplies: 952, humanReplies: 800, positiveReplies: 359, humanReplyRate: 6.5, positiveReplyRate: 2.9, leads: 115 }
-                    },
                     stageDistribution: { 'Lead': 52, 'Contacted': 68, 'Engaged': 45, 'Call Scheduled': 38, 'Proposal Sent': 22, 'Negotiation': 14, 'Won': 8 },
                     originDistribution: { 'LinkedIn': 112, 'Referral': 48, 'Email Campaign': 42, 'Website': 28, 'Event': 17 },
                     fitDistribution: { 'High': 98, 'Medium': 87, 'Low': 35, 'Not Set': 27 },
@@ -5588,54 +5649,6 @@ app.get('/', (c) => {
                 document.getElementById('exec-net-invitations').textContent = network ? network.totalInvitations.toLocaleString() : 'N/A';
                 document.getElementById('exec-net-accepted').textContent = network ? (network.totalAccepted || 0).toLocaleString() : 'N/A';
                 document.getElementById('exec-net-rate').textContent = network ? network.avgAcceptanceRate.toFixed(1) + '%' : 'N/A';
-
-                // --- Emailing Summary ---
-                const emailing = currentData.emailingData;
-                if (emailing && emailing.totals) {
-                    document.getElementById('exec-em-sent').textContent = emailing.totals.emailsSent.toLocaleString();
-                    document.getElementById('exec-em-replies').textContent = emailing.totals.humanReplies.toLocaleString();
-                    const replyRate = emailing.totals.emailsSent > 0 ? ((emailing.totals.humanReplies / emailing.totals.emailsSent) * 100).toFixed(1) + '%' : '0%';
-                    document.getElementById('exec-em-rate').textContent = replyRate;
-
-                    // Build emailing table
-                    if (emailing.campaigns && emailing.campaigns.length > 0) {
-                        let tableHtml = '<table class="w-full text-sm"><thead><tr class="border-b-2 border-gray-200">';
-                        tableHtml += '<th class="text-left py-2 px-3 text-gray-600 font-semibold">Campaign</th>';
-                        tableHtml += '<th class="text-right py-2 px-3 text-gray-600 font-semibold">Emails Sent</th>';
-                        tableHtml += '<th class="text-right py-2 px-3 text-gray-600 font-semibold">Replies</th>';
-                        tableHtml += '<th class="text-right py-2 px-3 text-gray-600 font-semibold">Human Replies</th>';
-                        tableHtml += '<th class="text-right py-2 px-3 text-gray-600 font-semibold">Reply Rate</th>';
-                        tableHtml += '<th class="text-right py-2 px-3 text-gray-600 font-semibold">Leads</th>';
-                        tableHtml += '</tr></thead><tbody>';
-                        emailing.campaigns.forEach(function(c) {
-                            const rate = c.emailsSent > 0 ? ((c.humanReplies / c.emailsSent) * 100).toFixed(1) : '0';
-                            tableHtml += '<tr class="border-b border-gray-100 hover:bg-gray-50">';
-                            tableHtml += '<td class="py-2 px-3 text-gray-800 font-medium">' + c.name + '</td>';
-                            tableHtml += '<td class="py-2 px-3 text-right text-gray-600">' + c.emailsSent.toLocaleString() + '</td>';
-                            tableHtml += '<td class="py-2 px-3 text-right text-gray-600">' + c.allReplies + '</td>';
-                            tableHtml += '<td class="py-2 px-3 text-right text-gray-600">' + c.humanReplies + '</td>';
-                            tableHtml += '<td class="py-2 px-3 text-right font-semibold ' + (parseFloat(rate) > 0 ? 'text-green-600' : 'text-gray-400') + '">' + rate + '%</td>';
-                            tableHtml += '<td class="py-2 px-3 text-right font-semibold ' + (c.leads > 0 ? 'text-blue-600' : 'text-gray-400') + '">' + c.leads + '</td>';
-                            tableHtml += '</tr>';
-                        });
-                        // Totals row
-                        const totalRate = emailing.totals.emailsSent > 0 ? ((emailing.totals.humanReplies / emailing.totals.emailsSent) * 100).toFixed(1) : '0';
-                        tableHtml += '<tr class="border-t-2 border-gray-300 font-bold bg-gray-50">';
-                        tableHtml += '<td class="py-2 px-3 text-gray-900">TOTAL</td>';
-                        tableHtml += '<td class="py-2 px-3 text-right text-gray-900">' + emailing.totals.emailsSent.toLocaleString() + '</td>';
-                        tableHtml += '<td class="py-2 px-3 text-right text-gray-900">' + emailing.totals.allReplies + '</td>';
-                        tableHtml += '<td class="py-2 px-3 text-right text-gray-900">' + emailing.totals.humanReplies + '</td>';
-                        tableHtml += '<td class="py-2 px-3 text-right text-green-700">' + totalRate + '%</td>';
-                        tableHtml += '<td class="py-2 px-3 text-right text-blue-700">' + emailing.totals.leads + '</td>';
-                        tableHtml += '</tr></tbody></table>';
-                        document.getElementById('exec-emailing-table').innerHTML = tableHtml;
-                    }
-                } else {
-                    document.getElementById('exec-em-sent').textContent = 'N/A';
-                    document.getElementById('exec-em-replies').textContent = 'N/A';
-                    document.getElementById('exec-em-rate').textContent = 'N/A';
-                    document.getElementById('exec-emailing-table').innerHTML = '<p class="text-gray-400 text-sm">No emailing data configured. Add an Emailing Data URL in Settings.</p>';
-                }
 
                 // --- Engage Summary ---
                 document.getElementById('exec-eng-leads').textContent = currentData.totalBoxes || 0;
@@ -6604,13 +6617,10 @@ app.get('/', (c) => {
 
                 // Populate Google Chat fields
                 document.getElementById('edit-googlechat-url').value = company.googleChatUrl || '';
-                var emailingEl = document.getElementById('edit-emailing-url'); if (emailingEl) emailingEl.value = company.emailingUrl || '';
                 document.getElementById('edit-googlechat-webhook').value = company.googleChatWebhookUrl || '';
 
                 // Show Google Chat status badge
                 const gcBadge = document.getElementById('status-googlechat');
-                const emBadge = document.getElementById('status-emailing');
-                if (emBadge) { if (company.emailingUrl) { emBadge.classList.remove('hidden'); } else { emBadge.classList.add('hidden'); } }
                 if (company.googleChatUrl || company.googleChatWebhookUrl) {
                     gcBadge.classList.remove('hidden');
                 } else {
@@ -6640,7 +6650,6 @@ app.get('/', (c) => {
                 const networkGid = document.getElementById('edit-network-gid').value.trim();
                 const engageUrl = document.getElementById('edit-engage-url').value.trim();
                 const googleChatUrl = document.getElementById('edit-googlechat-url').value.trim();
-                const emailingUrlEl = document.getElementById('edit-emailing-url'); const emailingUrl = emailingUrlEl ? emailingUrlEl.value.trim() : '';
                 const googleChatWebhookUrl = document.getElementById('edit-googlechat-webhook').value.trim();
                 const straightInReportId = document.getElementById('edit-straightin-report-id').value.trim();
 
@@ -6677,7 +6686,7 @@ app.get('/', (c) => {
                     const res = await fetch(\`/api/companies/\${currentCompany}\`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ promoteUrl, networkUrl, networkGid, engageUrl, googleChatUrl, googleChatWebhookUrl, emailingUrl, straightInReportId, messages })
+                        body: JSON.stringify({ promoteUrl, networkUrl, networkGid, engageUrl, googleChatUrl, googleChatWebhookUrl, straightInReportId, messages })
                     });
                     const data = await res.json();
                     if (!res.ok) throw new Error(data.error || 'Save failed');
