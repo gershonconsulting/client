@@ -1437,7 +1437,7 @@ app.get('/api/companies', async (c) => {
 app.post('/api/companies', async (c) => {
   try {
     const body = await c.req.json()
-    const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, notionUrl, networkGid, key: providedKey, googleChatUrl, googleChatWebhookUrl, straightInReportId, messages } = body
+    const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, notionUrl, networkGid, key: providedKey, googleChatUrl, googleChatWebhookUrl, straightInReportId, messages, services } = body
 
     if (!name || !pipelineKey) {
       return c.json({ error: 'name and pipelineKey are required' }, 400)
@@ -1466,6 +1466,7 @@ app.post('/api/companies', async (c) => {
     if (googleChatWebhookUrl) company.googleChatWebhookUrl = googleChatWebhookUrl
     if (messages && messages.length > 0) company.messages = messages
     if (straightInReportId) company.straightInReportId = straightInReportId
+    company.services = services || { promote: true, network: true, engage: true }
 
     await c.env.COMPANIES_KV.put(`company:${key}`, JSON.stringify(company))
     return c.json({ success: true, company })
@@ -1681,7 +1682,7 @@ app.put('/api/companies/:key', async (c) => {
   try {
     const key = c.req.param('key')
     const body = await c.req.json()
-    const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, networkGid, googleChatUrl, googleChatWebhookUrl, straightInReportId, messages } = body
+    const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, networkGid, googleChatUrl, googleChatWebhookUrl, straightInReportId, messages, services } = body
 
     // Load existing company (include archived so we can restore)
     const all = await getAllCompanies(c.env.COMPANIES_KV, true)
@@ -1717,6 +1718,7 @@ app.put('/api/companies/:key', async (c) => {
       if (straightInReportId) updated.straightInReportId = straightInReportId
       else delete updated.straightInReportId
     }
+    if (services !== undefined) updated.services = services
 
     await c.env.COMPANIES_KV.put(`company:${key}`, JSON.stringify(updated))
     return c.json({ success: true, company: updated })
@@ -2094,6 +2096,7 @@ app.get('/api/analytics', async (c) => {
     return c.json({
       company: company.name,
       companyKey: companyKey,
+      services: company.services || { promote: true, network: true, engage: true },
       totalBoxes,
       campaignDurationMonths,
       firstLeadDate: firstLeadDate ? firstLeadDate.toISOString() : null,
@@ -2490,10 +2493,11 @@ app.get('/api/overview', async (c) => {
             engageThisMonthLeads: thisMonthLeads,
             campaignMonths,
             firstLeadTs,
+            services: company.services || { promote: true, network: true, engage: true },
             error: false
           }
         } catch (_err) {
-          return { key: company.key, name: company.name, periodLeads: 0, totalLeads: 0, weekLeads: 0, lastMonthLeads: 0, recentActivity: 0, stageCount: 0, goalPct: 0, promotePostsPerDay: 0, promoteConfigured: false, promoteTotalPosts: 0, promoteTotalImpressions: 0, promoteFollowers: 0, networkAcceptanceRate: 0, networkConfigured: false, networkInvitations: 0, networkAccepted: 0, networkMessages: 0, networkOpportunities: 0, networkFollowUps: 0, networkInmails: 0, networkPageInvites: 0, networkProfileVisits: 0, networkStraightInConfigured: false, engageMeetingsPct: 0, engageThisMonthLeads: 0, campaignMonths: 0, firstLeadTs: 0, error: true }
+          return { key: company.key, name: company.name, periodLeads: 0, totalLeads: 0, weekLeads: 0, lastMonthLeads: 0, recentActivity: 0, stageCount: 0, goalPct: 0, promotePostsPerDay: 0, promoteConfigured: false, promoteTotalPosts: 0, promoteTotalImpressions: 0, promoteFollowers: 0, networkAcceptanceRate: 0, networkConfigured: false, networkInvitations: 0, networkAccepted: 0, networkMessages: 0, networkOpportunities: 0, networkFollowUps: 0, networkInmails: 0, networkPageInvites: 0, networkProfileVisits: 0, networkStraightInConfigured: false, engageMeetingsPct: 0, engageThisMonthLeads: 0, campaignMonths: 0, firstLeadTs: 0, services: company.services || { promote: true, network: true, engage: true }, error: true }
         }
       })
     )
@@ -3668,7 +3672,8 @@ app.get('/overview', (c) => {
 
       var PERIOD_GOAL = { week: 2.5, 'last-month': 10, 'this-month': 10, year: 120, all: 10 };
       var TARGET_POSTS_PER_DAY = 1;
-      var TARGET_ACCEPTANCE = 30;
+      var TARGET_ACCEPTANCE = 20;
+      var TARGET_INVITES_PER_WEEK = 100;
 
       // ---------- helpers ----------
       function periodLabel(p) {
@@ -3692,14 +3697,25 @@ app.get('/overview', (c) => {
       };
       var BAND_ORDER = ['good','warn','crit','none'];
 
+      function svcOf(co) {
+        var s = co.services || {};
+        return {
+          promote: s.promote !== false,
+          network: s.network !== false,
+          engage: s.engage !== false
+        };
+      }
       function scoreCompany(co) {
         var goal = PERIOD_GOAL[currentPeriod] || 10;
-        var promote = co.promoteConfigured ? (co.promotePostsPerDay / TARGET_POSTS_PER_DAY) * 100 : null;
-        var network = co.networkConfigured ? (co.networkAcceptanceRate / TARGET_ACCEPTANCE) * 100 : null;
-        var engage  = (co.periodLeads / goal) * 100;
+        var sel = svcOf(co);
+        // A service scores only when the client subscribed to it (selected).
+        // Unselected services are excluded entirely from the efficiency average.
+        var promote = sel.promote ? (co.promoteConfigured ? (co.promotePostsPerDay / TARGET_POSTS_PER_DAY) * 100 : null) : null;
+        var network = sel.network ? (co.networkConfigured ? (co.networkAcceptanceRate / TARGET_ACCEPTANCE) * 100 : null) : null;
+        var engage  = sel.engage ? (co.periodLeads / goal) * 100 : null;
         var parts = [promote, network, engage].filter(function(v){ return v !== null; });
         var overall = parts.length ? parts.reduce(function(a,b){ return a+b; }, 0) / parts.length : null;
-        return { promote: promote, network: network, engage: engage, overall: overall, goal: goal };
+        return { promote: promote, network: network, engage: engage, overall: overall, goal: goal, sel: sel };
       }
 
       // status chip — icon + label + value, never colour alone
@@ -3825,7 +3841,7 @@ app.get('/overview', (c) => {
       function renderChannelHealth(rows) {
         var channels = [
           { key:'promote', name:'Promote', icon:'fa-bullhorn', target:'1 post / day' },
-          { key:'network', name:'Network', icon:'fa-users',    target:'30% acceptance' },
+          { key:'network', name:'Network', icon:'fa-users',    target:'20% acceptance · 100 invites/wk' },
           { key:'engage',  name:'Engage',  icon:'fa-handshake',target:(PERIOD_GOAL[currentPeriod]||10) + ' meetings' }
         ];
         var html = '';
@@ -3878,6 +3894,7 @@ app.get('/overview', (c) => {
           var m = BAND_META[b];
           var pct = r.s.overall === null ? 0 : Math.max(2, Math.min(100, r.s.overall));
           var scoreTxt = r.s.overall === null ? 'n/a' : Math.round(r.s.overall) + '%';
+          var sel = svcOf(r.co);
 
           function cell(k, label, valueTxt, tip) {
             var cb = band(r.s[k]);
@@ -3891,12 +3908,12 @@ app.get('/overview', (c) => {
             + ' style="grid-template-columns: minmax(140px,1.6fr) 1fr 1fr 1fr minmax(150px,1.4fr)">'
             + '<div class="min-w-0"><p class="text-sm font-semibold truncate" style="color:var(--ink)">' + esc(r.co.name) + '</p>'
             + '<p class="text-[11px]" style="color:var(--muted)">' + r.co.periodLeads + ' leads · ' + (r.co.campaignMonths||0) + ' mo</p></div>'
-            + cell('promote','Promote', r.co.promoteConfigured ? (r.co.promotePostsPerDay||0).toFixed(1) + '/d' : 'n/a',
-                   r.co.name + ' — Promote: ' + (r.co.promoteConfigured ? (r.co.promotePostsPerDay||0).toFixed(1) + ' posts/day against a target of 1/day (' + Math.round(r.s.promote) + '%)' : 'not set up'))
-            + cell('network','Network', r.co.networkConfigured ? Math.round(r.co.networkAcceptanceRate) + '%' : 'n/a',
-                   r.co.name + ' — Network: ' + (r.co.networkConfigured ? Math.round(r.co.networkAcceptanceRate) + '% acceptance against a 30% target (' + Math.round(r.s.network) + '%). ' + r.co.networkInvitations + ' sent, ' + r.co.networkAccepted + ' accepted' : 'not set up'))
-            + cell('engage','Engage', String(r.co.periodLeads),
-                   r.co.name + ' — Engage: ' + r.co.periodLeads + ' leads against a target of ' + r.s.goal + ' for ' + periodLabel(currentPeriod) + ' (' + Math.round(r.s.engage) + '%)')
+            + cell('promote','Promote', !sel.promote ? 'not in plan' : (r.co.promoteConfigured ? (r.co.promotePostsPerDay||0).toFixed(1) + '/d' : 'n/a'),
+                   r.co.name + ' — Promote: ' + (!sel.promote ? 'not part of this client plan' : (r.co.promoteConfigured ? (r.co.promotePostsPerDay||0).toFixed(1) + ' posts/day against a target of 1/day (' + Math.round(r.s.promote) + '%)' : 'not set up')))
+            + cell('network','Network', !sel.network ? 'not in plan' : (r.co.networkConfigured ? Math.round(r.co.networkAcceptanceRate) + '%' : 'n/a'),
+                   r.co.name + ' — Network: ' + (!sel.network ? 'not part of this client plan' : (r.co.networkConfigured ? Math.round(r.co.networkAcceptanceRate) + '% acceptance against a ' + TARGET_ACCEPTANCE + '% target (' + Math.round(r.s.network) + '%). ' + r.co.networkInvitations + ' sent, ' + r.co.networkAccepted + ' accepted' : 'not set up')))
+            + cell('engage','Engage', !sel.engage ? 'not in plan' : String(r.co.periodLeads),
+                   r.co.name + ' — Engage: ' + (!sel.engage ? 'not part of this client plan' : r.co.periodLeads + ' leads against a target of ' + r.s.goal + ' for ' + periodLabel(currentPeriod) + ' (' + Math.round(r.s.engage) + '%)'))
             + '<div class="flex items-center gap-2" tabindex="0" data-tip="' + esc(r.co.name + ' — overall ' + scoreTxt + ' (' + m.label + '), the average of its configured channels') + '">'
             + '<div class="flex-1 h-2.5 rounded-full" style="background:#f0efec">'
             + '<div class="rowbar h-2.5 rounded-full" style="width:' + pct + '%;background:' + m.color + '"></div></div>'
@@ -3924,11 +3941,12 @@ app.get('/overview', (c) => {
           + '</tr></thead><tbody>';
         sorted.forEach(function(r) {
           var b = band(r.s.overall), m = BAND_META[b];
+          var sel = svcOf(r.co);
           t += '<tr class="border-b" style="border-color:var(--grid)">'
             + '<td class="py-2 px-3 font-medium" style="color:var(--ink)">' + esc(r.co.name) + '</td>'
-            + '<td class="py-2 px-3 text-right tabular-nums" style="color:var(--ink2)">' + (r.co.promoteConfigured ? (r.co.promotePostsPerDay||0).toFixed(1) : '—') + '</td>'
-            + '<td class="py-2 px-3 text-right tabular-nums" style="color:var(--ink2)">' + (r.co.networkConfigured ? Math.round(r.co.networkAcceptanceRate) + '%' : '—') + '</td>'
-            + '<td class="py-2 px-3 text-right tabular-nums" style="color:var(--ink2)">' + r.co.periodLeads + ' / ' + r.s.goal + '</td>'
+            + '<td class="py-2 px-3 text-right tabular-nums" style="color:var(--ink2)">' + (!sel.promote ? 'n/a' : (r.co.promoteConfigured ? (r.co.promotePostsPerDay||0).toFixed(1) : '—')) + '</td>'
+            + '<td class="py-2 px-3 text-right tabular-nums" style="color:var(--ink2)">' + (!sel.network ? 'n/a' : (r.co.networkConfigured ? Math.round(r.co.networkAcceptanceRate) + '%' : '—')) + '</td>'
+            + '<td class="py-2 px-3 text-right tabular-nums" style="color:var(--ink2)">' + (!sel.engage ? 'n/a' : (r.co.periodLeads + ' / ' + r.s.goal)) + '</td>'
             + '<td class="py-2 px-3 text-right tabular-nums font-semibold" style="color:var(--ink)">' + (r.s.overall === null ? '—' : Math.round(r.s.overall) + '%') + '</td>'
             + '<td class="py-2 px-3 text-right">' + chip(b, m.label) + '</td>'
             + '</tr>';
@@ -4959,6 +4977,19 @@ app.get('/', async (c) => {
                             </div>
                         </div>
 
+                        <!-- SERVICES AGREED -->
+                        <div class="p-6 bg-slate-50 border border-slate-200 rounded-lg">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-1 flex items-center">
+                                <i class="fas fa-list-check text-slate-600 mr-2"></i>Services agreed
+                            </h3>
+                            <p class="text-xs text-gray-500 mb-3">Only selected services count toward this client's efficiency score, and only their tabs show on the client dashboard.</p>
+                            <div class="flex flex-wrap gap-4">
+                                <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-700"><input type="checkbox" id="edit-svc-promote" class="w-4 h-4">Promote</label>
+                                <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-700"><input type="checkbox" id="edit-svc-network" class="w-4 h-4">Network</label>
+                                <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-700"><input type="checkbox" id="edit-svc-engage" class="w-4 h-4">Engage</label>
+                            </div>
+                        </div>
+
                         <!-- ENGAGE Source -->
                         <div class="p-6 bg-green-50 border border-green-200 rounded-lg">
                             <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center justify-between">
@@ -5190,6 +5221,19 @@ app.get('/', async (c) => {
                                     class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 font-mono text-sm"
                                 />
                                 <p class="text-xs text-gray-500 mt-1">From the Straight-in weekly report URL</p>
+                            </div>
+
+                            <!-- Services agreed -->
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    <i class="fas fa-list-check text-slate-600 mr-2"></i>Services agreed
+                                </label>
+                                <div class="flex flex-wrap gap-4">
+                                    <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-700"><input type="checkbox" id="new-svc-promote" class="w-4 h-4" checked>Promote</label>
+                                    <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-700"><input type="checkbox" id="new-svc-network" class="w-4 h-4" checked>Network</label>
+                                    <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-700"><input type="checkbox" id="new-svc-engage" class="w-4 h-4" checked>Engage</label>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">Unchecked services are excluded from the efficiency score and hidden on the client dashboard.</p>
                             </div>
 
                             <!-- PROMOTE URL (Optional) -->
@@ -6813,10 +6857,27 @@ app.get('/', async (c) => {
                 fetchCompanyData(currentCompany);
             }
             
+            // Show/hide the Promote, Network, Engage tabs based on the services this client subscribed to.
+            function applyServiceTabs(services) {
+                var svc = services || {};
+                var map = { promote: svc.promote !== false, network: svc.network !== false, engage: svc.engage !== false };
+                Object.keys(map).forEach(function(k) {
+                    var tab = document.getElementById('tab-' + k);
+                    if (tab) tab.style.display = map[k] ? '' : 'none';
+                });
+                // If the active tab was just hidden, fall back to the Executive view.
+                var active = document.querySelector('.sidebar-nav.active');
+                if (active && active.id && /^tab-(promote|network|engage)$/.test(active.id)) {
+                    var key = active.id.replace('tab-', '');
+                    if (!map[key]) switchView('executive');
+                }
+            }
+
             // Update dashboard with new data
             function updateDashboard(data) {
                 currentData = data;
-                
+                applyServiceTabs(data.services);
+
                 // Update campaign performance summary cards
                 document.getElementById('total-boxes').textContent = data.totalBoxes;
                 document.getElementById('campaign-months').textContent = data.campaignDurationMonths || 0;
@@ -7265,6 +7326,12 @@ app.get('/', async (c) => {
                 document.getElementById('edit-straightin-report-id').value = company.straightInReportId || '';
                 document.getElementById('edit-engage-url').value = sources.engage || company.url || '';
 
+                // Populate services-agreed checkboxes (from live data; default all on)
+                var svcCfg = (currentData && currentData.services) || company.services || {};
+                document.getElementById('edit-svc-promote').checked = svcCfg.promote !== false;
+                document.getElementById('edit-svc-network').checked = svcCfg.network !== false;
+                document.getElementById('edit-svc-engage').checked = svcCfg.engage !== false;
+
                 // Populate Google Chat fields
                 document.getElementById('edit-googlechat-url').value = company.googleChatUrl || '';
                 document.getElementById('edit-googlechat-webhook').value = company.googleChatWebhookUrl || '';
@@ -7302,6 +7369,11 @@ app.get('/', async (c) => {
                 const googleChatUrl = document.getElementById('edit-googlechat-url').value.trim();
                 const googleChatWebhookUrl = document.getElementById('edit-googlechat-webhook').value.trim();
                 const straightInReportId = document.getElementById('edit-straightin-report-id').value.trim();
+                const services = {
+                    promote: document.getElementById('edit-svc-promote').checked,
+                    network: document.getElementById('edit-svc-network').checked,
+                    engage: document.getElementById('edit-svc-engage').checked
+                };
 
                 // Validate URLs if provided
                 if (promoteUrl && !isValidURL(promoteUrl)) {
@@ -7336,7 +7408,7 @@ app.get('/', async (c) => {
                     const res = await fetch(\`/api/companies/\${currentCompany}\`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ promoteUrl, networkUrl, networkGid, engageUrl, googleChatUrl, googleChatWebhookUrl, straightInReportId, messages })
+                        body: JSON.stringify({ promoteUrl, networkUrl, networkGid, engageUrl, googleChatUrl, googleChatWebhookUrl, straightInReportId, messages, services })
                     });
                     const data = await res.json();
                     if (!res.ok) throw new Error(data.error || 'Save failed');
@@ -7347,6 +7419,9 @@ app.get('/', async (c) => {
                     company.sources.network = networkUrl;
                     company.sources.engage = engageUrl || company.url;
                     company.straightInReportId = straightInReportId;
+                    company.services = services;
+                    if (currentData) currentData.services = services;
+                    applyServiceTabs(services);
                     if (networkGid) { company.networkSheetGid = networkGid; } else { delete company.networkSheetGid; }
                     if (engageUrl) company.url = engageUrl;
                     company.googleChatUrl = googleChatUrl || '';
@@ -7420,6 +7495,11 @@ app.get('/', async (c) => {
                 const promoteUrl = document.getElementById('new-promote-url').value.trim();
                 const googleChatUrl = document.getElementById('new-googlechat-url').value.trim();
                 const googleChatWebhookUrl = document.getElementById('new-googlechat-webhook').value.trim();
+                const services = {
+                    promote: document.getElementById('new-svc-promote').checked,
+                    network: document.getElementById('new-svc-network').checked,
+                    engage: document.getElementById('new-svc-engage').checked
+                };
 
                 // Validate required fields
                 if (!name || !key || !pipelineKey || !engageUrl) {
@@ -7461,7 +7541,7 @@ app.get('/', async (c) => {
                     const res = await fetch('/api/companies', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name, pipelineKey, networkUrl, promoteUrl, engageUrl, networkGid, key, googleChatUrl, googleChatWebhookUrl, straightInReportId })
+                        body: JSON.stringify({ name, pipelineKey, networkUrl, promoteUrl, engageUrl, networkGid, key, googleChatUrl, googleChatWebhookUrl, straightInReportId, services })
                     });
                     const data = await res.json();
                     if (!res.ok) throw new Error(data.error || 'Failed to add company');
