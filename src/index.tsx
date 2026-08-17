@@ -1110,6 +1110,10 @@ async function fetchStraightInData(reportId: string) {
       prevAccepted: prevTotals.accepted || 0,
       prevMessages: prevTotals.messages || 0,
       prevOpportunityCount: prevTotals.opportunityCount || 0,
+      prevAcceptanceRate: prevTotals.acceptanceRate || 0,
+      periodStart: data?.periodStart || data?.snapshot?.periodStart || '',
+      periodEnd: data?.periodEnd || data?.snapshot?.periodEnd || '',
+      periodLabel: data?.snapshot?.periodLabel || '',
       deltas,
       funnel,
       opportunities,
@@ -1118,6 +1122,45 @@ async function fetchStraightInData(reportId: string) {
   } catch (error) {
     console.error('Error fetching Straight-in data:', error)
     return null
+  }
+}
+
+// Map a Straight-in campaign report into the shape the Network view/exec dashboard expect.
+// Straight-in reports are period snapshots (current cumulative totals + the previous report's
+// totals), so we surface Current-vs-Previous rather than a weekly time series.
+function buildNetworkFromStraightIn(si: any) {
+  if (!si) return null
+  const objective = 20 // Network view acceptance objective (%)
+  const rate = Number(si.acceptanceRate) || 0
+  const prevRate = Number(si.prevAcceptanceRate) || 0
+  const fmtDate = (d: string) => {
+    if (!d) return ''
+    const dt = new Date(d)
+    return isNaN(dt.getTime()) ? '' : dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
+  const curFrom = fmtDate(si.periodStart)
+  const curTo = fmtDate(si.periodEnd)
+  const curPeriod = si.periodLabel || (curFrom ? (curTo ? curFrom + ' – ' + curTo : curFrom) : 'Current')
+  return {
+    source: 'straightin',
+    totalInvitations: si.connectionsSent || 0,
+    totalAccepted: si.accepted || 0,
+    avgAcceptanceRate: rate,
+    networkObjective: objective,
+    objectiveAchievement: Math.round((rate / objective) * 1000) / 10,
+    totalMessages: si.messages || 0,
+    totalFollowUps: si.followUps || 0,
+    totalOpportunities: si.opportunityCount || 0,
+    thisWeek: { invitations: si.connectionsSent || 0, acceptance: rate },
+    lastWeek: { invitations: si.prevConnectionsSent || 0, acceptance: prevRate },
+    thisWeekLabel: 'Current Report',
+    lastWeekLabel: 'Previous Report',
+    recentWeeks: [
+      { week: '1', from: 'Previous', to: 'report', invitations: si.prevConnectionsSent || 0, messages: si.prevMessages || 0, acceptance: prevRate, opportunities: si.prevOpportunityCount || 0 },
+      { week: '2', from: curFrom || 'Current', to: curTo || 'report', invitations: si.connectionsSent || 0, messages: si.messages || 0, acceptance: rate, opportunities: si.opportunityCount || 0 }
+    ],
+    periodLabel: curPeriod,
+    allData: [1, 2]
   }
 }
 
@@ -2034,12 +2077,18 @@ app.get('/api/analytics', async (c) => {
       }
     }
     
-    // Fetch network data if available for this company
-    // Priority: networkSheetGid (raw GID) → sources.network (full URL with any sheet)
+    // Fetch network data for this company.
+    // Priority: Straight-in campaign report (primary) → Google Sheet (fallback).
     let networkData = null
-    const networkSource = company.networkSheetGid || company.sources?.network
-    if (networkSource) {
-      networkData = await fetchNetworkData(networkSource)
+    if (company.straightInReportId) {
+      const si = await fetchStraightInData(company.straightInReportId).catch(() => null)
+      if (si) networkData = buildNetworkFromStraightIn(si)
+    }
+    if (!networkData) {
+      const networkSource = company.networkSheetGid || company.sources?.network
+      if (networkSource) {
+        networkData = await fetchNetworkData(networkSource)
+      }
     }
 
     return c.json({
@@ -6683,7 +6732,7 @@ app.get('/', async (c) => {
                         <div class="bg-white rounded-lg shadow p-6">
                             <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
                                 <i class="fas fa-calendar-day text-blue-600 mr-2"></i>
-                                This Week
+                                \${network.thisWeekLabel || 'This Week'}
                             </h3>
                             <div class="space-y-3">
                                 <div class="flex justify-between items-center">
@@ -6701,7 +6750,7 @@ app.get('/', async (c) => {
                         <div class="bg-white rounded-lg shadow p-6">
                             <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
                                 <i class="fas fa-calendar-week text-indigo-600 mr-2"></i>
-                                Last Week
+                                \${network.lastWeekLabel || 'Last Week'}
                             </h3>
                             <div class="space-y-3">
                                 <div class="flex justify-between items-center">
