@@ -121,6 +121,9 @@ app.use('/static/*', serveStatic({ root: './public' }))
 // Streak API configuration
 let streakApiKey: string = ''
 const STREAK_API_BASE = 'https://www.streak.com/api/v1'
+// Promote channel is fed from social.gershoncrm.com (per-client social posts,
+// engagement and follower snapshots). No auth — single-user app, public API.
+const SOCIAL_API_BASE = 'https://social.gershoncrm.com'
 
 // Authorized admin emails
 const ADMIN_EMAILS = [
@@ -619,7 +622,10 @@ async function collectReportData(kv: any) {
     if (company.archived) continue
     if (!company.pipelineKey) continue
 
+    const services = company.services || { promote: true, network: true, engage: true }
+
     try {
+      // ── Engage (Streak) ──────────────────────────────────────────────
       const [pipeline, boxes] = await Promise.all([
         callStreakAPI(`/pipelines/${company.pipelineKey}`),
         callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`)
@@ -630,329 +636,350 @@ async function collectReportData(kv: any) {
       const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000
       const oneMonthAgo = now - 30 * 24 * 60 * 60 * 1000
 
-      // Count new leads this week and this month
-      const newThisWeek = allBoxes.filter((b: any) => b.createdTimestamp > oneWeekAgo).length
-      const newThisMonth = allBoxes.filter((b: any) => b.createdTimestamp > oneMonthAgo).length
+      // creationTimestamp is the correct Streak field (createdTimestamp is always
+      // undefined — the old bug that zeroed every "new leads" count).
+      const newThisWeek = allBoxes.filter((b: any) => (b.creationTimestamp || 0) > oneWeekAgo).length
+      const newThisMonth = allBoxes.filter((b: any) => (b.creationTimestamp || 0) > oneMonthAgo).length
 
-      // Stage distribution
+      // Stage list + Fit/Interest field resolution
       const stageMap = pipeline.stageOrder || []
       const stages = Array.isArray(stageMap) ? stageMap.map((key: string) => ({
-        key,
-        name: pipeline.stages?.[key]?.name || 'Unknown'
+        key, name: pipeline.stages?.[key]?.name || 'Unknown'
       })) : []
+      const fields = Array.isArray(pipeline.fields) ? pipeline.fields : []
+      const fitField = fields.find((f: any) => f && f.name === FIT_FIELD)
+      const interestField = fields.find((f: any) => f && f.name === INTEREST_FIELD)
 
       const stageDistribution: Record<string, number> = {}
+      const funnel: Record<string, number> = { contacted: 0, connected: 0, meeting: 0, proposal: 0, won: 0, recycled: 0 }
+      const fitDist: Record<string, number> = {}
+      const interestDist: Record<string, number> = {}
+
+      const dropName = (field: any, box: any) => {
+        if (!field || !box.fields || !box.fields[field.key]) return null
+        const items = field.dropdownSettings?.items
+        const item = Array.isArray(items) ? items.find((i: any) => i && i.key === box.fields[field.key]) : null
+        return item ? item.name : null
+      }
+
       allBoxes.forEach((box: any) => {
         const stage = stages.find((s: any) => s.key === box.stageKey)
         const stageName = stage ? stage.name : 'Unknown'
         stageDistribution[stageName] = (stageDistribution[stageName] || 0) + 1
+        funnel[classifyStage(stageName)] = (funnel[classifyStage(stageName)] || 0) + 1
+        const fit = dropName(fitField, box) || 'Not Set'
+        fitDist[fit] = (fitDist[fit] || 0) + 1
+        const interest = dropName(interestField, box) || 'Not Set'
+        interestDist[interest] = (interestDist[interest] || 0) + 1
       })
 
-      // Calculate campaign duration in months
-      const oldestBox = allBoxes.reduce((oldest: any, box: any) => {
-        return (!oldest || box.createdTimestamp < oldest.createdTimestamp) ? box : oldest
-      }, null)
-      const campaignStartMs = oldestBox ? oldestBox.createdTimestamp : now
-      const campaignMonths = Math.max(1, Math.round((now - campaignStartMs) / (30 * 24 * 60 * 60 * 1000)))
+      const activeLeads = allBoxes.length - (funnel.recycled || 0)
+      const meetingsPlus = (funnel.meeting || 0) + (funnel.proposal || 0) + (funnel.won || 0)
+      const contactedBase = allBoxes.length - (funnel.recycled || 0)
+      const convToMeeting = contactedBase > 0 ? Math.round((meetingsPlus / contactedBase) * 1000) / 10 : 0
+      const highFit = fitDist['High'] || 0
+      const highInterest = interestDist['High'] || 0
+
+      // Campaign duration
+      const timestamps = allBoxes.map((b: any) => b.creationTimestamp).filter((t: any) => t)
+      const campaignStartMs = timestamps.length ? Math.min(...timestamps) : now
+      const campaignMonths = Math.max(1, Math.round((now - campaignStartMs) / (30.44 * 24 * 60 * 60 * 1000)))
 
       // Freshness
       const highFreshness = allBoxes.filter((b: any) => (b.freshness || 0) > 0.5).length
       const medFreshness = allBoxes.filter((b: any) => (b.freshness || 0) >= 0.2 && (b.freshness || 0) <= 0.5).length
       const lowFreshness = allBoxes.filter((b: any) => (b.freshness || 0) < 0.2).length
 
+      // ── Network (Straight-in) ────────────────────────────────────────
+      let network: any = null
+      if (services.network !== false && company.straightInReportId) {
+        const si = await fetchStraightInData(company.straightInReportId).catch(() => null)
+        if (si && si.configured) {
+          network = {
+            configured: true,
+            invitations: si.connectionsSent || 0,
+            accepted: si.accepted || 0,
+            acceptanceRate: Math.round((si.acceptanceRate || 0) * 10) / 10,
+            messages: si.messages || 0,
+            opportunities: si.opportunityCount || 0,
+            followUps: si.followUps || 0,
+            profileVisits: si.profileVisits || 0,
+            prevInvitations: si.prevConnectionsSent || 0,
+            prevAccepted: si.prevAccepted || 0,
+            prevAcceptanceRate: Math.round((si.prevAcceptanceRate || 0) * 10) / 10,
+            periodLabel: si.periodLabel || '',
+          }
+        }
+      }
+
+      // ── Promote (social.gershoncrm.com) ──────────────────────────────
+      let promote: any = null
+      if (services.promote !== false) {
+        promote = await fetchSocialData(company).catch(() => null)
+      }
+
       results.push({
         key: company.key,
         name: company.name,
+        services,
+        // Engage
         totalLeads: allBoxes.length,
+        activeLeads,
         newThisWeek,
         newThisMonth,
         avgLeadsPerMonth: Math.round((allBoxes.length / campaignMonths) * 10) / 10,
         campaignMonths,
         stageDistribution,
+        funnel,
+        convToMeeting,
+        meetingsPlus,
+        highFit,
+        highInterest,
+        fitDistribution: fitDist,
+        interestDistribution: interestDist,
         freshness: { high: highFreshness, medium: medFreshness, low: lowFreshness },
-        pipelineUrl: company.url || `https://www.streak.com/a/pipelines/${company.pipelineKey}`
+        pipelineUrl: company.url || `https://www.streak.com/a/pipelines/${company.pipelineKey}`,
+        // Network + Promote
+        network,
+        promote,
       })
     } catch (err) {
       results.push({
-        key: company.key,
-        name: company.name,
+        key: company.key, name: company.name, services,
         error: (err as Error).message,
-        totalLeads: 0,
-        newThisWeek: 0,
-        newThisMonth: 0,
-        avgLeadsPerMonth: 0,
-        campaignMonths: 0,
-        stageDistribution: {},
-        freshness: { high: 0, medium: 0, low: 0 },
-        pipelineUrl: ''
+        totalLeads: 0, activeLeads: 0, newThisWeek: 0, newThisMonth: 0,
+        avgLeadsPerMonth: 0, campaignMonths: 0, stageDistribution: {},
+        funnel: { contacted: 0, connected: 0, meeting: 0, proposal: 0, won: 0, recycled: 0 },
+        convToMeeting: 0, meetingsPlus: 0, highFit: 0, highInterest: 0,
+        fitDistribution: {}, interestDistribution: {},
+        freshness: { high: 0, medium: 0, low: 0 }, pipelineUrl: '',
+        network: null, promote: null,
       })
     }
   }
 
   return results
 }
+// ── Comprehensive three-channel report ────────────────────────────────────────
+// One document, one section per client, every number pulled in (no "open this
+// link to see the data"). Promote = social.gershoncrm.com, Network = Straight-in,
+// Engage = Streak. Used by the in-app Report view and the weekly/monthly emails.
 
-function generateWeeklyReportHtml(data: any[], weekLabel: string) {
-  const totalNewLeads = data.reduce((sum: number, d: any) => sum + d.newThisWeek, 0)
-  const totalTarget = data.filter((d: any) => !d.error).length * 2.5
-  const overallPct = totalTarget > 0 ? Math.round((totalNewLeads / totalTarget) * 100) : 0
-
-  // Sort by performance (new leads this week, descending)
-  const sorted = [...data].sort((a: any, b: any) => b.newThisWeek - a.newThisWeek)
-
-  const statusEmoji = overallPct >= 100 ? '🟢' : overallPct >= 75 ? '🟡' : '🔴'
-  const statusLabel = overallPct >= 100 ? 'ON TRACK' : overallPct >= 75 ? 'CLOSE' : 'BEHIND'
-
-  const companyRows = sorted.map((company: any) => {
-    const weeklyTarget = 2.5
-    const pct = Math.round((company.newThisWeek / weeklyTarget) * 100)
-    const barColor = pct >= 100 ? '#22c55e' : pct >= 75 ? '#eab308' : '#ef4444'
-    const barWidth = Math.min(pct, 100)
-    const dot = pct >= 100 ? '🟢' : pct >= 75 ? '🟡' : '🔴'
-
-    if (company.error) {
-      return `<tr>
-        <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9;font-weight:600;color:#334155;">${company.name}</td>
-        <td colspan="4" style="padding:12px 16px;border-bottom:1px solid #f1f5f9;color:#ef4444;font-size:13px;">⚠️ Error: ${company.error}</td>
-      </tr>`
-    }
-
-    // Top stages
-    const topStages = Object.entries(company.stageDistribution)
-      .sort((a: any, b: any) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([name, count]: [string, any]) => `${name}: ${count}`)
-      .join(', ')
-
-    return `<tr>
-      <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9;">
-        <div style="font-weight:600;color:#334155;">${company.name}</div>
-        <div style="font-size:11px;color:#94a3b8;margin-top:2px;">${company.totalLeads} total leads · ${company.campaignMonths}mo</div>
-      </td>
-      <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9;text-align:center;">
-        <span style="font-size:20px;font-weight:700;color:#334155;">${company.newThisWeek}</span>
-        <div style="font-size:11px;color:#94a3b8;">/ 2.5 target</div>
-      </td>
-      <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9;text-align:center;">
-        <span style="font-size:13px;font-weight:600;">${dot} ${pct}%</span>
-        <div style="background:#f1f5f9;border-radius:4px;height:6px;margin-top:4px;width:100px;">
-          <div style="background:${barColor};border-radius:4px;height:6px;width:${barWidth}px;"></div>
-        </div>
-      </td>
-      <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9;font-size:12px;color:#64748b;">
-        ${topStages || 'N/A'}
-      </td>
-      <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9;text-align:center;">
-        <span style="font-size:12px;color:#22c55e;font-weight:600;">${company.freshness.high}</span>
-        <span style="font-size:12px;color:#94a3b8;"> / </span>
-        <span style="font-size:12px;color:#eab308;">${company.freshness.medium}</span>
-        <span style="font-size:12px;color:#94a3b8;"> / </span>
-        <span style="font-size:12px;color:#ef4444;">${company.freshness.low}</span>
-      </td>
-    </tr>`
-  }).join('')
-
-  return `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
-<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-<div style="max-width:680px;margin:0 auto;padding:20px;">
-
-  <!-- Header -->
-  <div style="background:linear-gradient(135deg,#6366f1,#4f46e5);border-radius:12px 12px 0 0;padding:32px;text-align:center;">
-    <div style="font-size:14px;color:rgba(255,255,255,0.7);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">Gershon.AI</div>
-    <h1 style="margin:0;color:#fff;font-size:24px;font-weight:700;">Weekly Performance Report</h1>
-    <p style="margin:8px 0 0;color:rgba(255,255,255,0.8);font-size:14px;">${weekLabel}</p>
-  </div>
-
-  <!-- Overall Score -->
-  <div style="background:#fff;padding:28px;border-left:1px solid #e2e8f0;border-right:1px solid #e2e8f0;">
-    <div style="text-align:center;">
-      <div style="font-size:13px;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Portfolio Weekly Target</div>
-      <div style="font-size:48px;font-weight:800;color:${overallPct >= 100 ? '#22c55e' : overallPct >= 75 ? '#eab308' : '#ef4444'};">${overallPct}%</div>
-      <div style="display:inline-block;padding:4px 16px;border-radius:20px;font-size:12px;font-weight:700;letter-spacing:1px;
-        background:${overallPct >= 100 ? '#f0fdf4' : overallPct >= 75 ? '#fefce8' : '#fef2f2'};
-        color:${overallPct >= 100 ? '#16a34a' : overallPct >= 75 ? '#ca8a04' : '#dc2626'};">
-        ${statusEmoji} ${statusLabel}
-      </div>
-      <div style="margin-top:12px;font-size:14px;color:#64748b;">
-        <strong>${totalNewLeads}</strong> new leads this week across <strong>${data.filter((d: any) => !d.error).length}</strong> companies
-        <br/>Target: <strong>${totalTarget}</strong> leads/week (2.5 per company)
-      </div>
-    </div>
-  </div>
-
-  <!-- Company Breakdown -->
-  <div style="background:#fff;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;overflow:hidden;">
-    <div style="padding:16px 16px 8px;border-bottom:2px solid #6366f1;">
-      <h2 style="margin:0;font-size:16px;color:#334155;">Company Breakdown</h2>
-    </div>
-    <table style="width:100%;border-collapse:collapse;">
-      <thead>
-        <tr style="background:#f8fafc;">
-          <th style="padding:10px 16px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Company</th>
-          <th style="padding:10px 16px;text-align:center;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">New Leads</th>
-          <th style="padding:10px 16px;text-align:center;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">vs Target</th>
-          <th style="padding:10px 16px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Top Stages</th>
-          <th style="padding:10px 16px;text-align:center;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Freshness</th>
-        </tr>
-      </thead>
-      <tbody>${companyRows}</tbody>
-    </table>
-  </div>
-
-  <!-- Footer -->
-  <div style="text-align:center;padding:24px;font-size:12px;color:#94a3b8;">
-    <p style="margin:0;">Sent by <strong>Client by Gershon.AI</strong> · <a href="https://client.gershoncrm.com" style="color:#6366f1;">Open Dashboard</a></p>
-    <p style="margin:4px 0 0;">Target: 10 leads/month per company (2.5/week) · Freshness: 🟢 High / 🟡 Medium / 🔴 Low</p>
-  </div>
-
-</div>
-</body>
-</html>`
+const _fmt = (n: number) => (n == null ? '0' : Number(n).toLocaleString('en-US'))
+const _pctColor = (p: number) => p >= 100 ? '#16a34a' : p >= 60 ? '#ca8a04' : '#dc2626'
+const _delta = (cur: number, prev: number) => {
+  const d = (cur || 0) - (prev || 0)
+  if (!prev && !cur) return ''
+  const up = d >= 0
+  return `<span style="font-size:11px;color:${up ? '#16a34a' : '#dc2626'};font-weight:600;">${up ? '▲' : '▼'} ${_fmt(Math.abs(d))}</span>`
 }
 
-function generateMonthlyReportHtml(data: any[], monthLabel: string) {
-  const totalNewLeads = data.reduce((sum: number, d: any) => sum + d.newThisMonth, 0)
-  const activeCompanies = data.filter((d: any) => !d.error).length
-  const totalTarget = activeCompanies * 10
-  const overallPct = totalTarget > 0 ? Math.round((totalNewLeads / totalTarget) * 100) : 0
-
-  const sorted = [...data].sort((a: any, b: any) => b.newThisMonth - a.newThisMonth)
-
-  const topPerformer = sorted.find((d: any) => !d.error)
-  const needsAttention = [...sorted].reverse().find((d: any) => !d.error && d.newThisMonth < 10)
-
-  const statusEmoji = overallPct >= 100 ? '🟢' : overallPct >= 75 ? '🟡' : '🔴'
-
-  const companyCards = sorted.map((company: any) => {
-    if (company.error) {
-      return `<div style="background:#fff;border:1px solid #fecaca;border-radius:8px;padding:16px;margin-bottom:12px;">
-        <div style="font-weight:600;color:#334155;">${company.name}</div>
-        <div style="color:#ef4444;font-size:13px;margin-top:4px;">⚠️ ${company.error}</div>
-      </div>`
-    }
-
-    const pct = Math.round((company.newThisMonth / 10) * 100)
-    const barColor = pct >= 100 ? '#22c55e' : pct >= 75 ? '#eab308' : '#ef4444'
-    const barWidth = Math.min(pct, 100)
-    const dot = pct >= 100 ? '🟢' : pct >= 75 ? '🟡' : '🔴'
-
-    const stageEntries = Object.entries(company.stageDistribution)
-      .sort((a: any, b: any) => b[1] - a[1])
-    const stageRows = stageEntries.map(([name, count]: [string, any]) =>
-      `<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:12px;"><span style="color:#64748b;">${name}</span><span style="font-weight:600;color:#334155;">${count}</span></div>`
-    ).join('')
-
-    return `<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:20px;margin-bottom:12px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <div>
-          <div style="font-weight:700;font-size:16px;color:#334155;">${company.name}</div>
-          <div style="font-size:12px;color:#94a3b8;">${company.totalLeads} total leads · Campaign: ${company.campaignMonths} months · Avg: ${company.avgLeadsPerMonth}/mo</div>
-        </div>
-        <div style="text-align:right;">
-          <div style="font-size:24px;font-weight:800;color:${barColor};">${pct}%</div>
-          <div style="font-size:11px;color:#94a3b8;">${dot} of target</div>
-        </div>
-      </div>
-
-      <!-- Progress bar -->
-      <div style="background:#f1f5f9;border-radius:6px;height:8px;margin-bottom:16px;">
-        <div style="background:${barColor};border-radius:6px;height:8px;width:${barWidth}%;transition:width 0.3s;"></div>
-      </div>
-
-      <div style="display:flex;gap:24px;">
-        <div style="flex:1;">
-          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Monthly Leads</div>
-          <div style="font-size:28px;font-weight:700;color:#334155;">${company.newThisMonth} <span style="font-size:14px;color:#94a3b8;font-weight:400;">/ 10</span></div>
-        </div>
-        <div style="flex:1;">
-          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Freshness Score</div>
-          <div style="font-size:13px;">
-            <span style="color:#22c55e;font-weight:600;">●${company.freshness.high} active</span>&nbsp;
-            <span style="color:#eab308;font-weight:600;">●${company.freshness.medium} warm</span>&nbsp;
-            <span style="color:#ef4444;font-weight:600;">●${company.freshness.low} cold</span>
-          </div>
-        </div>
-      </div>
-
-      ${stageRows ? `<div style="margin-top:12px;padding-top:12px;border-top:1px solid #f1f5f9;">
-        <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Pipeline Stages</div>
-        ${stageRows}
-      </div>` : ''}
-    </div>`
+function funnelBarHtml(funnel: any) {
+  const total = FUNNEL_ORDER.reduce((s, k) => s + (funnel[k] || 0), 0) || 1
+  const colors: Record<string, string> = {
+    contacted: '#93c5fd', connected: '#60a5fa', meeting: '#6366f1',
+    proposal: '#8b5cf6', won: '#22c55e', recycled: '#e2e8f0'
+  }
+  const segs = FUNNEL_ORDER.filter(k => (funnel[k] || 0) > 0).map(k => {
+    const w = Math.max(2, Math.round(((funnel[k] || 0) / total) * 100))
+    return `<td style="width:${w}%;background:${colors[k]};height:22px;text-align:center;font-size:10px;color:${k === 'recycled' ? '#64748b' : '#fff'};font-weight:700;" title="${FUNNEL_LABELS[k]}">${funnel[k]}</td>`
   }).join('')
+  const legend = FUNNEL_ORDER.filter(k => (funnel[k] || 0) > 0).map(k =>
+    `<span style="font-size:10px;color:#64748b;margin-right:10px;"><span style="display:inline-block;width:8px;height:8px;background:${colors[k]};border-radius:2px;margin-right:3px;"></span>${FUNNEL_LABELS[k]}</span>`
+  ).join('')
+  return `<table style="width:100%;border-collapse:collapse;border-radius:5px;overflow:hidden;"><tr>${segs}</tr></table><div style="margin-top:6px;">${legend}</div>`
+}
+
+function metric(label: string, value: string, sub?: string, color?: string) {
+  return `<div style="flex:1;min-width:78px;padding:8px 6px;">
+    <div style="font-size:19px;font-weight:800;color:${color || '#1e293b'};line-height:1.1;">${value}</div>
+    <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.4px;margin-top:2px;">${label}</div>
+    ${sub ? `<div style="font-size:10px;color:#94a3b8;margin-top:1px;">${sub}</div>` : ''}
+  </div>`
+}
+
+function channelHeader(icon: string, name: string, source: string, on: boolean) {
+  return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:${on ? '#f1f5f9' : '#f8fafc'};border-bottom:1px solid #e2e8f0;">
+    <div style="font-size:13px;font-weight:700;color:#334155;">${icon} ${name}</div>
+    <div style="font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;">${source}</div>
+  </div>`
+}
+
+function promotePanel(p: any, period: string) {
+  if (!p || !p.configured) {
+    return channelHeader('📣', 'Promote', 'social', false) +
+      `<div style="padding:14px 12px;font-size:12px;color:#94a3b8;">No social account tracked for this client.</div>`
+  }
+  const posts = period === 'week' ? p.postsThisWeek : p.posts30
+  const eng = period === 'week' ? p.engagement7 : p.engagement30
+  const windowLbl = period === 'week' ? 'last 7d' : 'last 30d'
+  const foll = period === 'week' ? p.followersGrowth7 : p.followersGrowth30
+  const plats = p.platformNames.map((n: string) => n.charAt(0) + n.slice(1).toLowerCase()).join(' + ')
+  const top = (p.topPosts && p.topPosts[0]) ? p.topPosts[0] : null
+  return channelHeader('📣', 'Promote', 'social', true) +
+    `<div style="display:flex;flex-wrap:wrap;padding:6px 6px;">
+      ${metric('Posts', _fmt(posts), windowLbl, '#0ea5e9')}
+      ${metric('Engagement', _fmt(eng), 'likes+comments+shares', '#0ea5e9')}
+      ${metric('Followers', _fmt(p.followersTotal), `${foll >= 0 ? '+' : ''}${_fmt(foll)} ${windowLbl}`, '#0ea5e9')}
+      ${metric('Posts/wk', String(p.avgPostsPerWeek), 'avg', '#0ea5e9')}
+    </div>
+    ${plats ? `<div style="padding:0 12px 6px;font-size:10px;color:#94a3b8;">${plats}</div>` : ''}
+    ${top ? `<div style="margin:0 12px 10px;padding:8px 10px;background:#f0f9ff;border-radius:6px;">
+        <div style="font-size:9px;color:#0369a1;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">Top post · ${_fmt(top.engagement)} eng</div>
+        <div style="font-size:11px;color:#334155;margin-top:3px;">${(top.snippet || '').replace(/</g,'&lt;').slice(0, 120)}${(top.snippet||'').length>120?'…':''}</div>
+      </div>` : ''}`
+}
+
+function networkPanel(n: any, period: string) {
+  if (!n || !n.configured) {
+    return channelHeader('🤝', 'Network', 'Straight-in', false) +
+      `<div style="padding:14px 12px;font-size:12px;color:#94a3b8;">No Straight-in campaign report connected.</div>`
+  }
+  const objective = 20
+  const pct = objective > 0 ? Math.round((n.acceptanceRate / objective) * 100) : 0
+  return channelHeader('🤝', 'Network', 'Straight-in', true) +
+    `<div style="display:flex;flex-wrap:wrap;padding:6px 6px;">
+      ${metric('Invitations', _fmt(n.invitations), _delta(n.invitations, n.prevInvitations) || 'sent', '#6366f1')}
+      ${metric('Accepted', _fmt(n.accepted), _delta(n.accepted, n.prevAccepted) || '', '#6366f1')}
+      ${metric('Accept rate', `${n.acceptanceRate}%`, `vs ${objective}% goal`, _pctColor(pct))}
+      ${metric('Messages', _fmt(n.messages), '', '#6366f1')}
+    </div>
+    <div style="display:flex;flex-wrap:wrap;padding:0 6px 6px;">
+      ${metric('Opportunities', _fmt(n.opportunities), '', '#8b5cf6')}
+      ${metric('Follow-ups', _fmt(n.followUps), '', '#94a3b8')}
+      ${metric('Profile visits', _fmt(n.profileVisits), '', '#94a3b8')}
+      ${n.periodLabel ? `<div style="flex:1;min-width:120px;padding:8px 6px;"><div style="font-size:10px;color:#94a3b8;">Period</div><div style="font-size:11px;color:#64748b;font-weight:600;">${n.periodLabel}</div></div>` : '<div style="flex:1;min-width:78px;"></div>'}
+    </div>`
+}
+
+function engagePanel(d: any, period: string) {
+  const newLeads = period === 'week' ? d.newThisWeek : d.newThisMonth
+  const target = period === 'week' ? 2.5 : 10
+  const pct = Math.round((newLeads / target) * 100)
+  const windowLbl = period === 'week' ? 'this week' : 'this month'
+  return channelHeader('💬', 'Engage', 'Streak CRM', true) +
+    `<div style="display:flex;flex-wrap:wrap;padding:6px 6px;">
+      ${metric('New leads', _fmt(newLeads), `${windowLbl} · ${pct}% of ${target}`, _pctColor(pct))}
+      ${metric('Active', _fmt(d.activeLeads), `${_fmt(d.totalLeads)} total`, '#334155')}
+      ${metric('→ Meeting', `${d.convToMeeting}%`, `${_fmt(d.meetingsPlus)} in play`, '#22c55e')}
+      ${metric('High fit/int', `${_fmt(d.highFit)}/${_fmt(d.highInterest)}`, '', '#7c3aed')}
+    </div>
+    <div style="padding:4px 12px 12px;">
+      <div style="font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">Pipeline funnel</div>
+      ${funnelBarHtml(d.funnel)}
+    </div>`
+}
+
+function clientSection(d: any, period: string) {
+  if (d.error) {
+    return `<div style="background:#fff;border:1px solid #fecaca;border-radius:10px;padding:16px;margin-bottom:16px;">
+      <div style="font-weight:700;color:#334155;font-size:15px;">${d.name}</div>
+      <div style="color:#dc2626;font-size:12px;margin-top:4px;">⚠️ ${d.error}</div>
+    </div>`
+  }
+  const svc = d.services || {}
+  const badge = (on: boolean, txt: string) =>
+    `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:9px;font-weight:700;letter-spacing:.3px;margin-left:5px;background:${on ? '#eef2ff' : '#f1f5f9'};color:${on ? '#4f46e5' : '#cbd5e1'};">${txt}</span>`
+  const panel = (inner: string) => `<td valign="top" style="width:33.33%;background:#fff;border:1px solid #e2e8f0;border-radius:8px;">${inner}</td>`
+  const spacer = `<td style="width:10px;"></td>`
+  return `<div style="margin-bottom:18px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:0 2px 8px;">
+      <div>
+        <span style="font-size:16px;font-weight:800;color:#1e293b;">${d.name}</span>
+        ${badge(svc.promote !== false, 'Promote')}${badge(svc.network !== false, 'Network')}${badge(svc.engage !== false, 'Engage')}
+      </div>
+      <div style="font-size:11px;color:#94a3b8;">${d.campaignMonths}mo · ${_fmt(d.totalLeads)} leads · ${d.avgLeadsPerMonth}/mo avg</div>
+    </div>
+    <table style="width:100%;border-collapse:separate;border-spacing:0;"><tr>
+      ${panel(promotePanel(d.promote, period))}
+      ${spacer}
+      ${panel(networkPanel(d.network, period))}
+      ${spacer}
+      ${panel(engagePanel(d, period))}
+    </tr></table>
+  </div>`
+}
+
+interface ReportOpts { label: string; period: 'week' | 'month'; title?: string; only?: string | null }
+
+function generateComprehensiveReportHtml(data: any[], opts: ReportOpts) {
+  const period = opts.period
+  const scoped = opts.only ? data.filter(d => d.key === opts.only) : data
+  const active = scoped.filter(d => !d.error)
+
+  // Portfolio totals for the period
+  const totNewLeads = active.reduce((s, d) => s + (period === 'week' ? d.newThisWeek : d.newThisMonth), 0)
+  const totInvites = active.reduce((s, d) => s + (d.network?.invitations || 0), 0)
+  const totAccepted = active.reduce((s, d) => s + (d.network?.accepted || 0), 0)
+  const acceptRate = totInvites > 0 ? Math.round((totAccepted / totInvites) * 1000) / 10 : 0
+  const totPosts = active.reduce((s, d) => s + (d.promote ? (period === 'week' ? d.promote.postsThisWeek : d.promote.posts30) : 0), 0)
+  const totEng = active.reduce((s, d) => s + (d.promote ? (period === 'week' ? d.promote.engagement7 : d.promote.engagement30) : 0), 0)
+  const totOpps = active.reduce((s, d) => s + (d.network?.opportunities || 0), 0)
+  const totMeetings = active.reduce((s, d) => s + (d.meetingsPlus || 0), 0)
+
+  const leadTarget = active.length * (period === 'week' ? 2.5 : 10)
+  const overallPct = leadTarget > 0 ? Math.round((totNewLeads / leadTarget) * 100) : 0
+  const statusEmoji = overallPct >= 100 ? '🟢' : overallPct >= 60 ? '🟡' : '🔴'
+
+  // Sort: worst performers surface in the needs-attention list; sections ordered by leads
+  const sorted = [...scoped].sort((a, b) => (b.totalLeads || 0) - (a.totalLeads || 0))
+  const attention = active
+    .map(d => ({ d, pct: Math.round(((period === 'week' ? d.newThisWeek : d.newThisMonth) / (period === 'week' ? 2.5 : 10)) * 100) }))
+    .filter(x => x.pct < 60)
+    .sort((a, b) => a.pct - b.pct)
+    .slice(0, 8)
+
+  const title = opts.title || (opts.only ? `${scoped[0]?.name || 'Client'} — Full Report` : 'Client Performance Report')
+
+  const scoreCard = (icon: string, label: string, big: string, sub: string, color: string) =>
+    `<td valign="top" style="width:33.33%;padding:14px 12px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;">
+      <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px;">${icon} ${label}</div>
+      <div style="font-size:26px;font-weight:800;color:${color};margin-top:4px;line-height:1;">${big}</div>
+      <div style="font-size:11px;color:#64748b;margin-top:4px;">${sub}</div>
+    </td>`
 
   return `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
-<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-<div style="max-width:680px;margin:0 auto;padding:20px;">
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1e293b;">
+<div style="max-width:960px;margin:0 auto;padding:20px 16px 40px;">
 
-  <!-- Header -->
-  <div style="background:linear-gradient(135deg,#6366f1,#4f46e5);border-radius:12px 12px 0 0;padding:32px;text-align:center;">
-    <div style="font-size:14px;color:rgba(255,255,255,0.7);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">Gershon.AI</div>
-    <h1 style="margin:0;color:#fff;font-size:24px;font-weight:700;">Monthly Performance Report</h1>
-    <p style="margin:8px 0 0;color:rgba(255,255,255,0.8);font-size:14px;">${monthLabel}</p>
+  <div style="background:linear-gradient(135deg,#4f46e5,#7c3aed);border-radius:14px;padding:26px 28px;color:#fff;">
+    <div style="font-size:12px;color:rgba(255,255,255,.75);letter-spacing:2px;text-transform:uppercase;">Gershon.AI · Promote · Network · Engage</div>
+    <h1 style="margin:6px 0 2px;font-size:24px;font-weight:800;">${title}</h1>
+    <div style="font-size:13px;color:rgba(255,255,255,.85);">${opts.label} · ${statusEmoji} ${overallPct}% of lead target</div>
   </div>
 
-  <!-- Executive Summary -->
-  <div style="background:#fff;padding:28px;border-left:1px solid #e2e8f0;border-right:1px solid #e2e8f0;">
-    <div style="text-align:center;margin-bottom:24px;">
-      <div style="font-size:13px;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Monthly Target Achievement</div>
-      <div style="font-size:56px;font-weight:800;color:${overallPct >= 100 ? '#22c55e' : overallPct >= 75 ? '#eab308' : '#ef4444'};">${overallPct}%</div>
-      <div style="font-size:15px;color:#64748b;margin-top:8px;">
-        ${statusEmoji} <strong>${totalNewLeads}</strong> new leads across <strong>${activeCompanies}</strong> active companies
-        <br/>Monthly target: <strong>${totalTarget}</strong> leads (10 per company)
-      </div>
-    </div>
+  ${!opts.only ? `<table style="width:100%;border-collapse:separate;border-spacing:10px 14px;margin:2px 0 6px;"><tr>
+    ${scoreCard('📣', 'Promote', _fmt(totPosts), `${_fmt(totEng)} engagements`, '#0ea5e9')}
+    ${scoreCard('🤝', 'Network', _fmt(totInvites), `${_fmt(totAccepted)} accepted · ${acceptRate}% · ${_fmt(totOpps)} opps`, '#6366f1')}
+    ${scoreCard('💬', 'Engage', _fmt(totNewLeads), `new leads · ${_fmt(totMeetings)} in meeting+`, '#22c55e')}
+  </tr></table>
+  <div style="font-size:11px;color:#94a3b8;padding:0 4px 14px;">${active.length} active clients${period === 'week' ? ' · last 7 days' : ' · last 30 days'}</div>` : ''}
 
-    <!-- Quick Stats -->
-    <div style="display:flex;gap:12px;text-align:center;">
-      <div style="flex:1;background:#f0fdf4;border-radius:8px;padding:12px;">
-        <div style="font-size:20px;font-weight:700;color:#16a34a;">${data.filter((d: any) => !d.error && d.newThisMonth >= 10).length}</div>
-        <div style="font-size:11px;color:#16a34a;">Hit Target</div>
-      </div>
-      <div style="flex:1;background:#fefce8;border-radius:8px;padding:12px;">
-        <div style="font-size:20px;font-weight:700;color:#ca8a04;">${data.filter((d: any) => !d.error && d.newThisMonth >= 7.5 && d.newThisMonth < 10).length}</div>
-        <div style="font-size:11px;color:#ca8a04;">Close (75%+)</div>
-      </div>
-      <div style="flex:1;background:#fef2f2;border-radius:8px;padding:12px;">
-        <div style="font-size:20px;font-weight:700;color:#dc2626;">${data.filter((d: any) => !d.error && d.newThisMonth < 7.5).length}</div>
-        <div style="font-size:11px;color:#dc2626;">Behind</div>
-      </div>
-      <div style="flex:1;background:#f8fafc;border-radius:8px;padding:12px;">
-        <div style="font-size:20px;font-weight:700;color:#334155;">${data.reduce((sum: number, d: any) => sum + d.totalLeads, 0)}</div>
-        <div style="font-size:11px;color:#64748b;">Total Pipeline</div>
-      </div>
-    </div>
+  ${sorted.map(d => clientSection(d, period)).join('')}
 
-    ${topPerformer ? `<div style="margin-top:16px;padding:12px 16px;background:#f0fdf4;border-radius:8px;border-left:3px solid #22c55e;">
-      <span style="font-size:13px;color:#16a34a;font-weight:600;">🏆 Top Performer:</span>
-      <span style="font-size:13px;color:#334155;"> ${topPerformer.name} — ${topPerformer.newThisMonth} new leads this month (${Math.round((topPerformer.newThisMonth / 10) * 100)}% of target)</span>
-    </div>` : ''}
+  ${!opts.only && attention.length ? `<div style="background:#fff;border:1px solid #fecaca;border-radius:10px;padding:16px 18px;margin-top:6px;">
+    <div style="font-size:14px;font-weight:800;color:#b91c1c;margin-bottom:8px;">🔴 Needs attention (${period === 'week' ? 'weekly' : 'monthly'} lead target)</div>
+    ${attention.map(x => `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #fef2f2;font-size:12px;">
+      <span style="color:#334155;font-weight:600;">${x.d.name}</span>
+      <span style="color:#dc2626;">${x.pct}% · ${_fmt(period === 'week' ? x.d.newThisWeek : x.d.newThisMonth)} new lead${(period === 'week' ? x.d.newThisWeek : x.d.newThisMonth) === 1 ? '' : 's'}</span>
+    </div>`).join('')}
+  </div>` : ''}
 
-    ${needsAttention ? `<div style="margin-top:8px;padding:12px 16px;background:#fef2f2;border-radius:8px;border-left:3px solid #ef4444;">
-      <span style="font-size:13px;color:#dc2626;font-weight:600;">⚠️ Needs Attention:</span>
-      <span style="font-size:13px;color:#334155;"> ${needsAttention.name} — only ${needsAttention.newThisMonth} leads (${Math.round((needsAttention.newThisMonth / 10) * 100)}% of target)</span>
-    </div>` : ''}
+  <div style="text-align:center;padding:24px 0 0;font-size:11px;color:#94a3b8;">
+    <p style="margin:0;">Client by <strong>Gershon.AI</strong> · Promote (social.gershoncrm.com) · Network (Straight-in) · Engage (Streak)</p>
+    <p style="margin:4px 0 0;">Generated ${new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</p>
   </div>
 
-  <!-- Company Cards -->
-  <div style="background:#f8fafc;padding:20px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;">
-    <h2 style="margin:0 0 16px;font-size:16px;color:#334155;">Company Details</h2>
-    ${companyCards}
-  </div>
+</div></body></html>`
+}
 
-  <!-- Footer -->
-  <div style="text-align:center;padding:24px;font-size:12px;color:#94a3b8;">
-    <p style="margin:0;">Sent by <strong>Client by Gershon.AI</strong> · <a href="https://client.gershoncrm.com" style="color:#6366f1;">Open Dashboard</a></p>
-    <p style="margin:4px 0 0;">Monthly target: 10 leads per company · Freshness: Active (>0.5) / Warm (0.2-0.5) / Cold (<0.2)</p>
-  </div>
-
-</div>
-</body>
-</html>`
+// Backwards-compatible wrappers used by the email-send endpoints.
+function generateWeeklyReportHtml(data: any[], weekLabel: string) {
+  return generateComprehensiveReportHtml(data, { label: weekLabel, period: 'week', title: 'Weekly Performance Report' })
+}
+function generateMonthlyReportHtml(data: any[], monthLabel: string) {
+  return generateComprehensiveReportHtml(data, { label: monthLabel, period: 'month', title: 'Monthly Performance Report' })
 }
 
 // Helper function to fetch and parse Network data from Google Sheets
@@ -2307,15 +2334,261 @@ async function fetchPromoteData(promoteUrl: string) {
   return { platforms: result }
 }
 
+// ── Promote channel: social.gershoncrm.com ────────────────────────────────────
+// Cache the social client roster for one request-batch so we resolve name→id once.
+let _socialClientsCache: { at: number; list: any[] } | null = null
+async function getSocialClients(): Promise<any[]> {
+  const now = Date.now()
+  if (_socialClientsCache && (now - _socialClientsCache.at) < 5 * 60 * 1000) {
+    return _socialClientsCache.list
+  }
+  try {
+    const res = await fetch(`${SOCIAL_API_BASE}/api/clients?light=1`)
+    if (!res.ok) throw new Error(`social /api/clients ${res.status}`)
+    const raw = await res.json() as any
+    const list = Array.isArray(raw) ? raw : (raw.clients || raw.data || [])
+    _socialClientsCache = { at: now, list }
+    return list
+  } catch (e) {
+    return []
+  }
+}
+
+function normName(s: string): string {
+  return String(s || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/\b(sarl|sas|sa|ag|inc|llc|ltd|corp|gmbh|group|north america|na)\b/g, '')
+    .replace(/[^a-z0-9]+/g, '')
+    .trim()
+}
+
+// Resolve a CRM company to its social.gershoncrm.com client.
+// Priority: explicit company.socialClientId → company.socialSlug → fuzzy name/slug match.
+async function resolveSocialClient(company: any): Promise<any | null> {
+  const clients = await getSocialClients()
+  if (!clients.length) return null
+  if (company.socialClientId) {
+    const byId = clients.find((c: any) => c.id === company.socialClientId)
+    if (byId) return byId
+  }
+  if (company.socialSlug) {
+    const bySlug = clients.find((c: any) => c.slug === company.socialSlug)
+    if (bySlug) return bySlug
+  }
+  const target = normName(company.name)
+  // Exact normalized name match first
+  let hit = clients.find((c: any) => normName(c.name) === target)
+  if (hit) return hit
+  // Slug-normalized match
+  hit = clients.find((c: any) => normName(c.slug) === target)
+  if (hit) return hit
+  // Prefix/contains match (both directions), longest name wins to avoid false hits
+  const candidates = clients
+    .filter((c: any) => {
+      const n = normName(c.name)
+      return target.length >= 4 && (n.startsWith(target) || target.startsWith(n))
+    })
+    .sort((a: any, b: any) => normName(b.name).length - normName(a.name).length)
+  return candidates[0] || null
+}
+
+// Pull comprehensive Promote metrics for one CRM company from social.gershoncrm.com.
+// Returns null when the company has no matching social client.
+async function fetchSocialData(company: any): Promise<any | null> {
+  const sc = await resolveSocialClient(company)
+  if (!sc) return null
+  try {
+    const [a30, a7, foll] = await Promise.all([
+      fetch(`${SOCIAL_API_BASE}/api/analytics/summary?clientId=${sc.id}&days=30`).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`${SOCIAL_API_BASE}/api/analytics/summary?clientId=${sc.id}&days=7`).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`${SOCIAL_API_BASE}/api/followers?clientId=${sc.id}`).then(r => r.ok ? r.json() : null).catch(() => null),
+    ])
+    const d30 = (a30 && a30.data) || {}
+    const d7 = (a7 && a7.data) || {}
+    const t30 = d30.totals || { posts: 0, likes: 0, comments: 0, shares: 0, engagement: 0 }
+    const t7 = d7.totals || { posts: 0, likes: 0, comments: 0, shares: 0, engagement: 0 }
+
+    // Followers: latest count per platform + 7/30-day deltas.
+    const summary = (foll && foll.data && foll.data.summary) || {}
+    let followersTotal = 0, followersGrowth30 = 0, followersGrowth7 = 0
+    const followerPlatforms: any[] = []
+    for (const [plat, v] of Object.entries(summary) as any[]) {
+      const count = v.count || 0
+      followersTotal += count
+      if (typeof v.previous30 === 'number') followersGrowth30 += (count - v.previous30)
+      if (typeof v.previous7 === 'number') followersGrowth7 += (count - v.previous7)
+      followerPlatforms.push({
+        platform: plat, count,
+        growth7: typeof v.previous7 === 'number' ? count - v.previous7 : null,
+        growth30: typeof v.previous30 === 'number' ? count - v.previous30 : null,
+        date: v.date || ''
+      })
+    }
+
+    const platformsOut: Record<string, any> = {}
+    for (const [plat, v] of Object.entries(d30.byPlatform || {}) as any[]) {
+      platformsOut[plat] = {
+        posts: v.posts || 0, likes: v.likes || 0, comments: v.comments || 0, shares: v.shares || 0,
+        engagement: (v.likes || 0) + (v.comments || 0) + (v.shares || 0)
+      }
+    }
+
+    const postsThisWeek = t7.posts || 0
+    const avgPostsPerWeek = Math.round(((t30.posts || 0) / 30 * 7) * 10) / 10
+
+    return {
+      configured: true,
+      clientId: sc.id,
+      clientName: sc.name,
+      clientSlug: sc.slug,
+      // 30-day window
+      posts30: t30.posts || 0,
+      likes30: t30.likes || 0,
+      comments30: t30.comments || 0,
+      shares30: t30.shares || 0,
+      engagement30: t30.engagement || ((t30.likes || 0) + (t30.comments || 0) + (t30.shares || 0)),
+      // 7-day window
+      postsThisWeek,
+      engagement7: t7.engagement || ((t7.likes || 0) + (t7.comments || 0) + (t7.shares || 0)),
+      avgPostsPerWeek,
+      platforms: platformsOut,
+      platformNames: Object.keys(platformsOut),
+      followersTotal,
+      followersGrowth7,
+      followersGrowth30,
+      followerPlatforms,
+      topPosts: (d30.topPosts || []).slice(0, 3).map((p: any) => ({
+        platform: p.platform, url: p.postUrl, snippet: p.textSnippet || '',
+        engagement: p.totalEngagement || 0, date: p.publishedDateLocal || ''
+      })),
+    }
+  } catch (e) {
+    return null
+  }
+}
+
+// Build the Promote-view shape (per platform time series) from social.gershoncrm.com,
+// so the existing Promote dashboard renders social data with no UI change.
+// Returns { platforms: {...} } compatible with fetchPromoteData, or null if no match.
+async function fetchPromoteFromSocial(company: any): Promise<any | null> {
+  const sc = await resolveSocialClient(company)
+  if (!sc) return null
+  try {
+    const [a30, foll] = await Promise.all([
+      fetch(`${SOCIAL_API_BASE}/api/analytics/summary?clientId=${sc.id}&days=30`).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`${SOCIAL_API_BASE}/api/followers?clientId=${sc.id}`).then(r => r.ok ? r.json() : null).catch(() => null),
+    ])
+    const d = (a30 && a30.data) || {}
+    const byPlatform = d.byPlatform || {}
+    const postsByDay = d.postsByDay || []
+    const snaps = (foll && foll.data && foll.data.snapshots) || []
+    const fsummary = (foll && foll.data && foll.data.summary) || {}
+
+    // followers time series per platform, keyed by date
+    const follByPlat: Record<string, { date: string, followers: number }[]> = {}
+    for (const s of snaps) {
+      if (!follByPlat[s.platform]) follByPlat[s.platform] = []
+      follByPlat[s.platform].push({ date: s.snapshotDateLocal, followers: s.followerCount || 0 })
+    }
+
+    const platforms: Record<string, any> = {}
+    const allPlats = new Set<string>([...Object.keys(byPlatform), ...Object.keys(fsummary)])
+    for (const P of allPlats) {
+      const key = P.toLowerCase()               // 'linkedin' | 'twitter' — matches UI tab keys
+      const tot = byPlatform[P] || { posts: 0, likes: 0, comments: 0, shares: 0 }
+      const totalEngagements = (tot.likes || 0) + (tot.comments || 0) + (tot.shares || 0)
+
+      // daily series: posts from postsByDay, followers from snapshots
+      const follSeries = (follByPlat[P] || []).sort((a, b) => a.date.localeCompare(b.date))
+      const follAt = (date: string) => {
+        let v = 0
+        for (const f of follSeries) { if (f.date <= date) v = f.followers; else break }
+        return v
+      }
+      const dailyData = postsByDay.map((day: any) => ({
+        date: day.date,
+        followers: follAt(day.date),
+        posts: (day.byPlatform && day.byPlatform[P]) || 0,
+        impressions: 0, engagements: 0, reach: 0
+      }))
+
+      // weekly breakdown (ISO week, Monday)
+      const weeksMap: Record<string, any> = {}
+      dailyData.forEach((r: any) => {
+        const dt = new Date(r.date); const day = dt.getDay()
+        const monday = new Date(dt); monday.setDate(dt.getDate() - (day === 0 ? 6 : day - 1))
+        const wk = monday.toISOString().split('T')[0]
+        if (!weeksMap[wk]) weeksMap[wk] = { week: wk, posts: 0, impressions: 0, engagements: 0, reach: 0, netGrowth: 0 }
+        weeksMap[wk].posts += r.posts
+      })
+      const weeklyBreakdown = Object.values(weeksMap).sort((a: any, b: any) => a.week.localeCompare(b.week))
+      const weeksCount = weeklyBreakdown.length || 1
+
+      const fsum = fsummary[P] || {}
+      const followersEnd = fsum.count || (follSeries.length ? follSeries[follSeries.length - 1].followers : 0)
+      const followersStart = typeof fsum.previous30 === 'number' ? fsum.previous30 : (follSeries.length ? follSeries[0].followers : 0)
+      const followersGrowth = followersEnd - followersStart
+      const followersGrowthPct = followersStart > 0 ? +((followersGrowth / followersStart) * 100).toFixed(1) : 0
+
+      platforms[key] = {
+        followersStart, followersEnd, followersGrowth, followersGrowthPct,
+        latestFollowers: followersEnd,
+        totalPosts: tot.posts || 0,
+        avgPostsPerWeek: +((tot.posts || 0) / weeksCount).toFixed(1),
+        totalImpressions: 0, totalReach: 0,
+        totalEngagements, totalLikes: tot.likes || 0, totalComments: tot.comments || 0, totalShares: tot.shares || 0,
+        avgEngRate: 0,
+        weeklyBreakdown, dailyData,
+        dateRange: dailyData.length ? { from: dailyData[0].date, to: dailyData[dailyData.length - 1].date } : { from: '', to: '' },
+        source: 'social'
+      }
+    }
+    return { platforms, source: 'social', socialClient: { id: sc.id, name: sc.name } }
+  } catch (e) {
+    return null
+  }
+}
+
+// ── Engage funnel normalization ───────────────────────────────────────────────
+// Stage names differ per client (WON / NDA Signed / Quote Sent / Declined / …),
+// so raw stage comparison across clients is meaningless. Map each stage to a
+// normalized funnel step by keyword so the report can show one consistent funnel.
+const FUNNEL_RULES: { step: string; match: RegExp }[] = [
+  { step: 'won',        match: /\b(won|client|signed|closed won|nda signed)\b/i },
+  { step: 'proposal',   match: /\b(proposal|quote|negotiat|contract|offer)\b/i },
+  { step: 'meeting',    match: /\b(call scheduled|meeting|demo|engaged|call booked|scheduled)\b/i },
+  { step: 'connected',  match: /\b(connected|replied|responded|reconnect|later stage|lead\b|interested)\b/i },
+  { step: 'contacted',  match: /\b(contacted|reached out|invited|outreach|messaged|sent)\b/i },
+  { step: 'recycled',   match: /\b(recycl|declined|lost|not interested|dead|closed lost|dnc)\b/i },
+]
+function classifyStage(stageName: string): string {
+  const s = stageName || ''
+  for (const r of FUNNEL_RULES) if (r.match.test(s)) return r.step
+  return 'contacted'
+}
+const FUNNEL_ORDER = ['contacted', 'connected', 'meeting', 'proposal', 'won', 'recycled']
+const FUNNEL_LABELS: Record<string, string> = {
+  contacted: 'Contacted', connected: 'Connected', meeting: 'Meeting',
+  proposal: 'Proposal', won: 'Won', recycled: 'Recycled'
+}
+
+
 app.get('/api/promote', async (c) => {
   try {
     const companyKey = c.req.query('company') || 'mabsilico'
     const company = await getCompany(c.env.COMPANIES_KV, companyKey)
     if (!company) return c.json({ error: 'Company not found' }, 404)
+    // Primary source: social.gershoncrm.com (matched by client name/slug).
+    const social = await fetchPromoteFromSocial(company).catch(() => null)
+    if (social && Object.keys(social.platforms || {}).length) return c.json(social)
+    // Fallback: legacy Google Sheet if one is configured.
     const promoteUrl = company.sources?.promote || ''
-    if (!promoteUrl) return c.json({ error: 'No promote URL configured for this company' }, 404)
-    const data = await fetchPromoteData(promoteUrl)
-    return c.json(data)
+    if (promoteUrl) {
+      const data = await fetchPromoteData(promoteUrl)
+      return c.json(data)
+    }
+    return c.json({ error: `No social account tracked for "${company.name}" on social.gershoncrm.com, and no Promote sheet configured.` }, 404)
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
   }
@@ -2362,12 +2635,16 @@ app.get('/api/overview', async (c) => {
           const networkGid = company.networkSheetGid || (company.sources?.network || '')
 
           const straightInReportId = company.straightInReportId || ''
-          const [boxes, promoteData, networkData, straightInData] = await Promise.all([
+          const [boxes, promoteSocial, promoteSheet, networkData, straightInData] = await Promise.all([
             callStreakAPI(`/pipelines/${company.pipelineKey}/boxes`).catch(() => []),
+            fetchPromoteFromSocial(company).catch(() => null),
             promoteUrl ? fetchPromoteData(promoteUrl).catch(() => ({ platforms: {} })) : Promise.resolve({ platforms: {} }),
             networkGid ? fetchNetworkData(networkGid).catch(() => ({ avgAcceptanceRate: 0, totalInvitations: 0, totalAccepted: 0 })) : Promise.resolve({ avgAcceptanceRate: 0, totalInvitations: 0, totalAccepted: 0 }),
             straightInReportId ? fetchStraightInData(straightInReportId).catch(() => null) : Promise.resolve(null)
           ])
+          // Prefer social; fall back to legacy sheet.
+          const promoteData = (promoteSocial && Object.keys(promoteSocial.platforms || {}).length) ? promoteSocial : promoteSheet
+          const promoteHasData = !!(promoteData && promoteData.platforms && Object.keys(promoteData.platforms).length)
 
           const allBoxes = Array.isArray(boxes) ? boxes : []
           const totalLeads = allBoxes.length
@@ -2415,7 +2692,7 @@ app.get('/api/overview', async (c) => {
           // --- KPI: Promote — posts per day (target: 1/day) ---
           let promotePostsPerDay = 0
           let promoteConfigured = false
-          if (promoteUrl && promoteData.platforms) {
+          if (promoteHasData) {
             promoteConfigured = true
             // Sum across all platforms
             let totalPosts = 0, totalDays = 0
@@ -2444,7 +2721,7 @@ app.get('/api/overview', async (c) => {
 
           // Promote totals
           let promoteTotalPosts = 0, promoteTotalImpressions = 0, promoteFollowers = 0
-          if (promoteUrl && promoteData.platforms) {
+          if (promoteHasData) {
             for (const plat of Object.values(promoteData.platforms) as any[]) {
               promoteTotalPosts += plat.totalPosts || 0
               promoteTotalImpressions += plat.totalImpressions || 0
@@ -2634,6 +2911,25 @@ app.get('/api/admin/streak-pipelines', async (c) => {
 // ── Report Endpoints ──────────────────────────────────────────────
 
 // Preview weekly report (HTML in browser)
+// Comprehensive three-channel report (HTML). ?period=week|month, ?company=KEY for
+// a single-client full report (omit for the whole portfolio). This is what the
+// in-app Report tab loads and what the emails render.
+app.get('/api/reports/comprehensive', async (c) => {
+  try {
+    const period = (c.req.query('period') === 'week' ? 'week' : 'month') as 'week' | 'month'
+    const only = c.req.query('company') || null
+    const data = await collectReportData(c.env.COMPANIES_KV)
+    const now = new Date()
+    const label = period === 'week'
+      ? `Week of ${new Date(now.getTime() - 7 * 864e5).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+      : now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    const html = generateComprehensiveReportHtml(data, { label, period, only })
+    return c.html(html)
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
 app.get('/api/reports/weekly', async (c) => {
   try {
     const data = await collectReportData(c.env.COMPANIES_KV)
@@ -4307,7 +4603,7 @@ app.get('/', async (c) => {
                 <button onclick="switchView('print')" id="tab-print" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
                     <i class="fas fa-file-export w-5 mr-2.5 text-center"></i>Export
                 </button>
-                <button onclick="switchView('print')" id="tab-report" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
+                <button onclick="switchView('report')" id="tab-report" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
                     <i class="fas fa-chart-bar w-5 mr-2.5 text-center"></i>Report
                 </button>
                 <button onclick="switchView('settings')" id="tab-settings" class="sidebar-nav w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10 mb-0.5 transition-colors">
@@ -4859,6 +5155,32 @@ app.get('/', async (c) => {
                 </div>
 
             </div>
+
+                <!-- Comprehensive Report View -->
+                <div id="view-report" class="view-content hidden">
+                    <div class="bg-white rounded-lg shadow p-4 mb-4">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <h2 class="text-xl font-bold text-gray-800"><i class="fas fa-chart-bar mr-2 text-indigo-600"></i>Comprehensive Report</h2>
+                                <p class="text-sm text-gray-500 mt-0.5">Promote · Network · Engage — every number pulled in, per client.</p>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <div class="inline-flex rounded-lg border border-gray-300 overflow-hidden text-sm">
+                                    <button id="rpt-scope-client" onclick="setReportScope('client')" class="px-3 py-1.5 font-medium bg-indigo-600 text-white">This client</button>
+                                    <button id="rpt-scope-all" onclick="setReportScope('all')" class="px-3 py-1.5 font-medium bg-white text-gray-600">All clients</button>
+                                </div>
+                                <div class="inline-flex rounded-lg border border-gray-300 overflow-hidden text-sm">
+                                    <button id="rpt-period-month" onclick="setReportPeriod('month')" class="px-3 py-1.5 font-medium bg-indigo-600 text-white">Monthly</button>
+                                    <button id="rpt-period-week" onclick="setReportPeriod('week')" class="px-3 py-1.5 font-medium bg-white text-gray-600">Weekly</button>
+                                </div>
+                                <button onclick="openReportNewTab()" class="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium"><i class="fas fa-external-link-alt mr-1"></i>Open</button>
+                                <button onclick="printReportFrame()" class="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium"><i class="fas fa-print mr-1"></i>Print</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="report-loading" class="text-center py-16 text-gray-400"><i class="fas fa-spinner fa-spin text-2xl"></i><p class="mt-2 text-sm">Pulling Promote, Network and Engage data…</p></div>
+                    <iframe id="report-frame" class="w-full rounded-lg border border-gray-200 bg-white hidden" style="height:calc(100vh - 180px);min-height:600px;" title="Comprehensive report"></iframe>
+                </div>
 
             <!-- Settings View -->
             <div id="view-settings" class="view-content hidden">
@@ -5934,6 +6256,12 @@ app.get('/', async (c) => {
                 activeTab.classList.add('active', 'bg-white/15', 'text-white');
                 activeTab.classList.remove('text-blue-100');
                 
+                // The comprehensive report loads its own data via iframe — no
+                // dependency on currentData (the per-client analytics payload).
+                if (viewName === 'report') {
+                    renderReportView();
+                }
+
                 // Render view-specific content
                 if (currentData) {
                     if (viewName === 'print') {
@@ -5950,6 +6278,41 @@ app.get('/', async (c) => {
                         loadPromoteData();
                     }
                 }
+            }
+
+            // ── Comprehensive Report View ─────────────────────────────────────
+            let reportScope = 'client';   // 'client' | 'all'
+            let reportPeriod = 'month';   // 'month' | 'week'
+            function reportUrl() {
+                let u = '/api/reports/comprehensive?period=' + reportPeriod;
+                if (reportScope === 'client' && currentCompany) u += '&company=' + encodeURIComponent(currentCompany);
+                return u;
+            }
+            function renderReportView() {
+                const frame = document.getElementById('report-frame');
+                const loading = document.getElementById('report-loading');
+                if (!frame) return;
+                loading.classList.remove('hidden');
+                frame.classList.add('hidden');
+                frame.onload = () => { loading.classList.add('hidden'); frame.classList.remove('hidden'); };
+                frame.src = reportUrl();
+            }
+            function setReportScope(s) {
+                reportScope = s;
+                document.getElementById('rpt-scope-client').className = 'px-3 py-1.5 font-medium ' + (s==='client'?'bg-indigo-600 text-white':'bg-white text-gray-600');
+                document.getElementById('rpt-scope-all').className = 'px-3 py-1.5 font-medium ' + (s==='all'?'bg-indigo-600 text-white':'bg-white text-gray-600');
+                renderReportView();
+            }
+            function setReportPeriod(p) {
+                reportPeriod = p;
+                document.getElementById('rpt-period-month').className = 'px-3 py-1.5 font-medium ' + (p==='month'?'bg-indigo-600 text-white':'bg-white text-gray-600');
+                document.getElementById('rpt-period-week').className = 'px-3 py-1.5 font-medium ' + (p==='week'?'bg-indigo-600 text-white':'bg-white text-gray-600');
+                renderReportView();
+            }
+            function openReportNewTab() { window.open(reportUrl(), '_blank'); }
+            function printReportFrame() {
+                const f = document.getElementById('report-frame');
+                if (f && f.contentWindow) { f.contentWindow.focus(); f.contentWindow.print(); }
             }
 
             // ── PROMOTE Section ───────────────────────────────────────────────
