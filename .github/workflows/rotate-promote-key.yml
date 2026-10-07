@@ -1,0 +1,64 @@
+name: Rotate Promote key (client <-> social)
+
+# Generates ONE random key inside the runner and stores it as a Cloudflare
+# Pages secret on both projects, so no human (and no AI) ever sees or types it:
+#   gershoncrm-client  -> SOCIAL_PROMOTE_KEY  (sent by socialFetch() in src/index.tsx)
+#   gershoncrm-social  -> PROMOTE_API_KEY     (checked by /api/report/promote)
+# Then redeploys the client so the new secret is live, and waits until the
+# social side accepts the key (social picks it up on its next deployment).
+#
+# Re-run from the Actions tab (workflow_dispatch) any time to rotate the key.
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/rotate-promote-key.yml']
+  workflow_dispatch:
+
+jobs:
+  rotate:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate key and store it on both Pages projects
+        run: |
+          KEY=$(openssl rand -hex 32)
+          echo "::add-mask::$KEY"
+          echo "PROMOTE_KEY=$KEY" >> "$GITHUB_ENV"
+          echo "$KEY" | npx wrangler pages secret put SOCIAL_PROMOTE_KEY --project-name gershoncrm-client
+          echo "$KEY" | npx wrangler pages secret put PROMOTE_API_KEY --project-name gershoncrm-social
+          echo "Key stored on gershoncrm-client and gershoncrm-social."
+
+      - name: Rebuild and redeploy client so the secret is live
+        run: |
+          npm run build
+          npx wrangler pages deploy dist --project-name gershoncrm-client --commit-dirty=true
+
+      - name: Wait for social to accept the key (needs its next deployment)
+        run: |
+          for i in $(seq 1 40); do
+            CODE=$(curl -s -o /tmp/r.json -w "%{http_code}" \
+              -H "Authorization: Bearer $PROMOTE_KEY" \
+              "https://social.gershoncrm.com/api/report/promote?resource=clients")
+            if [ "$CODE" = "200" ]; then
+              echo "Social accepted the key. Clients visible to client.gershoncrm.com:"
+              node -e "const d=require('/tmp/r.json').data||[];console.log(d.length);console.log(d.map(c=>c.name).join(', '))"
+              exit 0
+            fi
+            echo "attempt $i: social answered $CODE, waiting 30s"
+            sleep 30
+          done
+          echo "Social never accepted the key within 20 minutes."
+          exit 1
