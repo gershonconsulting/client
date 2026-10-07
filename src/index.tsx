@@ -3028,6 +3028,424 @@ app.get('/api/reports/data', async (c) => {
 })
 
 // Admin Panel Route
+const STRAIGHTIN_PAGE = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Straight-in Week Drop | client.gershonCRM</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{--ground:#f2f4f2;--surface:#fff;--surface2:#fafbfa;--ink:#141a18;--ink2:#4a5754;--ink3:#7c8a86;--line:#dde3e0;--line2:#eaefec;--accent:#0f6b5f;--good:#16704a;--good-soft:#e2f1e9;--warn:#8a5410;--warn-soft:#f7edda;--idle:#5a6866;--idle-soft:#edf0ef}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1060px;margin:0 auto;padding:28px 20px 56px}
+  a.back{color:var(--ink3);text-decoration:none;font-size:13px}
+  a.back:hover{color:var(--accent)}
+  header.top{display:flex;flex-wrap:wrap;gap:16px 24px;align-items:flex-end;justify-content:space-between;margin:10px 0 26px}
+  .eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);font-weight:500}
+  h1{font-size:26px;font-weight:600;margin:4px 0 0;letter-spacing:-.015em}
+  .sub{color:var(--ink2);font-size:14px;max-width:62ch;margin:6px 0 0}
+  .chip{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 14px;min-width:210px}
+  .chip .k{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3)}
+  .chip .v{font-family:"IBM Plex Mono",monospace;font-size:18px;font-weight:500}
+  .chip .d{font-size:12.5px;color:var(--ink2)}
+  .grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:20px;align-items:start}
+  @media(max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}}
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:12px}
+  .panel>.head{padding:14px 18px;border-bottom:1px solid var(--line2);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .panel>.head h2{font-size:14px;font-weight:600;margin:0}
+  .panel>.body{padding:18px}
+  label.field{display:block;font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);margin-bottom:6px}
+  textarea,input[type=date]{width:100%;background:var(--surface2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-family:"IBM Plex Mono",monospace;font-size:12.5px;line-height:1.6}
+  textarea{min-height:200px;resize:vertical}
+  textarea:focus,input:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  button{font:inherit;font-weight:500;border-radius:8px;padding:9px 16px;cursor:pointer;border:1px solid var(--line);background:var(--surface2);color:var(--ink)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;align-items:center}
+  .status{font-size:12.5px;color:var(--ink2);min-height:1.4em}
+  .status.err{color:var(--warn)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  .tablewrap{overflow-x:auto}
+  th{text-align:left;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);font-weight:500;padding:0 10px 8px 0;white-space:nowrap}
+  td{padding:8px 10px 8px 0;border-top:1px solid var(--line2);vertical-align:top}
+  .mono{font-family:"IBM Plex Mono",monospace;font-size:12px}
+  td.id{color:var(--ink2);word-break:break-all}
+  .pill{display:inline-block;font-size:11px;font-weight:500;padding:2px 8px;border-radius:999px;white-space:nowrap}
+  .pill.up{background:var(--good-soft);color:var(--good)}
+  .pill.same{background:var(--idle-soft);color:var(--idle)}
+  .pill.none{background:var(--warn-soft);color:var(--warn)}
+  ul.weeks{list-style:none;margin:0;padding:0}
+  ul.weeks li{border-top:1px solid var(--line2)}
+  ul.weeks li:first-child{border-top:none}
+  ul.weeks button{width:100%;text-align:left;border:none;background:none;border-radius:0;padding:12px 4px;display:flex;justify-content:space-between;gap:12px;align-items:baseline}
+  ul.weeks button:hover{background:var(--surface2)}
+  ul.weeks .wk{font-family:"IBM Plex Mono",monospace;font-weight:500}
+  ul.weeks .meta{font-size:12px;color:var(--ink3);text-align:right}
+  .empty{color:var(--ink3);font-size:13px;padding:18px 0;text-align:center}
+  .howto ol{margin:0;padding-left:20px;color:var(--ink2);font-size:13.5px}
+  .howto li{margin-bottom:6px}
+  h3.mini{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);font-weight:500;margin:22px 0 8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="/admin">&larr; Admin</a>
+  <header class="top">
+    <div>
+      <div class="eyebrow">Straight-in</div>
+      <h1>Week Drop</h1>
+      <p class="sub">Paste Monday's campaign-report links. Each week is filed under its week number, and the report IDs go straight onto the matching companies so Network and Engage pull fresh numbers.</p>
+    </div>
+    <div class="chip">
+      <div class="k">Current week</div>
+      <div class="v" id="chipWeek">&mdash;</div>
+      <div class="d" id="chipDates">&mdash;</div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <section class="panel">
+      <div class="head"><h2>Paste this week's links</h2><span class="status" id="count"></span></div>
+      <div class="body">
+        <div style="margin-bottom:14px;max-width:210px">
+          <label class="field" for="weekDate">Any date in the week</label>
+          <input type="date" id="weekDate">
+        </div>
+        <label class="field" for="paste">Links &mdash; one per line</label>
+        <textarea id="paste" spellcheck="false" placeholder="Enzym - https://prospecthub.straight-in.com/r/campaign-report/crp_..."></textarea>
+        <div class="actions">
+          <button class="primary" id="save">Save week &amp; update companies</button>
+          <button id="clear">Clear</button>
+          <span class="status" id="status"></span>
+        </div>
+
+        <div id="resultWrap" style="display:none">
+          <h3 class="mini">Result</h3>
+          <div class="tablewrap">
+            <table><thead><tr><th>Campaign</th><th>Company</th><th>Report ID</th><th></th></tr></thead>
+            <tbody id="result"></tbody></table>
+          </div>
+        </div>
+
+        <div class="howto">
+          <h3 class="mini">How this works</h3>
+          <ol>
+            <li>The week is stored under its own week number &mdash; nothing overwrites an earlier week.</li>
+            <li>Every campaign that matches a company has its report ID written immediately.</li>
+            <li>Campaigns with no company on the platform are kept with the week and attach as soon as the company exists.</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="head"><h2>Weeks on file</h2><span class="status" id="histCount"></span></div>
+      <div class="body" style="padding:6px 18px 12px">
+        <ul class="weeks" id="history"></ul>
+        <div class="empty" id="histEmpty">No weeks saved yet.</div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function(){
+  var MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function isoParts(d){var t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));var day=t.getUTCDay()||7;t.setUTCDate(t.getUTCDate()+4-day);var y=t.getUTCFullYear();var j=new Date(Date.UTC(y,0,1));return{year:y,week:Math.ceil(((t-j)/86400000+1)/7)};}
+  function weekKey(d){var p=isoParts(d);return p.year+'-W'+(p.week<10?'0'+p.week:String(p.week));}
+  function monday(d){var t=new Date(d.getFullYear(),d.getMonth(),d.getDate());var day=t.getDay()||7;t.setDate(t.getDate()-(day-1));return t;}
+  function range(d){var m=monday(d);var s=new Date(m.getFullYear(),m.getMonth(),m.getDate()+6);return m.getDate()+' '+MONTHS[m.getMonth()]+' – '+s.getDate()+' '+MONTHS[s.getMonth()]+' '+s.getFullYear();}
+  function isoDate(d){var m=d.getMonth()+1,day=d.getDate();return d.getFullYear()+'-'+(m<10?'0'+m:m)+'-'+(day<10?'0'+day:day);}
+  function $(id){return document.getElementById(id);}
+
+  var today=new Date();
+  $('weekDate').value=isoDate(today);
+  $('chipWeek').textContent=weekKey(today);
+  $('chipDates').textContent=range(today);
+
+  function countLinks(){
+    var n=0,lines=$('paste').value.split(/\r?\n/);
+    for(var i=0;i<lines.length;i++){if(/crp_[A-Za-z0-9_\-]+/.test(lines[i]))n++;}
+    $('count').textContent=n?n+' link'+(n===1?'':'s')+' ready':'';
+    $('save').disabled=!n;
+    return n;
+  }
+  $('paste').addEventListener('input',countLinks);
+  $('clear').addEventListener('click',function(){$('paste').value='';$('status').textContent='';$('status').className='status';$('resultWrap').style.display='none';countLinks();});
+  countLinks();
+
+  function pill(status){
+    var s=document.createElement('span');
+    if(status==='updated'){s.className='pill up';s.textContent='updated';}
+    else if(status==='unchanged'){s.className='pill same';s.textContent='already current';}
+    else{s.className='pill none';s.textContent='no company yet';}
+    return s;
+  }
+
+  function showResult(week,summary){
+    var tb=$('result');tb.innerHTML='';
+    (week.entries||[]).forEach(function(e){
+      var tr=document.createElement('tr');
+      var a=document.createElement('td');a.textContent=e.label;tr.appendChild(a);
+      var b=document.createElement('td');
+      if(e.companyKey){var sp=document.createElement('span');sp.className='mono';sp.textContent=e.companyKey;b.appendChild(sp);}
+      else{b.textContent='—';}
+      tr.appendChild(b);
+      var cc=document.createElement('td');cc.className='mono id';cc.textContent=e.reportId;tr.appendChild(cc);
+      var d=document.createElement('td');d.appendChild(pill(e.status));tr.appendChild(d);
+      tb.appendChild(tr);
+    });
+    $('resultWrap').style.display='';
+    var msg=week.weekKey+' saved — '+summary.updated+' compan'+(summary.updated===1?'y':'ies')+' updated';
+    if(summary.unchanged)msg+=', '+summary.unchanged+' already current';
+    if(summary.unmatched)msg+=', '+summary.unmatched+' with no company yet';
+    $('status').className='status';$('status').textContent=msg+'.';
+  }
+
+  $('save').addEventListener('click',function(){
+    if(!countLinks())return;
+    $('save').disabled=true;
+    $('status').className='status';$('status').textContent='Saving…';
+    fetch('/api/straightin/weeks',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({raw:$('paste').value,date:$('weekDate').value})})
+      .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});})
+      .then(function(res){
+        if(!res.ok||res.j.error){throw new Error(res.j.error||'Save failed');}
+        showResult(res.j.week,res.j.summary);
+        loadHistory();
+      })
+      .catch(function(e){$('status').className='status err';$('status').textContent=e.message;})
+      .then(function(){$('save').disabled=false;});
+  });
+
+  function loadHistory(){
+    fetch('/api/straightin/weeks').then(function(r){return r.json();}).then(function(j){
+      var ul=$('history');ul.innerHTML='';
+      var weeks=j.weeks||[];
+      if(!weeks.length){$('histEmpty').style.display='';$('histCount').textContent='';return;}
+      $('histEmpty').style.display='none';
+      $('histCount').textContent=weeks.length+' saved';
+      weeks.forEach(function(w){
+        var li=document.createElement('li');
+        var b=document.createElement('button');
+        var l=document.createElement('span');l.className='wk';l.textContent=w.weekKey;
+        var r=document.createElement('span');r.className='meta';
+        var n=(w.entries||[]).length;
+        r.textContent=(w.range||'')+' · '+n+' campaign'+(n===1?'':'s');
+        b.appendChild(l);b.appendChild(r);
+        b.addEventListener('click',function(){
+          $('paste').value=w.raw||'';
+          if(w.mondayDate)$('weekDate').value=w.mondayDate;
+          countLinks();
+          showResult(w,{updated:0,unchanged:0,unmatched:0});
+          $('status').className='status';
+          $('status').textContent='Showing '+w.weekKey+' as it was saved. Press save to re-apply it.';
+          window.scrollTo({top:0,behavior:'smooth'});
+        });
+        li.appendChild(b);ul.appendChild(li);
+      });
+    }).catch(function(){$('histEmpty').textContent='Saved weeks could not be loaded.';});
+  }
+  loadHistory();
+})();
+</script>
+</body>
+</html>
+`
+
+// ---------------------------------------------------------------------------
+// Straight-in weekly report IDs
+// StraightIn rotates every campaign's report id each week. Monday's list is
+// pasted at /straightin: each week is filed under its ISO week number and the
+// ids are written straight onto the matching companies, so Network and Engage
+// pull fresh numbers without anyone editing companies one by one.
+// ---------------------------------------------------------------------------
+
+const STRAIGHTIN_ALIASES: Record<string, string> = {
+  'enzym': 'enzymicals-ag',
+  'enzymicals': 'enzymicals-ag',
+  'phitech': 'phitech-bioinformatics',
+  'urban': 'urban-factory',
+  'mab': 'mabsilico',
+  'valos': 'valos',
+  'altavia': 'altavia',
+  'apm': 'apm-music',
+  'finance steve': 'finance-montreal',
+  'finance noza': 'finance-montreal-noza',
+}
+
+function siNorm(s: any): string {
+  return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '')
+}
+
+function siIsoWeek(d: Date): { year: number; week: number } {
+  const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
+  const day = t.getUTCDay() || 7
+  t.setUTCDate(t.getUTCDate() + 4 - day)
+  const year = t.getUTCFullYear()
+  const jan1 = new Date(Date.UTC(year, 0, 1))
+  const week = Math.ceil(((t.getTime() - jan1.getTime()) / 86400000 + 1) / 7)
+  return { year, week }
+}
+
+function siMonday(d: Date): Date {
+  const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
+  const day = t.getUTCDay() || 7
+  t.setUTCDate(t.getUTCDate() - (day - 1))
+  return t
+}
+
+function siIsoDate(d: Date): string {
+  return d.toISOString().slice(0, 10)
+}
+
+function siWeekKey(d: Date): string {
+  const p = siIsoWeek(d)
+  return p.year + '-W' + (p.week < 10 ? '0' + p.week : String(p.week))
+}
+
+const SI_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+function siRange(d: Date): string {
+  const mon = siMonday(d)
+  const sun = new Date(mon.getTime() + 6 * 86400000)
+  return mon.getUTCDate() + ' ' + SI_MONTHS[mon.getUTCMonth()] + ' – ' +
+    sun.getUTCDate() + ' ' + SI_MONTHS[sun.getUTCMonth()] + ' ' + sun.getUTCFullYear()
+}
+
+function siParse(raw: string): any[] {
+  const out: any[] = []
+  const lines = String(raw || '').split(/\r?\n/)
+  for (const line of lines) {
+    const t = line.trim()
+    if (!t) continue
+    const m = t.match(/https?:\/\/\S+/)
+    if (!m || m.index === undefined) continue
+    const url = m[0].replace(/[),.]+$/, '')
+    const id = url.match(/crp_[A-Za-z0-9_\-]+/)
+    if (!id) continue
+    let label = t.slice(0, m.index).replace(/[\s\-–—:|]+$/, '').trim()
+    if (!label) label = id[0]
+    out.push({ label, url, reportId: id[0] })
+  }
+  return out
+}
+
+function siResolveCompany(label: string, companies: any[]): string | null {
+  const n = siNorm(label)
+  if (!n) return null
+  const byKey: Record<string, any> = {}
+  for (const co of companies) byKey[co.key] = co
+
+  for (const alias of Object.keys(STRAIGHTIN_ALIASES)) {
+    const a = siNorm(alias)
+    if (n.indexOf(a) === 0 || a.indexOf(n) === 0) {
+      const target = STRAIGHTIN_ALIASES[alias]
+      if (byKey[target]) return target
+    }
+  }
+
+  const hits = companies.filter((co: any) => {
+    const k = siNorm(co.key), nm = siNorm(co.name)
+    return (k && (k.indexOf(n) === 0 || n.indexOf(k) === 0)) ||
+           (nm && (nm.indexOf(n) === 0 || n.indexOf(nm) === 0))
+  })
+  return hits.length === 1 ? hits[0].key : null
+}
+
+// Every stored week, newest first.
+app.get('/api/straightin/weeks', async (c) => {
+  try {
+    const list = await c.env.COMPANIES_KV.list({ prefix: 'straightin:week:' })
+    const weeks: any[] = []
+    for (const item of list.keys) {
+      const raw = await c.env.COMPANIES_KV.get(item.name)
+      if (raw) weeks.push(JSON.parse(raw))
+    }
+    weeks.sort((a, b) => String(b.weekKey).localeCompare(String(a.weekKey)))
+    return c.json({ weeks, count: weeks.length })
+  } catch (err) {
+    return c.json({ error: 'Failed to load saved weeks' }, 500)
+  }
+})
+
+// One stored week.
+app.get('/api/straightin/weeks/:weekKey', async (c) => {
+  try {
+    const raw = await c.env.COMPANIES_KV.get('straightin:week:' + c.req.param('weekKey'))
+    if (!raw) return c.json({ error: 'Week not found' }, 404)
+    return c.json({ week: JSON.parse(raw) })
+  } catch (err) {
+    return c.json({ error: 'Failed to load week' }, 500)
+  }
+})
+
+// Save a pasted week and apply its report ids to the matching companies.
+app.post('/api/straightin/weeks', async (c) => {
+  try {
+    const body = await c.req.json()
+    const raw = String(body.raw || '')
+    const parsed = siParse(raw)
+    if (!parsed.length) {
+      return c.json({ error: 'No campaign report links found in that text. Each line needs a campaign name and its prospecthub link.' }, 400)
+    }
+
+    const ref = body.date ? new Date(String(body.date) + 'T12:00:00Z') : new Date()
+    if (isNaN(ref.getTime())) return c.json({ error: 'That date could not be read.' }, 400)
+
+    const weekKey = siWeekKey(ref)
+    const mon = siMonday(ref)
+    const sun = new Date(mon.getTime() + 6 * 86400000)
+
+    const companies = await getAllCompanies(c.env.COMPANIES_KV, true)
+    const entries: any[] = []
+    let updated = 0, unchanged = 0, unmatched = 0
+
+    for (const e of parsed) {
+      const key = siResolveCompany(e.label, companies)
+      if (!key) {
+        unmatched++
+        entries.push({ ...e, companyKey: null, previous: null, status: 'no-company' })
+        continue
+      }
+      const existing = companies.find((co: any) => co.key === key) || { key }
+      const previous = existing.straightInReportId || ''
+      if (previous === e.reportId) {
+        unchanged++
+        entries.push({ ...e, companyKey: key, previous, status: 'unchanged' })
+        continue
+      }
+      const next = { ...existing, key, straightInReportId: e.reportId }
+      await c.env.COMPANIES_KV.put('company:' + key, JSON.stringify(next))
+      existing.straightInReportId = e.reportId
+      updated++
+      entries.push({ ...e, companyKey: key, previous, status: 'updated' })
+    }
+
+    const week = {
+      weekKey,
+      mondayDate: siIsoDate(mon),
+      sundayDate: siIsoDate(sun),
+      range: siRange(ref),
+      savedAt: new Date().toISOString(),
+      raw,
+      entries,
+    }
+    await c.env.COMPANIES_KV.put('straightin:week:' + weekKey, JSON.stringify(week))
+
+    return c.json({ success: true, week, summary: { updated, unchanged, unmatched, total: entries.length } })
+  } catch (err: any) {
+    return c.json({ error: 'Failed to save week: ' + (err && err.message ? err.message : 'unknown error') }, 500)
+  }
+})
+
+// The paste page.
+app.get('/straightin', (c) => {
+  return c.html(STRAIGHTIN_PAGE)
+})
+
 app.get('/admin', (c) => {
   return c.html(`
     <!DOCTYPE html>
