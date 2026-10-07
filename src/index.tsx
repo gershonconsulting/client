@@ -4921,6 +4921,7 @@ app.get('/overview', (c) => {
 
       loadOverview(currentPeriod);
     </script>
+    <script src="/static/overview-v2.js"></script>
     </body>
     </html>
   `)
