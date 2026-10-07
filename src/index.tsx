@@ -3166,8 +3166,8 @@ const STRAIGHTIN_PAGE = `<!DOCTYPE html>
   $('chipDates').textContent=range(today);
 
   function countLinks(){
-    var n=0,lines=$('paste').value.split(/\r?\n/);
-    for(var i=0;i<lines.length;i++){if(/crp_[A-Za-z0-9_\-]+/.test(lines[i]))n++;}
+    var n=0,lines=$('paste').value.split(/\\r?\\n/);
+    for(var i=0;i<lines.length;i++){if(/crp_[A-Za-z0-9_-]+/.test(lines[i]))n++;}
     $('count').textContent=n?n+' link'+(n===1?'':'s')+' ready':'';
     $('save').disabled=!n;
     return n;
