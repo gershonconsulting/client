@@ -14,9 +14,20 @@ type Bindings = {
   AUTH_USER?: string
   AUTH_PASSWORD_HASH?: string
   SESSION_SECRET?: string
+  SOCIAL_PROMOTE_KEY?: string
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
+
+// Key for social.gershoncrm.com's machine route /api/report/promote (Cloudflare
+// secret SOCIAL_PROMOTE_KEY; same value as PROMOTE_API_KEY on the social project).
+// Captured per request so the module-level Promote helpers can send it without
+// threading c.env through every call.
+let _socialPromoteKey = ''
+app.use('*', async (c, next) => {
+  _socialPromoteKey = c.env.SOCIAL_PROMOTE_KEY || ''
+  await next()
+})
 
 // Enable CORS for frontend-backend communication
 app.use('/api/*', cors())
@@ -124,6 +135,25 @@ const STREAK_API_BASE = 'https://www.streak.com/api/v1'
 // Promote channel is fed from social.gershoncrm.com (per-client social posts,
 // engagement and follower snapshots). No auth — single-user app, public API.
 const SOCIAL_API_BASE = 'https://social.gershoncrm.com'
+
+// Since social v4.2 (Sept 23) its public API needs a signed-in session, so this
+// app reads through the key-protected, Gershon-workspace-only machine route
+//   /api/report/promote?resource=clients|summary|followers
+// whose responses are identical to /api/clients?light=1, /api/analytics/summary
+// and /api/followers. Callers keep the old paths and go through socialFetch().
+function socialFetch(path: string): Promise<Response> {
+  const [p, q = ''] = path.split('?')
+  const resource = p.endsWith('/api/clients') ? 'clients'
+    : p.endsWith('/api/analytics/summary') ? 'summary'
+    : p.endsWith('/api/followers') ? 'followers' : ''
+  if (!resource || !_socialPromoteKey) return fetch(`${SOCIAL_API_BASE}${path}`)
+  const params = new URLSearchParams(q)
+  params.delete('light')
+  params.set('resource', resource)
+  return fetch(`${SOCIAL_API_BASE}/api/report/promote?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${_socialPromoteKey}` },
+  })
+}
 
 // Authorized admin emails
 const ADMIN_EMAILS = [
@@ -2343,7 +2373,7 @@ async function getSocialClients(): Promise<any[]> {
     return _socialClientsCache.list
   }
   try {
-    const res = await fetch(`${SOCIAL_API_BASE}/api/clients?light=1`)
+    const res = await socialFetch(`/api/clients?light=1`)
     if (!res.ok) throw new Error(`social /api/clients ${res.status}`)
     const raw = await res.json() as any
     const list = Array.isArray(raw) ? raw : (raw.clients || raw.data || [])
@@ -2400,9 +2430,9 @@ async function fetchSocialData(company: any): Promise<any | null> {
   if (!sc) return null
   try {
     const [a30, a7, foll] = await Promise.all([
-      fetch(`${SOCIAL_API_BASE}/api/analytics/summary?clientId=${sc.id}&days=30`).then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch(`${SOCIAL_API_BASE}/api/analytics/summary?clientId=${sc.id}&days=7`).then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch(`${SOCIAL_API_BASE}/api/followers?clientId=${sc.id}`).then(r => r.ok ? r.json() : null).catch(() => null),
+      socialFetch(`/api/analytics/summary?clientId=${sc.id}&days=30`).then(r => r.ok ? r.json() : null).catch(() => null),
+      socialFetch(`/api/analytics/summary?clientId=${sc.id}&days=7`).then(r => r.ok ? r.json() : null).catch(() => null),
+      socialFetch(`/api/followers?clientId=${sc.id}`).then(r => r.ok ? r.json() : null).catch(() => null),
     ])
     const d30 = (a30 && a30.data) || {}
     const d7 = (a7 && a7.data) || {}
@@ -2476,8 +2506,8 @@ async function fetchPromoteFromSocial(company: any): Promise<any | null> {
   if (!sc) return null
   try {
     const [a30, foll] = await Promise.all([
-      fetch(`${SOCIAL_API_BASE}/api/analytics/summary?clientId=${sc.id}&days=30`).then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch(`${SOCIAL_API_BASE}/api/followers?clientId=${sc.id}`).then(r => r.ok ? r.json() : null).catch(() => null),
+      socialFetch(`/api/analytics/summary?clientId=${sc.id}&days=30`).then(r => r.ok ? r.json() : null).catch(() => null),
+      socialFetch(`/api/followers?clientId=${sc.id}`).then(r => r.ok ? r.json() : null).catch(() => null),
     ])
     const d = (a30 && a30.data) || {}
     const byPlatform = d.byPlatform || {}
