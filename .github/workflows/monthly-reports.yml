@@ -1,0 +1,46 @@
+name: Monthly reports (1st of the month)
+
+# Builds and emails the three monthly reports for the month just closed:
+#   • one client one-pager per Gershon client number (PDF attached)
+#   • GC internal review (our results + sources for improvement)
+#   • Straight-in Network & Engage report
+# The endpoint is idempotent per month and per item: re-running only sends
+# what has not been sent yet. Run manually from the Actions tab with a month
+# (YYYY-MM) to (re)build a specific month; set force=1 to resend.
+
+on:
+  schedule:
+    - cron: '0 13 1 * *'   # 1st of each month, 09:00 New York (EDT)
+  workflow_dispatch:
+    inputs:
+      month:
+        description: 'Month to report (YYYY-MM). Empty = last closed month.'
+        required: false
+        default: ''
+      force:
+        description: 'Resend even if already sent (1 = yes)'
+        required: false
+        default: '0'
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    env:
+      BASE: https://client.gershoncrm.com/api/v3/monthly/run
+      MONTH: ${{ github.event.inputs.month }}
+      FORCE: ${{ github.event.inputs.force }}
+    steps:
+      - name: Client one-pagers (one request per client keeps each run small)
+        run: |
+          for NO in 175 200 212 229 233 245 246 247 248 250; do
+            Q="no=$NO"; [ -n "$MONTH" ] && Q="$Q&month=$MONTH"; [ "$FORCE" = "1" ] && Q="$Q&force=1"
+            echo "client $NO:"; curl -s -X POST "$BASE?$Q"; echo; sleep 2
+          done
+      - name: GC internal review
+        run: |
+          Q="part=internal"; [ -n "$MONTH" ] && Q="$Q&month=$MONTH"; [ "$FORCE" = "1" ] && Q="$Q&force=1"
+          curl -s -X POST "$BASE?$Q"; echo
+      - name: Straight-in report
+        run: |
+          Q="part=straightin"; [ -n "$MONTH" ] && Q="$Q&month=$MONTH"; [ "$FORCE" = "1" ] && Q="$Q&force=1"
+          curl -s -X POST "$BASE?$Q"; echo

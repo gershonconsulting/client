@@ -1,0 +1,173 @@
+/* client.gershonCRM v3 — page scripts (dashboard, client, reports, settings) */
+(function () {
+  var page = document.body.getAttribute('data-page');
+  var $ = function (id) { return document.getElementById(id); };
+  var fmt = function (n) { return n == null ? '—' : Math.round(n).toLocaleString('en-US'); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var band = function (p) { return p == null ? 'none' : p >= 80 ? 'good' : p >= 40 ? 'warn' : 'crit'; };
+  var bar = function (p) { var b = band(p); return '<div class="bar ' + b + '"><span style="width:' + (p == null ? 0 : Math.max(3, Math.min(100, p))) + '%"></span></div>'; };
+  function toast(t) { var el = $('toast'); if (!el) return; el.textContent = t; el.classList.add('show'); setTimeout(function () { el.classList.remove('show'); }, 3500); }
+  function ym(d) { return d.toISOString().slice(0, 7); }
+  function nyToday() { return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })); }
+  function monthKey(which) { var t = nyToday(); if (which === 'last') { t = new Date(t.getFullYear(), t.getMonth() - 1, 15); } else { t = new Date(t.getFullYear(), t.getMonth(), 15); } return ym(t); }
+  var current = 'cur';
+  try { current = localStorage.getItem('gc_month') || 'cur'; } catch (e) {}
+  function setupSeg(onChange) {
+    var seg = $('monthSeg'); if (!seg) return;
+    seg.querySelectorAll('button').forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-m') === current);
+      b.onclick = function () { current = b.getAttribute('data-m'); try { localStorage.setItem('gc_month', current); } catch (e) {} seg.querySelectorAll('button').forEach(function (x) { x.classList.toggle('active', x === b); }); onChange(); };
+    });
+  }
+  function score(cm) {
+    var parts = [cm.promote && cm.promote.pct, cm.network && cm.network.pct, cm.engage && cm.engage.pct].filter(function (v) { return v != null; });
+    if (!parts.length) return null;
+    return Math.round(parts.map(function (p) { return Math.min(100, p); }).reduce(function (a, b) { return a + b; }, 0) / parts.length);
+  }
+  function chanP(cm) {
+    if (!cm.promote) return '<div class="chan"><div class="v muted">No social account</div><div class="s">Not collecting in social.gershon.ai</div>' + bar(null) + '</div>';
+    var p = cm.promote;
+    return '<div class="chan"><div class="v">' + fmt(p.posts) + ' of ' + fmt(p.target) + ' posts <span class="pill ' + band(p.pct) + '">' + p.pct + '%</span></div>' + bar(p.pct) + '<div class="s">' + p.perDay + ' / working day · ' + fmt(p.engagement) + ' engagements</div></div>';
+  }
+  function chanN(cm, s) {
+    if (!cm.network) return '<div class="chan"><div class="v muted">No campaign report</div><div class="s">Paste the Straight-in link</div>' + bar(null) + '</div>';
+    var n = cm.network;
+    return '<div class="chan"><div class="v">' + n.rate + '% accepted <span class="pill ' + band(n.pct) + '">' + n.pct + '%</span></div>' + bar(n.pct) + '<div class="s">' + fmt(n.accepted) + ' of ' + fmt(n.sent) + ' invites · ' + fmt(n.opportunities) + ' opps</div></div>';
+  }
+  function chanE(cm, s) {
+    if (!cm.engage) return '<div class="chan"><div class="v muted">No pipeline</div><div class="s">Streak not configured</div>' + bar(null) + '</div>';
+    var e = cm.engage;
+    return '<div class="chan"><div class="v">' + fmt(e.newLeads) + ' new leads <span class="pill ' + band(e.pct) + '">' + e.pct + '%</span></div>' + bar(e.pct) + '<div class="s">goal ' + e.target + '/month · ' + fmt(e.meetings) + ' meetings · ' + fmt(e.activeLeads) + ' active</div></div>';
+  }
+  function scoreBadge(v) { return '<span class="score ' + band(v) + '">' + (v == null ? '—' : v + '%') + '</span>'; }
+  function getJSON(u) { return fetch(u, { credentials: 'same-origin' }).then(function (r) { if (r.status === 401) { location.href = '/login?next=' + encodeURIComponent(location.pathname); throw new Error('auth'); } return r.json(); }); }
+
+  // ── Dashboard ──
+  function dashboard() {
+    var reg, results = {}, gen = 0;
+    function load() {
+      var my = ++gen, m = monthKey(current);
+      results = {};
+      $('rows').innerHTML = reg.clients.map(function (r) {
+        return '<tr class="row" data-no="' + r.no + '" onclick="location.href=\'/client/' + r.no + '\'"><td><span class="cno">' + r.no + '</span> <b>' + esc(r.name) + '</b></td><td colspan="3"><span class="skeleton">loading three channels………………………………………………</span></td><td class="hide-sm"></td></tr>';
+      }).join('');
+      $('kpis').innerHTML = '';
+      $('summaryText').innerHTML = '<span class="skeleton">Loading the portfolio…………………………</span>';
+      var s = reg.settings;
+      $('thP').textContent = '· ' + s.promoteTarget + ' posts/' + (s.promoteUnit === 'day' ? 'day' : 'week');
+      $('thN').textContent = '· ' + s.acceptTarget + '% accepted';
+      $('thE').textContent = '· ' + s.leadsPerMonth + ' leads/month';
+      var queue = reg.clients.slice(), running = 0;
+      function next() {
+        if (my !== gen) return;
+        while (running < 3 && queue.length) {
+          (function (r) {
+            running++;
+            getJSON('/api/v3/client/' + r.no + '?month=' + m).then(function (d) {
+              if (my !== gen) return;
+              var cm = d.client; results[r.no] = cm;
+              var tr = document.querySelector('tr[data-no="' + r.no + '"]');
+              tr.innerHTML = '<td><span class="cno">' + r.no + '</span> <b>' + esc(r.name) + '</b></td><td>' + chanP(cm) + '</td><td>' + chanN(cm) + '</td><td>' + chanE(cm) + '</td><td class="hide-sm" style="text-align:center">' + scoreBadge(score(cm)) + '</td>';
+              totals(d.month, s);
+            }).catch(function () { }).then(function () { running--; next(); });
+          })(queue.shift());
+        }
+      }
+      next();
+    }
+    function totals(month, s) {
+      var list = Object.keys(results).map(function (k) { return results[k]; });
+      var P = list.filter(function (c) { return c.promote; }), N = list.filter(function (c) { return c.network; }), E = list.filter(function (c) { return c.engage; });
+      var sum = function (a, f) { return a.reduce(function (x, c) { return x + f(c); }, 0); };
+      var posts = sum(P, function (c) { return c.promote.posts; }), pt = sum(P, function (c) { return c.promote.target; });
+      var sent = sum(N, function (c) { return c.network.sent; }), acc = sum(N, function (c) { return c.network.accepted; });
+      var rate = sent ? Math.round(acc / sent * 1000) / 10 : 0;
+      var leads = sum(E, function (c) { return c.engage.newLeads; }), meet = sum(E, function (c) { return c.engage.meetings; });
+      var lt = E.length * s.leadsPerMonth;
+      var pp = pt ? Math.round(posts / pt * 100) : 0, np = Math.round(rate / s.acceptTarget * 100), ep = month.isCurrent ? Math.round(leads / (lt * month.days / new Date(+month.key.slice(0, 4), +month.key.slice(5, 7), 0).getDate()) * 100) : (lt ? Math.round(leads / lt * 100) : 0);
+      var scores = list.map(score).filter(function (v) { return v != null; });
+      var sc = scores.length ? Math.round(scores.reduce(function (a, b) { return a + b; }, 0) / scores.length) : null;
+      var kpi = function (label, val, sub, p) { return '<div class="kpi"><div class="kpi-label">' + label + '</div><div class="kpi-value" style="color:' + ({ good: 'var(--success)', warn: 'var(--warn)', crit: 'var(--brand)', none: 'var(--text)' })[band(p)] + '">' + val + '</div><div class="kpi-sub">' + sub + '</div>' + (p != null ? '<div style="margin-top:8px">' + bar(p) + '</div>' : '') + '</div>'; };
+      $('kpis').innerHTML =
+        kpi('Promote · posts', fmt(posts) + ' <span style="font-size:15px;color:var(--text-muted)">/ ' + fmt(pt) + '</span>', pp + '% of target · ' + P.length + ' clients posting', pp) +
+        kpi('Network · acceptance', rate + '%', fmt(acc) + ' of ' + fmt(sent) + ' invites · target ' + s.acceptTarget + '%', np) +
+        kpi('Engage · new leads', fmt(leads) + ' <span style="font-size:15px;color:var(--text-muted)">/ ' + fmt(lt) + '</span>', ep + '% of goal' + (month.isCurrent ? ' so far' : ''), ep) +
+        kpi('Meetings', fmt(meet), 'prospects moved to meeting or beyond', null);
+      var done = list.length, all = reg.clients.length;
+      $('summaryText').innerHTML = '<b>' + esc(month.label) + (month.isCurrent ? ' so far' : '') + '</b> — portfolio at <b style="color:' + ({ good: 'var(--success)', warn: 'var(--warn)', crit: 'var(--brand)', none: 'inherit' })[band(sc)] + '">' + (sc == null ? '—' : sc + '%') + '</b> of plan across ' + done + (done < all ? ' of ' + all : '') + ' clients.';
+    }
+    getJSON('/api/v3/registry').then(function (r) { reg = r; setupSeg(load); load(); });
+  }
+
+  // ── Client page ──
+  function clientView() {
+    var no = document.body.getAttribute('data-no');
+    function load() {
+      var m = monthKey(current);
+      $('pdfBtn').href = '/api/v3/report/client?client=' + no + '&month=' + m + '&format=pdf';
+      $('channels').innerHTML = '<div class="card"><span class="skeleton">loading…………</span></div><div class="card"><span class="skeleton">loading…………</span></div><div class="card"><span class="skeleton">loading…………</span></div>';
+      $('details').innerHTML = '';
+      getJSON('/api/v3/client/' + no + '?month=' + m).then(function (d) {
+        var cm = d.client, mo = d.month, s = d.settings, sc = score(cm);
+        $('summaryText').innerHTML = '<b>' + esc(mo.label) + (mo.isCurrent ? ' so far' : '') + '</b> — ' + (sc == null ? 'no data collected yet.' : 'on <b>' + sc + '%</b> of plan across the channels this client has.');
+        $('scoreBox').innerHTML = scoreBadge(sc);
+        var card = function (icon, title, src, inner) { return '<div class="card chan-card"><div class="card-header"><h3><i class="fas ' + icon + '"></i>' + title + '</h3><span class="muted" style="font-size:11px">' + src + '</span></div>' + inner + '</div>'; };
+        var stat = function (k, v) { return '<div><div class="k">' + k + '</div><div class="v">' + v + '</div></div>'; };
+        var p = cm.promote, n = cm.network, e = cm.engage;
+        var cp = p ? '<div class="big">' + fmt(p.posts) + ' <span style="font-size:15px;color:var(--text-muted)">of ' + fmt(p.target) + ' posts</span></div><div style="margin:8px 0">' + bar(p.pct) + '</div><div class="muted" style="font-size:12px">' + p.pct + '% of ' + esc(p.targetLabel) + ' · ' + p.perDay + ' per working day</div><div class="stat-grid">' + stat('Engagements', fmt(p.engagement)) + stat('Followers', fmt(p.followers)) + stat('New followers', (p.followersGrowth >= 0 ? '+' : '') + fmt(p.followersGrowth)) + '</div><div class="muted" style="font-size:11px">' + esc(p.platforms.join(' + ') || '') + ' · last month ' + fmt(p.prevPosts) + ' posts</div>' : '<div class="empty">No social account is collecting for this client in social.gershon.ai.</div>';
+        var cn = n ? '<div class="big">' + n.rate + '% <span style="font-size:15px;color:var(--text-muted)">accepted</span></div><div style="margin:8px 0">' + bar(n.pct) + '</div><div class="muted" style="font-size:12px">' + n.pct + '% of the ' + s.acceptTarget + '% target · last month ' + n.prevRate + '%</div><div class="stat-grid">' + stat('Invitations', fmt(n.sent)) + stat('Accepted', fmt(n.accepted)) + stat('Opportunities', fmt(n.opportunities)) + '</div><div class="muted" style="font-size:11px">' + fmt(n.messages) + ' messages · latest report ' + esc(n.lastReport) + '</div>' : '<div class="empty">No Straight-in campaign report linked. <a href="/straightin" style="color:var(--brand);font-weight:600">Paste this week\'s links</a></div>';
+        var ce = e ? '<div class="big">' + fmt(e.newLeads) + ' <span style="font-size:15px;color:var(--text-muted)">new leads</span></div><div style="margin:8px 0">' + bar(e.pct) + '</div><div class="muted" style="font-size:12px">' + e.pct + '% of ' + e.target + ' per month' + (mo.isCurrent ? ' (pro rata)' : '') + ' · last month ' + fmt(e.prevNewLeads) + '</div><div class="stat-grid">' + stat('Meetings', fmt(e.meetings)) + stat('Active', fmt(e.activeLeads)) + stat('Won', fmt(e.won)) + '</div><div class="muted" style="font-size:11px">' + fmt(e.meetingsTotal) + ' at meeting stage or beyond · ' + fmt(e.totalLeads) + ' in pipeline</div>' : '<div class="empty">No Streak pipeline configured for this client.</div>';
+        $('channels').innerHTML = card('fa-bullhorn', 'Promote', 'social.gershon.ai', cp) + card('fa-user-plus', 'Network', 'Straight-in', cn) + card('fa-handshake', 'Engage', 'Streak', ce);
+        var det = '';
+        if (p) {
+          var max = Math.max.apply(null, [1].concat(p.daily.map(function (x) { return x.posts; })));
+          det += '<div class="card"><div class="card-header"><h3>Posts per day</h3><span class="muted">target line: ' + esc(p.targetLabel) + '</span></div><div class="daybars">' + p.daily.map(function (x) { var w = new Date(x.date + 'T12:00:00Z').getUTCDay(); return '<div class="' + (x.posts ? '' : 'zero ') + (w === 0 || w === 6 ? 'wkend' : '') + '" title="' + x.date + ': ' + x.posts + '" style="height:' + Math.max(2, x.posts / max * 100) + '%"></div>'; }).join('') + '</div><div class="axis"><span>' + p.daily[0].date.slice(5) + '</span><span>' + p.daily[p.daily.length - 1].date.slice(5) + '</span></div>' + (p.topPost ? '<div class="note" style="margin-top:14px"><b>Top post · ' + fmt(p.topPost.engagement) + ' engagements</b><br>' + esc(p.topPost.snippet) + (p.topPost.url ? ' <a href="' + esc(p.topPost.url) + '" target="_blank" style="color:var(--brand)">open</a>' : '') + '</div>' : '') + '</div>';
+        }
+        if (n || e) {
+          var inner = '';
+          if (n && n.weeks.length) inner += '<table class="data-table"><thead><tr><th>Week of</th><th>Sent</th><th>Accepted</th><th>Messages</th><th>Opps</th></tr></thead><tbody>' + n.weeks.map(function (w) { return '<tr><td>' + w.weekStart + '</td><td>' + fmt(w.sent) + '</td><td>' + fmt(w.accepted) + '</td><td>' + fmt(w.messages) + '</td><td>' + fmt(w.opportunities) + '</td></tr>'; }).join('') + '</tbody></table>';
+          if (n && n.namedOpps.length) inner += '<div style="margin-top:12px">' + n.namedOpps.map(function (o) { return '<div class="feed-item ok"><div class="feed-dot"></div><div class="feed-text"><b>' + esc(o.name) + '</b> — ' + esc(o.title) + (o.company ? ' at ' + esc(o.company) : '') + '<div class="feed-time">' + esc(o.type) + ' · ' + o.date + '</div></div></div>'; }).join('') + '</div>';
+          if (e) { var f = e.funnel, tot = Object.keys(f).reduce(function (a, k) { return a + f[k]; }, 0) || 1; inner += '<div class="section-title" style="margin-top:16px">Pipeline funnel</div>' + ['contacted', 'connected', 'meeting', 'proposal', 'won', 'recycled'].map(function (k) { return '<div style="display:grid;grid-template-columns:90px 1fr 50px;gap:10px;align-items:center;margin-bottom:6px;font-size:12px"><span style="text-transform:capitalize">' + k + '</span><div class="bar ' + (k === 'recycled' ? 'none' : k === 'won' || k === 'meeting' || k === 'proposal' ? 'good' : 'crit') + '"><span style="width:' + Math.max(1, f[k] / tot * 100) + '%"></span></div><span class="num" style="text-align:right">' + fmt(f[k]) + '</span></div>'; }).join(''); }
+          det += '<div class="card"><div class="card-header"><h3>Network weeks & pipeline</h3></div>' + (inner || '<div class="empty">No weekly data this month.</div>') + '</div>';
+        }
+        $('details').innerHTML = det;
+      });
+    }
+    setupSeg(load); load();
+  }
+
+  // ── Reports ──
+  function reports() {
+    var monthEl = $('month');
+    var url = function (kind, fmtq) { var u = '/api/v3/report/' + kind + '?month=' + monthEl.value; if (kind === 'client') u += '&client=' + $('clientSel').value; return u + (fmtq ? '&format=' + fmtq : ''); };
+    document.querySelectorAll('[data-preview]').forEach(function (b) { b.onclick = function () { var k = b.getAttribute('data-preview'); $('previewCard').style.display = ''; $('previewTitle').textContent = 'Preview · ' + b.closest('.card').querySelector('h3').textContent.trim(); $('previewFrame').src = url(k); $('previewCard').scrollIntoView({ behavior: 'smooth' }); }; });
+    document.querySelectorAll('[data-pdf]').forEach(function (b) { b.onclick = function () { window.open(url(b.getAttribute('data-pdf'), 'pdf'), '_blank'); }; });
+    document.querySelectorAll('[data-send]').forEach(function (b) {
+      b.onclick = function () {
+        var k = b.getAttribute('data-send'); b.disabled = true; var old = b.innerHTML; b.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending';
+        var u = '/api/v3/report/' + k + '/send?month=' + monthEl.value + (k === 'client' ? '&client=' + $('clientSel').value : '');
+        fetch(u, { method: 'POST', credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) { toast(d.ok ? 'Sent to ' + d.to.join(', ') : 'Not sent: ' + (d.error || 'error')); }).catch(function () { toast('Not sent'); }).then(function () { b.disabled = false; b.innerHTML = old; });
+      };
+    });
+  }
+
+  // ── Settings ──
+  function settings() {
+    $('settingsForm').onsubmit = function (ev) {
+      ev.preventDefault();
+      var f = ev.target, body = { promoteTargets: {}, clientEmails: {} };
+      ['promoteTarget', 'acceptTarget', 'leadsPerMonth'].forEach(function (k) { body[k] = Number(f[k].value); });
+      body.promoteUnit = f.promoteUnit.value; body.internalEmail = f.internalEmail.value.trim(); body.straightinEmail = f.straightinEmail.value.trim(); body.autoSendClients = f.autoSendClients.checked;
+      Array.prototype.forEach.call(f.elements, function (el) {
+        if (/^pt_/.test(el.name) && el.value !== '') body.promoteTargets[el.name.slice(3)] = Number(el.value);
+        if (/^ce_/.test(el.name) && el.value.trim()) body.clientEmails[el.name.slice(3)] = el.value.trim();
+      });
+      fetch('/api/v3/settings', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) { return r.json(); }).then(function (d) { toast(d.ok ? 'Saved' : 'Not saved'); });
+    };
+  }
+
+  if (page === 'dashboard') dashboard();
+  else if (page === 'client') clientView();
+  else if (page === 'reports') reports();
+  else if (page === 'settings') settings();
+})();

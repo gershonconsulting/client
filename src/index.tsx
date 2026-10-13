@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/cloudflare-workers'
+import { registerV3 } from './v3'
 
 type Bindings = {
   COMPANIES_KV: KVNamespace
@@ -129,6 +130,9 @@ app.all('/api/auth/logout', (c) => {
 // Serve static files
 app.use('/static/*', serveStatic({ root: './public' }))
 
+// v3: simplified Dashboard / Client / Reports / Settings + Gershon theme on legacy pages
+registerV3(app, { callStreakAPI: (e: string) => callStreakAPI(e), socialFetch: (p: string) => socialFetch(p), getCompany: (kv: any, k: string) => getCompany(kv, k), classifyStage: (n: string) => classifyStage(n) })
+
 // Streak API configuration
 let streakApiKey: string = ''
 const STREAK_API_BASE = 'https://www.streak.com/api/v1'
@@ -188,6 +192,7 @@ const PUBLIC_EXACT_PATHS = [
   '/', // landing page when signed out; the handler redirects to the dashboard when signed in
   '/api/reports/weekly/send',
   '/api/reports/monthly/send',
+  '/api/v3/monthly/run',
 ]
 
 function isPublicPath(path: string): boolean {
@@ -436,6 +441,7 @@ function renderHomePage(): string {
 }
 
 function renderLoginPage(next: string, error?: string): string {
+  // Linalysis design, Gershon.ai red — same tokens as /static/gershon.css
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -443,42 +449,38 @@ function renderLoginPage(next: string, error?: string): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
   <title>Sign in — client.gershonCRM</title>
-  <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/static/gershon.css?v=3">
+  <style>
+    .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:linear-gradient(135deg,#fff5f5,#fafafa 55%)}
+    .login{width:100%;max-width:400px}
+    .login .card{padding:28px}
+    .login input{width:100%;border:1px solid var(--border);border-radius:8px;padding:11px 12px;font:inherit;background:#fff}
+    .login input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(254,27,4,.12)}
+    .login label{display:block;font-size:12px;font-weight:700;margin:0 0 6px}
+    .login .btn.primary{width:100%;justify-content:center;padding:12px;font-size:14px;margin-top:6px}
+    .login .err{background:var(--error-light);color:var(--error);border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:14px}
+  </style>
 </head>
-<body class="min-h-screen bg-gradient-to-br from-blue-700 via-blue-800 to-indigo-900 flex items-center justify-center px-4">
-  <div class="w-full max-w-md">
-    <div class="text-center mb-8">
-      <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white/10 border border-white/20 mb-4">
-        <i class="fas fa-chart-line text-white text-2xl"></i>
-      </div>
-      <h1 class="text-2xl font-bold text-white">client.gershonCRM</h1>
-      <p class="text-blue-200 text-sm mt-1">Client Performance Dashboard</p>
+<body>
+  <div class="login-wrap"><div class="login">
+    <div style="display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:22px">
+      <span class="brand-mark" style="width:38px;height:38px;font-size:19px">G</span>
+      <div><div style="font-weight:800;font-size:21px;color:var(--brand);letter-spacing:-.02em;line-height:1">Gershon</div><div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.08em;text-transform:uppercase">Client results</div></div>
     </div>
-
-    <div class="bg-white rounded-2xl shadow-2xl p-8">
-      ${error ? `<div class="mb-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3"><i class="fas fa-circle-exclamation mr-2"></i>${error}</div>` : ''}
-      <form method="POST" action="/api/auth/login" class="space-y-4">
+    <div class="card">
+      ${error ? `<div class="err"><i class="fas fa-circle-exclamation"></i> ${error}</div>` : ''}
+      <form method="POST" action="/api/auth/login">
         <input type="hidden" name="next" value="${next.replace(/"/g, '&quot;')}" />
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1" for="email">Email address</label>
-          <input id="email" name="email" type="text" inputmode="email" autocapitalize="none" spellcheck="false" autocomplete="username" required autofocus
-                 class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" />
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1" for="password">Password</label>
-          <input id="password" name="password" type="password" autocomplete="current-password" required
-                 class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" />
-        </div>
-        <button type="submit"
-                class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-3 rounded-lg transition-all shadow">
-          Sign in
-        </button>
+        <div style="margin-bottom:14px"><label for="email">Email address</label>
+          <input id="email" name="email" type="text" inputmode="email" autocapitalize="none" spellcheck="false" autocomplete="username" required autofocus /></div>
+        <div style="margin-bottom:16px"><label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required /></div>
+        <button type="submit" class="btn primary">Sign in</button>
       </form>
     </div>
-
-    <p class="text-center text-blue-300/70 text-xs mt-6">Gershon Consulting — Internal Use Only</p>
-  </div>
+    <p style="text-align:center;font-size:12px;color:var(--text-muted);margin-top:16px">Gershon Consulting — internal use only</p>
+  </div></div>
 </body>
 </html>`
 }
@@ -4967,7 +4969,7 @@ app.get('/', async (c) => {
 
   const companyKey = c.req.query('company')
   if (!companyKey) {
-    return c.redirect('/overview')
+    return c.redirect('/dashboard')
   }
   // Show dashboard for selected company
   return c.html(`
