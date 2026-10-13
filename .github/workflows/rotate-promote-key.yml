@@ -39,18 +39,18 @@ jobs:
           export CLOUDFLARE_ACCOUNT_ID=$(printf %s "$CLOUDFLARE_ACCOUNT_ID" | tr -d '\r\n ')
           echo "CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN" >> "$GITHUB_ENV"
           echo "CLOUDFLARE_ACCOUNT_ID=$CLOUDFLARE_ACCOUNT_ID" >> "$GITHUB_ENV"
-          npx wrangler whoami || true
+          npx -y wrangler@4.42.0 whoami || true
           KEY=$(openssl rand -hex 32)
           echo "::add-mask::$KEY"
           echo "PROMOTE_KEY=$KEY" >> "$GITHUB_ENV"
-          echo "$KEY" | npx wrangler pages secret put SOCIAL_PROMOTE_KEY --project-name gershoncrm-client
-          echo "$KEY" | npx wrangler pages secret put PROMOTE_API_KEY --project-name gershoncrm-social
+          echo "$KEY" | npx -y wrangler@4.42.0 pages secret put SOCIAL_PROMOTE_KEY --project-name gershoncrm-client
+          echo "$KEY" | npx -y wrangler@4.42.0 pages secret put PROMOTE_API_KEY --project-name gershoncrm-social
           echo "Key stored on gershoncrm-client and gershoncrm-social."
 
       - name: Rebuild and redeploy client so the secret is live
         run: |
           npm run build
-          npx wrangler pages deploy dist --project-name gershoncrm-client --commit-dirty=true
+          npx -y wrangler@4.42.0 pages deploy dist --project-name gershoncrm-client --commit-dirty=true
 
       - name: Wait for social to accept the key (needs its next deployment)
         run: |
