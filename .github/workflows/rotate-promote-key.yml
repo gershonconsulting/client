@@ -18,9 +18,6 @@ on:
 jobs:
   rotate:
     runs-on: ubuntu-latest
-    env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -32,25 +29,44 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Generate key and store it on both Pages projects
+      # Raw `npx wrangler` rejects this repo's Cloudflare token (error 9106 / 6111);
+      # cloudflare/wrangler-action accepts it (it is what the deploy workflow uses),
+      # so every Cloudflare call goes through the action.
+      - name: Generate key
         run: |
-          # The secret may carry a trailing newline/space (wrangler-action trims it, raw wrangler does not → CF error 9106)
-          export CLOUDFLARE_API_TOKEN=$(printf %s "$CLOUDFLARE_API_TOKEN" | tr -d '\r\n ')
-          export CLOUDFLARE_ACCOUNT_ID=$(printf %s "$CLOUDFLARE_ACCOUNT_ID" | tr -d '\r\n ')
-          echo "CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN" >> "$GITHUB_ENV"
-          echo "CLOUDFLARE_ACCOUNT_ID=$CLOUDFLARE_ACCOUNT_ID" >> "$GITHUB_ENV"
-          npx -y wrangler@4.42.0 whoami || true
           KEY=$(openssl rand -hex 32)
           echo "::add-mask::$KEY"
           echo "PROMOTE_KEY=$KEY" >> "$GITHUB_ENV"
-          echo "$KEY" | npx -y wrangler@4.42.0 pages secret put SOCIAL_PROMOTE_KEY --project-name gershoncrm-client
-          echo "$KEY" | npx -y wrangler@4.42.0 pages secret put PROMOTE_API_KEY --project-name gershoncrm-social
-          echo "Key stored on gershoncrm-client and gershoncrm-social."
+          printf '{"SOCIAL_PROMOTE_KEY":"%s"}' "$KEY" > /tmp/client-secret.json
+          printf '{"PROMOTE_API_KEY":"%s"}' "$KEY" > /tmp/social-secret.json
 
-      - name: Rebuild and redeploy client so the secret is live
-        run: |
-          npm run build
-          npx -y wrangler@4.42.0 pages deploy dist --project-name gershoncrm-client --commit-dirty=true
+      - name: Store key on gershoncrm-client
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages secret bulk /tmp/client-secret.json --project-name gershoncrm-client
+
+      - name: Store key on gershoncrm-social
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages secret bulk /tmp/social-secret.json --project-name gershoncrm-social
+
+      - name: Remove key files
+        if: always()
+        run: rm -f /tmp/client-secret.json /tmp/social-secret.json
+
+      - name: Build client
+        run: npm run build
+
+      - name: Redeploy client so the secret is live
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name gershoncrm-client --commit-dirty=true
 
       - name: Wait for social to accept the key (needs its next deployment)
         run: |
