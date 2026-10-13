@@ -145,6 +145,7 @@ export interface ClientMonth {
     topPost: null | { snippet: string; url: string; engagement: number; date: string; platform: string }
   }
   network: null | {
+    pending?: boolean
     sent: number; accepted: number; rate: number; messages: number; opportunities: number
     prevSent: number; prevAccepted: number; prevRate: number; pct: number
     weeks: { weekStart: string; sent: number; accepted: number; messages: number; opportunities: number }[]
@@ -295,8 +296,10 @@ async function collectNetwork(reports: SiReport[], win: MonthWin, prev: MonthWin
   }
   const rate = sent ? r1((accepted / sent) * 100) : 0
   const prevRate = prevSent ? r1((prevAccepted / prevSent) * 100) : 0
+  // No weekly report covering this month yet (Straight-in reports land a few days after each week)
+  const pending = Object.keys(weekMap).length === 0
   return {
-    sent, accepted, rate, messages, opportunities, prevSent, prevAccepted, prevRate, pct: pctOf(rate, s.acceptTarget),
+    pending, sent, accepted, rate, messages, opportunities, prevSent, prevAccepted, prevRate, pct: (pending ? null : pctOf(rate, s.acceptTarget)) as any,
     weeks: Object.values(weekMap).sort((a, b) => a.weekStart.localeCompare(b.weekStart)),
     namedOpps, lastReport, campaigns,
   }
@@ -414,7 +417,7 @@ export interface Portfolio {
   }
 }
 export function portfolioOf(month: MonthWin, clients: ClientMonth[], s: V3Settings): Portfolio {
-  const P = clients.filter(c => c.promote), N = clients.filter(c => c.network), E = clients.filter(c => c.engage)
+  const P = clients.filter(c => c.promote), N = clients.filter(c => c.network && !c.network.pending), E = clients.filter(c => c.engage)
   const posts = P.reduce((a, c) => a + c.promote!.posts, 0)
   const postsTarget = P.reduce((a, c) => a + c.promote!.target, 0)
   const sent = N.reduce((a, c) => a + c.network!.sent, 0)

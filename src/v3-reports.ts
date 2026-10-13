@@ -104,7 +104,7 @@ export function internalModel(p: Portfolio, s: V3Settings): ReportModel {
 }
 
 export function straightinModel(p: Portfolio, s: V3Settings): ReportModel {
-  const N = p.clients.filter(c => c.network || c.engage)
+  const N = p.clients.filter(c => (c.network && !c.network.pending) || c.engage)
   const t = p.totals
   const rows: string[][] = []
   for (const c of N) {
