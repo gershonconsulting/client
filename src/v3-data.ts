@@ -211,6 +211,9 @@ async function collectPromote(deps: Deps, entry: RegistryEntry, win: MonthWin, p
     socialJson(deps, `/api/followers?clientId=${id}`),
   ])
   if (!all && !fromStart) return null
+  // Nothing on any platform across both months = no account collecting in social.
+  const allPosts = ((all?.data?.postsByDay) || []).reduce((a: number, x: any) => a + (x.total || 0), 0)
+  if (!allPosts && !Object.keys(all?.data?.byPlatform || {}).length) return null
   const pbd: any[] = (all?.data?.postsByDay) || []
   const inWin = (d: string) => d >= win.start && d <= win.end
   const inPrev = (d: string) => d >= prev.start && d <= prev.end
@@ -282,6 +285,7 @@ async function collectNetwork(reports: SiReport[], win: MonthWin, prev: MonthWin
   const namedOpps: { name: string; company: string; title: string; type: string; date: string }[] = []
   let lastReport = ''
   const stale: string[] = []
+  let lastWeekSeen = ''
   for (const { r, d } of got) {
     const cur = d!.traj.filter(inM(win)), pr = d!.traj.filter(inM(prev))
     const cs = sum(cur, 'connectionsSent'), ca = sum(cur, 'accepted'), co = sum(cur, 'opportunities')
@@ -298,7 +302,8 @@ async function collectNetwork(reports: SiReport[], win: MonthWin, prev: MonthWin
       const dt = String(o.loggedAt || '').slice(0, 10)
       if (dt >= win.start && dt <= win.end) namedOpps.push({ name: o.name || '', company: o.company || '', title: String(o.jobTitle || '').trim(), type: String(o.opportunityType || '').replace(/_/g, ' '), date: dt })
     }
-    if (d!.period > lastReport) lastReport = d!.period
+    const lw = d!.traj.map(t => String(t.weekStart || '')).sort().pop() || ''
+    if (lw > lastWeekSeen) { lastWeekSeen = lw; lastReport = d!.period }
   }
   const rate = sent ? r1((accepted / sent) * 100) : 0
   const prevRate = prevSent ? r1((prevAccepted / prevSent) * 100) : 0
@@ -393,7 +398,7 @@ export async function collectClientMonth(env: { COMPANIES_KV: KVNamespace }, dep
 // KV cache: 30 min for the current month, 12 h for closed months.
 export async function getClientMonth(env: { COMPANIES_KV: KVNamespace }, deps: Deps, entry: RegistryEntry, monthKey: string, opts: { fresh?: boolean; settings?: V3Settings } = {}): Promise<ClientMonth> {
   const win = monthWin(monthKey)
-  const ck = `v3:cm4:${win.key}:${entry.no}`
+  const ck = `v3:cm5:${win.key}:${entry.no}`
   if (!opts.fresh) {
     try {
       const raw = await env.COMPANIES_KV.get(ck)
