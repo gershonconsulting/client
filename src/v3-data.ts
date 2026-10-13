@@ -178,6 +178,14 @@ export function promoteTargetFor(s: V3Settings, no: number, win: MonthWin): { ta
   return { target: Math.max(1, Math.round(per * win.workingDays)), label: `${per} posts / working day`, perUnit: per }
 }
 
+// Social stores snippets with HTML numeric entities and broken bytes — make them readable.
+function cleanText(s: string): string {
+  return s.replace(/&#(\d+);/g, (_, n) => { try { return String.fromCodePoint(+n) } catch { return '' } })
+    .replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'")
+    .replace(/\uFFFD/g, "'").replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '')
+    .replace(/\s+/g, ' ').trim()
+}
+
 async function socialJson(deps: Deps, path: string): Promise<any> {
   try {
     const r = await deps.socialFetch(path)
@@ -238,7 +246,7 @@ async function collectPromote(deps: Deps, entry: RegistryEntry, win: MonthWin, p
     perDay: win.workingDays ? r1(posts / win.workingDays) : 0, targetLabel: t.label,
     likes, comments, shares, engagement: likes + comments + shares,
     followers, followersGrowth, platforms, daily,
-    topPost: tp ? { snippet: String(tp.textSnippet || tp.postTextSnippet || '').slice(0, 220), url: tp.postUrl || '', engagement: tp.totalEngagement || ((tp.likeCount || 0) + (tp.commentCount || 0) + (tp.shareCount || 0)), date: tp.publishedDateLocal || '', platform: tp.platform || '' } : null,
+    topPost: tp ? { snippet: cleanText(String(tp.textSnippet || tp.postTextSnippet || '')).slice(0, 220), url: tp.postUrl || '', engagement: tp.totalEngagement || ((tp.likeCount || 0) + (tp.commentCount || 0) + (tp.shareCount || 0)), date: tp.publishedDateLocal || '', platform: tp.platform || '' } : null,
   }
 }
 
