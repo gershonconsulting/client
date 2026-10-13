@@ -23,7 +23,7 @@ function shell(opts: { title: string; active: string; h1: string; right?: string
 <meta name="robots" content="noindex,nofollow"><title>${esc(opts.title)} · client.gershonCRM</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23FE1B04'/%3E%3Ctext x='16' y='22' font-family='Arial' font-weight='700' font-size='17' fill='white' text-anchor='middle'%3EG%3C/text%3E%3C/svg%3E">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-<link rel="stylesheet" href="/static/gershon.css?v=3"></head>
+<link rel="stylesheet" href="/static/gershon.css?v=4"></head>
 <body${data}><div class="app">
 <aside class="sidebar" id="sidebar">
   <a class="brand" href="/dashboard"><span class="brand-mark">G</span><span>Gershon<span class="tag">Client results</span></span></a>
@@ -39,7 +39,7 @@ function shell(opts: { title: string; active: string; h1: string; right?: string
   <div class="content">${opts.body}</div>
 </main></div>
 <div id="toast"></div>
-<script src="/static/v3.js?v=3"></script></body></html>`
+<script src="/static/v3.js?v=4"></script></body></html>`
 }
 
 function monthSeg(): string {
@@ -177,7 +177,7 @@ export function registerV3(app: Hono<any>, deps: Deps) {
     const b = await c.req.json().catch(() => ({})) as any
     const s = await saveSettings(c.env.COMPANIES_KV, b)
     // targets changed → drop cached month records so percentages recompute
-    await Promise.all([monthWin().key, lastFullMonthKey()].flatMap(m => CLIENT_REGISTRY.map(r => c.env.COMPANIES_KV.delete(`v3:cm2:${m}:${r.no}`).catch(() => null))))
+    await Promise.all([monthWin().key, lastFullMonthKey()].flatMap(m => CLIENT_REGISTRY.map(r => c.env.COMPANIES_KV.delete(`v3:cm3:${m}:${r.no}`).catch(() => null))))
     return c.json({ ok: true, settings: s })
   })
   app.get('/api/v3/client/:no', async (c) => {

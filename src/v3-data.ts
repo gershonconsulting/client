@@ -385,7 +385,7 @@ export async function collectClientMonth(env: { COMPANIES_KV: KVNamespace }, dep
 // KV cache: 30 min for the current month, 12 h for closed months.
 export async function getClientMonth(env: { COMPANIES_KV: KVNamespace }, deps: Deps, entry: RegistryEntry, monthKey: string, opts: { fresh?: boolean; settings?: V3Settings } = {}): Promise<ClientMonth> {
   const win = monthWin(monthKey)
-  const ck = `v3:cm2:${win.key}:${entry.no}`
+  const ck = `v3:cm3:${win.key}:${entry.no}`
   if (!opts.fresh) {
     try {
       const raw = await env.COMPANIES_KV.get(ck)
