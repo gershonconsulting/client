@@ -39,7 +39,7 @@ function shell(opts: { title: string; active: string; h1: string; right?: string
   <div class="content">${opts.body}</div>
 </main></div>
 <div id="toast"></div>
-<script src="/static/v3.js?v=5"></script></body></html>`
+<script src="/static/v3.js?v=6"></script></body></html>`
 }
 
 function monthSeg(): string {
@@ -85,7 +85,7 @@ function reportsPage(s: V3Settings): string {
     body: `
 <div class="summary"><div class="summary-text">Three reports are built from the same live data on the <b>1st of every month</b> for the month just closed. Each email carries the report in its body and as a one-page PDF.</div><a class="btn" href="/settings"><i class="fas fa-sliders"></i> Recipients</a></div>
 <div class="grid cols-3">
-${card('straightin', 'fa-handshake', 'Straight-in — Network & Engage', 'For our LinkedIn provider: invitations, acceptance, opportunities, and how many qualified leads actually reached our pipeline (goal ' + s.leadsPerMonth + ' per client). Ends with concrete requests for next month.', esc(s.straightinEmail || s.internalEmail + ' (to forward — add Straight-in\'s email in Settings)'))}
+${card('straightin', 'fa-handshake', 'Straight-in — Network & Engage', 'For our LinkedIn provider: invitations, acceptance, opportunities, and how many qualified leads actually reached our pipeline, as a % of the goal (' + s.leadsPerMonth + ' qualified leads per LinkedIn user per month). Ends with concrete requests for next month.', esc(s.straightinEmail || s.internalEmail + ' (to forward — add Straight-in\'s email in Settings)'))}
 ${card('internal', 'fa-chart-line', 'Gershon — our results', 'Portfolio score, every client against target on Promote, Network and Engage, and the sources of improvement ranked by impact.', esc(s.internalEmail))}
 ${card('client', 'fa-star', 'Client — one-pager', 'Always positive and encouraging: wins, highlights and what comes next. One-page summary in the email, PDF attached.', s.autoSendClients ? 'each client\'s address (Settings), copy to ' + esc(s.internalEmail) : esc(s.internalEmail) + ' for review before forwarding', `<div class="field" style="margin:0"><select id="clientSel">${opts}</select></div>`)}
 </div>
@@ -106,7 +106,7 @@ ${resendOk ? '' : `<div class="summary" style="border-left-color:var(--warn)"><d
  <div class="card"><div class="card-header"><h3>Targets</h3></div>
   <div class="field"><label>Promote — posts target</label><div style="display:flex;gap:8px"><input name="promoteTarget" type="number" step="0.5" min="0.5" value="${s.promoteTarget}" style="width:110px"><select name="promoteUnit"><option value="day"${s.promoteUnit === 'day' ? ' selected' : ''}>per working day</option><option value="week"${s.promoteUnit === 'week' ? ' selected' : ''}>per week</option></select></div><div class="hint">Counted from social.gershon.ai — every post published on LinkedIn or X.</div></div>
   <div class="field"><label>Network — acceptance-rate target (%)</label><input name="acceptTarget" type="number" min="1" max="100" value="${s.acceptTarget}"></div>
-  <div class="field"><label>Engage — new qualified leads per client per month</label><input name="leadsPerMonth" type="number" min="1" value="${s.leadsPerMonth}"></div>
+  <div class="field"><label>Engage — new qualified leads per LinkedIn user per month</label><input name="leadsPerMonth" type="number" min="1" value="${s.leadsPerMonth}"></div>
  </div>
  <div class="card"><div class="card-header"><h3>Report recipients</h3></div>
   <div class="field"><label>Our monthly review (internal)</label><input name="internalEmail" type="text" value="${esc(s.internalEmail)}"></div>
@@ -177,7 +177,7 @@ export function registerV3(app: Hono<any>, deps: Deps) {
     const b = await c.req.json().catch(() => ({})) as any
     const s = await saveSettings(c.env.COMPANIES_KV, b)
     // targets changed → drop cached month records so percentages recompute
-    await Promise.all([monthWin().key, lastFullMonthKey()].flatMap(m => CLIENT_REGISTRY.map(r => c.env.COMPANIES_KV.delete(`v3:cm5:${m}:${r.no}`).catch(() => null))))
+    await Promise.all([monthWin().key, lastFullMonthKey()].flatMap(m => CLIENT_REGISTRY.map(r => c.env.COMPANIES_KV.delete(`v3:cm6:${m}:${r.no}`).catch(() => null))))
     return c.json({ ok: true, settings: s })
   })
   app.get('/api/v3/client/:no', async (c) => {

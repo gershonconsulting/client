@@ -340,7 +340,9 @@ async function reportsFor(kv: KVNamespace, entry: RegistryEntry, companies: any[
 }
 
 const MEETING_PLUS = ['meeting', 'proposal', 'won']
-async function collectEngage(deps: Deps, companies: any[], win: MonthWin, prev: MonthWin, s: V3Settings) {
+async function collectEngage(deps: Deps, companies: any[], win: MonthWin, prev: MonthWin, s: V3Settings, users = 1) {
+  // Goal is per LinkedIn user: Finance Montreal (Steve + Noza) and Altavia (Anne + Alexandre) = 2 × goal
+  const goal = s.leadsPerMonth * Math.max(1, users)
   const startMs = Date.parse(win.start + 'T00:00:00-04:00'), endMs = Date.parse(win.end + 'T23:59:59-04:00')
   const pStartMs = Date.parse(prev.start + 'T00:00:00-04:00'), pEndMs = Date.parse(prev.monthEnd + 'T23:59:59-04:00')
   let newLeads = 0, prevNewLeads = 0, meetings = 0, meetingsTotal = 0, totalLeads = 0, recycled = 0, won = 0
@@ -374,9 +376,9 @@ async function collectEngage(deps: Deps, companies: any[], win: MonthWin, prev: 
   if (!any) return null
   // Current month: compare against the share of the monthly goal elapsed so far.
   const daysInMonth = dDiff(win.start, win.monthEnd) + 1
-  const soFar = win.isCurrent ? (s.leadsPerMonth * win.days) / daysInMonth : s.leadsPerMonth
+  const soFar = win.isCurrent ? (goal * win.days) / daysInMonth : goal
   return {
-    newLeads, prevNewLeads, target: s.leadsPerMonth, pct: pctOf(newLeads, soFar),
+    newLeads, prevNewLeads, target: goal, pct: pctOf(newLeads, soFar),
     meetings, meetingsTotal, activeLeads: totalLeads - recycled, totalLeads, funnel, won,
   }
 }
@@ -390,7 +392,7 @@ export async function collectClientMonth(env: { COMPANIES_KV: KVNamespace }, dep
   const [promote, network, engage] = await Promise.all([
     collectPromote(deps, entry, win, prev, settings).catch(e => { errors.push('promote: ' + e.message); return null }),
     reports.length ? collectNetwork(reports, win, prev, settings, entry.campaigns || []).catch(e => { errors.push('network: ' + e.message); return null }) : Promise.resolve(null),
-    collectEngage(deps, companies, win, prev, settings).catch(e => { errors.push('engage: ' + e.message); return null }),
+    collectEngage(deps, companies, win, prev, settings, (entry.campaigns || []).length || 1).catch(e => { errors.push('engage: ' + e.message); return null }),
   ])
   return { no: entry.no, name: entry.name, keys: entry.keys, promoteInPlan: entry.promote !== false, campaigns: entry.campaigns || [], month: win.key, generatedAt: new Date().toISOString(), promote, network, engage, errors }
 }
@@ -398,7 +400,7 @@ export async function collectClientMonth(env: { COMPANIES_KV: KVNamespace }, dep
 // KV cache: 30 min for the current month, 12 h for closed months.
 export async function getClientMonth(env: { COMPANIES_KV: KVNamespace }, deps: Deps, entry: RegistryEntry, monthKey: string, opts: { fresh?: boolean; settings?: V3Settings } = {}): Promise<ClientMonth> {
   const win = monthWin(monthKey)
-  const ck = `v3:cm5:${win.key}:${entry.no}`
+  const ck = `v3:cm6:${win.key}:${entry.no}`
   if (!opts.fresh) {
     try {
       const raw = await env.COMPANIES_KV.get(ck)
@@ -437,7 +439,7 @@ export function portfolioOf(month: MonthWin, clients: ClientMonth[], s: V3Settin
   const accepted = N.reduce((a, c) => a + c.network!.accepted, 0)
   const rate = sent ? r1((accepted / sent) * 100) : 0
   const newLeads = E.reduce((a, c) => a + c.engage!.newLeads, 0)
-  const leadsTarget = E.length * s.leadsPerMonth
+  const leadsTarget = E.reduce((a, c) => a + c.engage!.target, 0)
   const scores = clients.map(overallScore).filter(v => v != null) as number[]
   return {
     month, clients,

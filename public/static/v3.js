@@ -58,7 +58,7 @@
       var s = reg.settings;
       $('thP').textContent = '· ' + s.promoteTarget + ' posts/' + (s.promoteUnit === 'day' ? 'day' : 'week');
       $('thN').textContent = '· ' + s.acceptTarget + '% accepted';
-      $('thE').textContent = '· ' + s.leadsPerMonth + ' leads/month';
+      $('thE').textContent = '· ' + s.leadsPerMonth + ' leads/user/month';
       var queue = reg.clients.slice(), running = 0;
       function next() {
         if (my !== gen) return;
@@ -85,7 +85,7 @@
       var sent = sum(N, function (c) { return c.network.sent; }), acc = sum(N, function (c) { return c.network.accepted; });
       var rate = sent ? Math.round(acc / sent * 1000) / 10 : 0;
       var leads = sum(E, function (c) { return c.engage.newLeads; }), meet = sum(E, function (c) { return c.engage.meetings; });
-      var lt = E.length * s.leadsPerMonth;
+      var lt = E.reduce(function (a, c) { return a + c.engage.target; }, 0);
       var pp = pt ? Math.round(posts / pt * 100) : 0, np = Math.round(rate / s.acceptTarget * 100), ep = month.isCurrent ? Math.round(leads / (lt * month.days / new Date(+month.key.slice(0, 4), +month.key.slice(5, 7), 0).getDate()) * 100) : (lt ? Math.round(leads / lt * 100) : 0);
       var scores = list.map(score).filter(function (v) { return v != null; });
       var sc = scores.length ? Math.round(scores.reduce(function (a, b) { return a + b; }, 0) / scores.length) : null;
