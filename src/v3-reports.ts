@@ -49,6 +49,8 @@ function improvementSources(p: Portfolio, s: V3Settings): string[] {
     else if (!c.promote) out.push({ w: 90, t: `${L} — Promote: no social account is collecting in social.gershon.ai. Connect LinkedIn/X so posts count.` })
     else if (c.promote.posts === 0) out.push({ w: 85, t: `${L} — Promote: 0 posts this month (target ${c.promote.target}). Restart the posting schedule.` })
     else if (c.promote.pct < 40) out.push({ w: 60 - c.promote.pct / 2, t: `${L} — Promote: ${c.promote.posts} of ${c.promote.target} posts (${c.promote.pct}%). Add ${Math.max(0, c.promote.target - c.promote.posts)} posts to reach target.` })
+    for (const m of (c.network?.missingCampaigns || [])) out.push({ w: 78, t: `${L} — Network: no Straight-in report linked for the ${m} campaign. Add its link on the Straight-in page.` })
+    for (const m of (c.network?.staleCampaigns || [])) out.push({ w: 76, t: `${L} — Network: the ${m} campaign report has no week in this month (stale link or campaign paused).` })
     if (!c.network && c.keys.length) out.push({ w: 70, t: `${L} — Network: no Straight-in campaign report linked. Paste this week's link on the Straight-in page.` })
     else if (c.network && c.network.sent === 0) out.push({ w: 75, t: `${L} — Network: no invitations sent this month. Check the Straight-in campaign is running.` })
     else if (c.network && c.network.rate < s.acceptTarget * 0.8) out.push({ w: 55, t: `${L} — Network: acceptance ${c.network.rate}% vs ${s.acceptTarget}% target. Review targeting and the connection note with Straight-in.` })

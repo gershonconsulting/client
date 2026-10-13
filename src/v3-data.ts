@@ -146,6 +146,8 @@ export interface ClientMonth {
   }
   network: null | {
     pending?: boolean
+    missingCampaigns?: string[]
+    staleCampaigns?: string[]
     sent: number; accepted: number; rate: number; messages: number; opportunities: number
     prevSent: number; prevAccepted: number; prevRate: number; pct: number
     weeks: { weekStart: string; sent: number; accepted: number; messages: number; opportunities: number }[]
@@ -252,7 +254,7 @@ async function collectPromote(deps: Deps, entry: RegistryEntry, win: MonthWin, p
 }
 
 interface SiReport { reportId: string; label: string }
-async function fetchTrajectory(reportId: string): Promise<{ traj: any[]; opps: any[]; period: string } | null> {
+async function fetchTrajectory(reportId: string): Promise<{ traj: any[]; opps: any[]; period: string; account: string } | null> {
   try {
     const res = await fetch(`https://prospecthub.straight-in.com/api/retain/public/campaign-reports/${reportId}`)
     if (!res.ok) return null
@@ -262,13 +264,14 @@ async function fetchTrajectory(reportId: string): Promise<{ traj: any[]; opps: a
       traj: Array.isArray(snap.trajectory) ? snap.trajectory : [],
       opps: Array.isArray(snap.opportunities) ? snap.opportunities : [],
       period: snap.periodLabel || `${data?.periodStart || ''} – ${data?.periodEnd || ''}`,
+      account: (Array.isArray(snap.accounts) && snap.accounts[0]?.account_name) || ((String(data?.title || '').match(/—\s*(.+?)\s*\(/) || [])[1]) || '',
     }
   } catch { return null }
 }
 
 // One client number can run several LinkedIn campaigns (Altavia: Anne + Alexandre,
 // Finance Montreal: Steve + Noza). Every campaign report is fetched and summed.
-async function collectNetwork(reports: SiReport[], win: MonthWin, prev: MonthWin, s: V3Settings) {
+async function collectNetwork(reports: SiReport[], win: MonthWin, prev: MonthWin, s: V3Settings, expected: string[] = []) {
   const got = (await Promise.all(reports.map(async r => ({ r, d: await fetchTrajectory(r.reportId) })))).filter(x => x.d)
   if (!got.length) return null
   const inM = (w: MonthWin) => (t: any) => String(t.weekStart || '') >= w.start && String(t.weekStart || '') <= w.monthEnd
@@ -278,12 +281,15 @@ async function collectNetwork(reports: SiReport[], win: MonthWin, prev: MonthWin
   const campaigns: { label: string; sent: number; accepted: number; rate: number; opportunities: number }[] = []
   const namedOpps: { name: string; company: string; title: string; type: string; date: string }[] = []
   let lastReport = ''
+  const stale: string[] = []
   for (const { r, d } of got) {
     const cur = d!.traj.filter(inM(win)), pr = d!.traj.filter(inM(prev))
     const cs = sum(cur, 'connectionsSent'), ca = sum(cur, 'accepted'), co = sum(cur, 'opportunities')
     sent += cs; accepted += ca; messages += sum(cur, 'messages'); opportunities += co
     prevSent += sum(pr, 'connectionsSent'); prevAccepted += sum(pr, 'accepted')
-    campaigns.push({ label: r.label, sent: cs, accepted: ca, rate: cs ? r1((ca / cs) * 100) : 0, opportunities: co })
+    const lastWeek = d!.traj.map(t => String(t.weekStart || '')).sort().pop() || ''
+    if (lastWeek && lastWeek < win.start) stale.push(d!.account || r.label)
+    campaigns.push({ label: d!.account || r.label, sent: cs, accepted: ca, rate: cs ? r1((ca / cs) * 100) : 0, opportunities: co })
     for (const t of cur) {
       const w = weekMap[t.weekStart] || (weekMap[t.weekStart] = { weekStart: t.weekStart, sent: 0, accepted: 0, messages: 0, opportunities: 0 })
       w.sent += t.connectionsSent || 0; w.accepted += t.accepted || 0; w.messages += t.messages || 0; w.opportunities += t.opportunities || 0
@@ -298,8 +304,10 @@ async function collectNetwork(reports: SiReport[], win: MonthWin, prev: MonthWin
   const prevRate = prevSent ? r1((prevAccepted / prevSent) * 100) : 0
   // No weekly report covering this month yet (Straight-in reports land a few days after each week)
   const pending = Object.keys(weekMap).length === 0
+  const firsts = campaigns.map(k => k.label.toLowerCase())
+  const missingCampaigns = expected.filter(e => !firsts.some(f => f.includes(e.toLowerCase())))
   return {
-    pending, sent, accepted, rate, messages, opportunities, prevSent, prevAccepted, prevRate, pct: (pending ? null : pctOf(rate, s.acceptTarget)) as any,
+    pending, missingCampaigns, staleCampaigns: stale, sent, accepted, rate, messages, opportunities, prevSent, prevAccepted, prevRate, pct: (pending ? null : pctOf(rate, s.acceptTarget)) as any,
     weeks: Object.values(weekMap).sort((a, b) => a.weekStart.localeCompare(b.weekStart)),
     namedOpps, lastReport, campaigns,
   }
@@ -376,7 +384,7 @@ export async function collectClientMonth(env: { COMPANIES_KV: KVNamespace }, dep
   const errors: string[] = []
   const [promote, network, engage] = await Promise.all([
     collectPromote(deps, entry, win, prev, settings).catch(e => { errors.push('promote: ' + e.message); return null }),
-    reports.length ? collectNetwork(reports, win, prev, settings).catch(e => { errors.push('network: ' + e.message); return null }) : Promise.resolve(null),
+    reports.length ? collectNetwork(reports, win, prev, settings, entry.campaigns || []).catch(e => { errors.push('network: ' + e.message); return null }) : Promise.resolve(null),
     collectEngage(deps, companies, win, prev, settings).catch(e => { errors.push('engage: ' + e.message); return null }),
   ])
   return { no: entry.no, name: entry.name, keys: entry.keys, promoteInPlan: entry.promote !== false, campaigns: entry.campaigns || [], month: win.key, generatedAt: new Date().toISOString(), promote, network, engage, errors }
@@ -385,7 +393,7 @@ export async function collectClientMonth(env: { COMPANIES_KV: KVNamespace }, dep
 // KV cache: 30 min for the current month, 12 h for closed months.
 export async function getClientMonth(env: { COMPANIES_KV: KVNamespace }, deps: Deps, entry: RegistryEntry, monthKey: string, opts: { fresh?: boolean; settings?: V3Settings } = {}): Promise<ClientMonth> {
   const win = monthWin(monthKey)
-  const ck = `v3:cm3:${win.key}:${entry.no}`
+  const ck = `v3:cm4:${win.key}:${entry.no}`
   if (!opts.fresh) {
     try {
       const raw = await env.COMPANIES_KV.get(ck)
