@@ -14,13 +14,16 @@ export interface RegistryEntry {
   name: string
   keys: string[]          // company keys in this app (COMPANIES / KV company:<key>)
   socialId: string | null // social.gershon.ai Client.id
+  promote?: boolean       // false = social content creation is not part of the project
+  campaigns?: string[]    // LinkedIn campaigns (Straight-in) run under this one client number
 }
 
 export const CLIENT_REGISTRY: RegistryEntry[] = [
-  { no: 175, name: 'Finance Montreal',       keys: ['finance-montreal', 'finance-montreal-noza'], socialId: 'cmp0eqm9o000rbqj3ayeto7zp' },
+  // 175 and 229: one client number, two LinkedIn campaigns each, no Promote (Olivier, 2026-10-13)
+  { no: 175, name: 'Finance Montreal',       keys: ['finance-montreal', 'finance-montreal-noza'], socialId: 'cmp0eqm9o000rbqj3ayeto7zp', promote: false, campaigns: ['Steve', 'Noza'] },
   { no: 200, name: 'MAbSilico',              keys: ['mabsilico'],              socialId: 'cmnzg13dn0000j4oeke3nh3ko' },
   { no: 212, name: 'Wallix',                 keys: ['wallix'],                 socialId: 'cmp0eqlsx000dbqj3hmvwldbe' },
-  { no: 229, name: 'Altavia',                keys: ['altavia'],                socialId: 'cmp0eqm3y000mbqj321j14ksw' },
+  { no: 229, name: 'Altavia',                keys: ['altavia'],                socialId: 'cmp0eqm3y000mbqj321j14ksw', promote: false, campaigns: ['Anne', 'Alexandre'] },
   { no: 233, name: 'Valos',                  keys: ['valos'],                  socialId: 'cmp0eqlp4000abqj325ow1eyf' },
   { no: 245, name: 'PhiTech Bioinformatics', keys: ['phitech-bioinformatics'], socialId: 'cmoda8pxb000pmayx7fbslr0j' },
   { no: 246, name: 'Enzymicals AG',          keys: ['enzymicals-ag'],          socialId: 'cmrumcbd6000011b111l8s53r' },
@@ -130,6 +133,8 @@ export interface ClientMonth {
   no: number
   name: string
   keys: string[]
+  promoteInPlan: boolean
+  campaigns: string[]
   month: string
   generatedAt: string
   promote: null | {
@@ -143,6 +148,7 @@ export interface ClientMonth {
     sent: number; accepted: number; rate: number; messages: number; opportunities: number
     prevSent: number; prevAccepted: number; prevRate: number; pct: number
     weeks: { weekStart: string; sent: number; accepted: number; messages: number; opportunities: number }[]
+    campaigns: { label: string; sent: number; accepted: number; rate: number; opportunities: number }[]
     namedOpps: { name: string; company: string; title: string; type: string; date: string }[]
     lastReport: string
   }
@@ -181,7 +187,7 @@ async function socialJson(deps: Deps, path: string): Promise<any> {
 }
 
 async function collectPromote(deps: Deps, entry: RegistryEntry, win: MonthWin, prev: MonthWin, s: V3Settings) {
-  if (!entry.socialId) return null
+  if (!entry.socialId || entry.promote === false) return null
   const today = todayNY()
   const sinceStart = dDiff(win.start, today) + 1
   const sincePrev = Math.min(365, dDiff(prev.start, today) + 1)
@@ -236,30 +242,77 @@ async function collectPromote(deps: Deps, entry: RegistryEntry, win: MonthWin, p
   }
 }
 
-async function collectNetwork(reportId: string, win: MonthWin, prev: MonthWin, s: V3Settings) {
+interface SiReport { reportId: string; label: string }
+async function fetchTrajectory(reportId: string): Promise<{ traj: any[]; opps: any[]; period: string } | null> {
   try {
     const res = await fetch(`https://prospecthub.straight-in.com/api/retain/public/campaign-reports/${reportId}`)
     if (!res.ok) return null
     const data = await res.json() as any
     const snap = data?.snapshot || {}
-    const traj: any[] = Array.isArray(snap.trajectory) ? snap.trajectory : []
-    const pick = (w: MonthWin) => traj.filter(t => String(t.weekStart || '') >= w.start && String(t.weekStart || '') <= w.monthEnd)
-    const sum = (rows: any[], k: string) => rows.reduce((a, t) => a + (Number(t[k]) || 0), 0)
-    const cur = pick(win), pr = pick(prev)
-    const sent = sum(cur, 'connectionsSent'), accepted = sum(cur, 'accepted')
-    const prevSent = sum(pr, 'connectionsSent'), prevAccepted = sum(pr, 'accepted')
-    const rate = sent ? r1((accepted / sent) * 100) : 0
-    const prevRate = prevSent ? r1((prevAccepted / prevSent) * 100) : 0
-    const opps: any[] = Array.isArray(snap.opportunities) ? snap.opportunities : []
     return {
-      sent, accepted, rate, messages: sum(cur, 'messages'), opportunities: sum(cur, 'opportunities'),
-      prevSent, prevAccepted, prevRate, pct: pctOf(rate, s.acceptTarget),
-      weeks: cur.map(t => ({ weekStart: t.weekStart, sent: t.connectionsSent || 0, accepted: t.accepted || 0, messages: t.messages || 0, opportunities: t.opportunities || 0 })),
-      namedOpps: opps.filter(o => { const d = String(o.loggedAt || '').slice(0, 10); return d >= win.start && d <= win.end })
-        .map(o => ({ name: o.name || '', company: o.company || '', title: String(o.jobTitle || '').trim(), type: String(o.opportunityType || '').replace(/_/g, ' '), date: String(o.loggedAt || '').slice(0, 10) })),
-      lastReport: snap.periodLabel || `${data?.periodStart || ''} – ${data?.periodEnd || ''}`,
+      traj: Array.isArray(snap.trajectory) ? snap.trajectory : [],
+      opps: Array.isArray(snap.opportunities) ? snap.opportunities : [],
+      period: snap.periodLabel || `${data?.periodStart || ''} – ${data?.periodEnd || ''}`,
     }
   } catch { return null }
+}
+
+// One client number can run several LinkedIn campaigns (Altavia: Anne + Alexandre,
+// Finance Montreal: Steve + Noza). Every campaign report is fetched and summed.
+async function collectNetwork(reports: SiReport[], win: MonthWin, prev: MonthWin, s: V3Settings) {
+  const got = (await Promise.all(reports.map(async r => ({ r, d: await fetchTrajectory(r.reportId) })))).filter(x => x.d)
+  if (!got.length) return null
+  const inM = (w: MonthWin) => (t: any) => String(t.weekStart || '') >= w.start && String(t.weekStart || '') <= w.monthEnd
+  const sum = (rows: any[], k: string) => rows.reduce((a, t) => a + (Number(t[k]) || 0), 0)
+  const weekMap: Record<string, { weekStart: string; sent: number; accepted: number; messages: number; opportunities: number }> = {}
+  let sent = 0, accepted = 0, messages = 0, opportunities = 0, prevSent = 0, prevAccepted = 0
+  const campaigns: { label: string; sent: number; accepted: number; rate: number; opportunities: number }[] = []
+  const namedOpps: { name: string; company: string; title: string; type: string; date: string }[] = []
+  let lastReport = ''
+  for (const { r, d } of got) {
+    const cur = d!.traj.filter(inM(win)), pr = d!.traj.filter(inM(prev))
+    const cs = sum(cur, 'connectionsSent'), ca = sum(cur, 'accepted'), co = sum(cur, 'opportunities')
+    sent += cs; accepted += ca; messages += sum(cur, 'messages'); opportunities += co
+    prevSent += sum(pr, 'connectionsSent'); prevAccepted += sum(pr, 'accepted')
+    campaigns.push({ label: r.label, sent: cs, accepted: ca, rate: cs ? r1((ca / cs) * 100) : 0, opportunities: co })
+    for (const t of cur) {
+      const w = weekMap[t.weekStart] || (weekMap[t.weekStart] = { weekStart: t.weekStart, sent: 0, accepted: 0, messages: 0, opportunities: 0 })
+      w.sent += t.connectionsSent || 0; w.accepted += t.accepted || 0; w.messages += t.messages || 0; w.opportunities += t.opportunities || 0
+    }
+    for (const o of d!.opps) {
+      const dt = String(o.loggedAt || '').slice(0, 10)
+      if (dt >= win.start && dt <= win.end) namedOpps.push({ name: o.name || '', company: o.company || '', title: String(o.jobTitle || '').trim(), type: String(o.opportunityType || '').replace(/_/g, ' '), date: dt })
+    }
+    if (d!.period > lastReport) lastReport = d!.period
+  }
+  const rate = sent ? r1((accepted / sent) * 100) : 0
+  const prevRate = prevSent ? r1((prevAccepted / prevSent) * 100) : 0
+  return {
+    sent, accepted, rate, messages, opportunities, prevSent, prevAccepted, prevRate, pct: pctOf(rate, s.acceptTarget),
+    weeks: Object.values(weekMap).sort((a, b) => a.weekStart.localeCompare(b.weekStart)),
+    namedOpps, lastReport, campaigns,
+  }
+}
+
+// Report ids for a client: each company's current id + every link of the latest
+// stored Straight-in week that resolved to one of its companies (a client with two
+// campaigns under one company key, e.g. Altavia, has two entries there).
+async function reportsFor(kv: KVNamespace, entry: RegistryEntry, companies: any[]): Promise<SiReport[]> {
+  const out = new Map<string, SiReport>()
+  try {
+    const list = await kv.list({ prefix: 'straightin:week:' })
+    const latest = list.keys.map(k => k.name).sort().pop()
+    if (latest) {
+      const wk = JSON.parse((await kv.get(latest)) || '{}')
+      for (const e of (wk.entries || [])) {
+        if (e.reportId && e.companyKey && entry.keys.includes(e.companyKey)) out.set(e.reportId, { reportId: e.reportId, label: e.label || e.companyKey })
+      }
+    }
+  } catch { /* fall back to company ids */ }
+  for (const co of companies) {
+    if (co?.straightInReportId && !out.has(co.straightInReportId)) out.set(co.straightInReportId, { reportId: co.straightInReportId, label: co.name || co.key })
+  }
+  return [...out.values()]
 }
 
 const MEETING_PLUS = ['meeting', 'proposal', 'won']
@@ -308,20 +361,20 @@ export async function collectClientMonth(env: { COMPANIES_KV: KVNamespace }, dep
   const settings = s || await readSettings(env.COMPANIES_KV)
   const win = monthWin(monthKey), prev = monthWin(win.prevKey)
   const companies = (await Promise.all(entry.keys.map(k => deps.getCompany(env.COMPANIES_KV, k).catch(() => null)))).filter(Boolean)
-  const reportId = (companies.find((c: any) => c.straightInReportId) as any)?.straightInReportId || ''
+  const reports = await reportsFor(env.COMPANIES_KV, entry, companies)
   const errors: string[] = []
   const [promote, network, engage] = await Promise.all([
     collectPromote(deps, entry, win, prev, settings).catch(e => { errors.push('promote: ' + e.message); return null }),
-    reportId ? collectNetwork(reportId, win, prev, settings).catch(e => { errors.push('network: ' + e.message); return null }) : Promise.resolve(null),
+    reports.length ? collectNetwork(reports, win, prev, settings).catch(e => { errors.push('network: ' + e.message); return null }) : Promise.resolve(null),
     collectEngage(deps, companies, win, prev, settings).catch(e => { errors.push('engage: ' + e.message); return null }),
   ])
-  return { no: entry.no, name: entry.name, keys: entry.keys, month: win.key, generatedAt: new Date().toISOString(), promote, network, engage, errors }
+  return { no: entry.no, name: entry.name, keys: entry.keys, promoteInPlan: entry.promote !== false, campaigns: entry.campaigns || [], month: win.key, generatedAt: new Date().toISOString(), promote, network, engage, errors }
 }
 
 // KV cache: 30 min for the current month, 12 h for closed months.
 export async function getClientMonth(env: { COMPANIES_KV: KVNamespace }, deps: Deps, entry: RegistryEntry, monthKey: string, opts: { fresh?: boolean; settings?: V3Settings } = {}): Promise<ClientMonth> {
   const win = monthWin(monthKey)
-  const ck = `v3:cm:${win.key}:${entry.no}`
+  const ck = `v3:cm2:${win.key}:${entry.no}`
   if (!opts.fresh) {
     try {
       const raw = await env.COMPANIES_KV.get(ck)

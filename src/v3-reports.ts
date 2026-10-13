@@ -45,7 +45,8 @@ function improvementSources(p: Portfolio, s: V3Settings): string[] {
   const out: { w: number; t: string }[] = []
   for (const c of p.clients) {
     const L = clientLabel(c)
-    if (!c.promote) out.push({ w: 90, t: `${L} — Promote: no social account is collecting in social.gershon.ai. Connect LinkedIn/X so posts count.` })
+    if (c.promoteInPlan === false) { /* Promote not part of this project */ }
+    else if (!c.promote) out.push({ w: 90, t: `${L} — Promote: no social account is collecting in social.gershon.ai. Connect LinkedIn/X so posts count.` })
     else if (c.promote.posts === 0) out.push({ w: 85, t: `${L} — Promote: 0 posts this month (target ${c.promote.target}). Restart the posting schedule.` })
     else if (c.promote.pct < 40) out.push({ w: 60 - c.promote.pct / 2, t: `${L} — Promote: ${c.promote.posts} of ${c.promote.target} posts (${c.promote.pct}%). Add ${Math.max(0, c.promote.target - c.promote.posts)} posts to reach target.` })
     if (!c.network && c.keys.length) out.push({ w: 70, t: `${L} — Network: no Straight-in campaign report linked. Paste this week's link on the Straight-in page.` })
@@ -75,7 +76,7 @@ export function internalModel(p: Portfolio, s: V3Settings): ReportModel {
   const t = p.totals
   const rows = [...p.clients].sort((a, b) => (overallScore(b) ?? -1) - (overallScore(a) ?? -1)).map(c => [
     `#${c.no}`, c.name,
-    c.promote ? `${c.promote.posts}/${c.promote.target} · ${c.promote.pct}%` : '—',
+    c.promote ? `${c.promote.posts}/${c.promote.target} · ${c.promote.pct}%` : c.promoteInPlan === false ? 'not in plan' : '—',
     c.network ? `${c.network.rate}% · ${fmt(c.network.accepted)}/${fmt(c.network.sent)}` : '—',
     c.engage ? `${c.engage.newLeads} · ${c.engage.pct}%` : '—',
     overallScore(c) == null ? '—' : `${overallScore(c)}%`,
@@ -105,15 +106,19 @@ export function internalModel(p: Portfolio, s: V3Settings): ReportModel {
 export function straightinModel(p: Portfolio, s: V3Settings): ReportModel {
   const N = p.clients.filter(c => c.network || c.engage)
   const t = p.totals
-  const rows = N.map(c => [
-    `#${c.no}`, c.name,
+  const rows: string[][] = []
+  for (const c of N) {
+    rows.push([
+    `#${c.no}`, c.name + ((c.network?.campaigns?.length || 0) > 1 ? ' (all)' : ''),
     c.network ? fmt(c.network.sent) : '—',
     c.network ? fmt(c.network.accepted) : '—',
     c.network ? `${c.network.rate}%` : '—',
     c.network ? fmt(c.network.opportunities) : '—',
     c.engage ? `${c.engage.newLeads}/${s.leadsPerMonth}` : '—',
     c.engage ? fmt(c.engage.meetings) : '—',
-  ])
+    ])
+    if ((c.network?.campaigns?.length || 0) > 1) for (const k of c.network!.campaigns) rows.push(['', '  · ' + k.label, fmt(k.sent), fmt(k.accepted), `${k.rate}%`, fmt(k.opportunities), '', ''])
+  }
   const opps = p.clients.flatMap(c => (c.network?.namedOpps || []).map(o => `#${c.no} ${c.name} — ${o.name}${o.title ? ', ' + o.title : ''}${o.company ? ' at ' + o.company : ''} (${o.type}, ${o.date})`))
   const asks: string[] = []
   for (const c of p.clients) {
