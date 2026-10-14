@@ -99,6 +99,58 @@
       $('summaryText').innerHTML = '<b>' + esc(month.label) + (month.isCurrent ? ' so far' : '') + '</b> — portfolio at <b style="color:' + ({ good: 'var(--success)', warn: 'var(--warn)', crit: 'var(--brand)', none: 'inherit' })[band(sc)] + '">' + (sc == null ? '—' : sc + '%') + '</b> of plan across ' + done + (done < all ? ' of ' + all : '') + ' clients.';
     }
     getJSON('/api/v3/registry').then(function (r) { reg = r; setupSeg(load); load(); });
+    trackRecord();
+  }
+
+
+  // ── Track record & projections (history + live) ──
+  function pctTxt(v) { return v == null ? '—' : v + '%'; }
+  function paceBand(v) { return v == null ? 'none' : v >= 100 ? 'good' : v >= 60 ? 'warn' : 'crit'; }
+  function oppBars(series) {
+    if (!series || !series.length) return '<div class="empty">No monthly history yet.</div>';
+    var max = Math.max.apply(null, [1].concat(series.map(function (x) { return x.opportunities; })));
+    return '<div class="daybars" style="height:90px">' + series.map(function (x) { return '<div title="' + x.month + ': ' + x.opportunities + ' opportunities' + (x.partial ? ' (month in progress)' : '') + (x.live ? ' · live report' : ' · Straight-in sheet') + '" style="height:' + Math.max(2, x.opportunities / max * 100) + '%;' + (x.live ? '' : 'background:var(--text-muted);opacity:.45;') + (x.partial ? 'opacity:.5;' : '') + '"></div>'; }).join('') + '</div><div class="axis"><span>' + series[0].month + '</span><span>' + series[series.length - 1].month + '</span></div>';
+  }
+  function trackRecord() {
+    var el = $('track'); if (!el) return;
+    el.innerHTML = '<div class="card"><span class="skeleton">Loading the track record…………</span></div>';
+    getJSON('/api/v3/history').then(function (h) {
+      var b = h.benchmarks, p = h.portfolio, nc = h.newClient;
+      var k = function (label, val, sub) { return '<div class="kpi"><div class="kpi-label">' + label + '</div><div class="kpi-value">' + val + '</div><div class="kpi-sub">' + sub + '</div></div>'; };
+      var rows = h.clients.filter(function (c) { return c.monthsWithData > 0; }).sort(function (a, c) { return c.next3Expected - a.next3Expected; }).map(function (c) {
+        return '<tr><td><a href="/client/' + c.no + '"><span class="cno">#' + c.no + '</span> ' + esc(c.name) + '</a></td><td class="num">' + (c.tenureMonths == null ? '—' : c.tenureMonths) + '</td><td class="num">' + fmt(c.totalOpportunities) + '</td><td class="num">' + (c.last3Avg == null ? '—' : c.last3Avg) + '</td><td class="hide-sm"><span class="score ' + paceBand(c.vsBenchmarkPct) + '">' + pctTxt(c.vsBenchmarkPct) + '</span></td><td class="num">' + pctTxt(c.stay6) + '</td><td class="num"><b>' + fmt(c.next3Expected) + '</b></td></tr>';
+      }).join('');
+      el.innerHTML = '<div class="card"><div class="card-header"><h3><i class="fas fa-clock-rotate-left" style="color:var(--brand)"></i> Track record & outlook</h3><span class="muted" style="font-size:11px">History since 2021 · ' + b.clientsRun + ' clients · ' + fmt(b.totalOpportunities) + ' opportunities</span></div>' +
+        '<div class="kpi-row" style="margin-bottom:14px">' +
+        k('Average client lifetime', b.lifetimeMeanMonths + ' mo', 'median ' + b.lifetimeMedianMonths + ' months') +
+        k('Still with us after 6 / 12 months', Math.round(b.retention['6'] * 100) + '% / ' + Math.round(b.retention['12'] * 100) + '%', 'share of clients, all years') +
+        k('Opportunities per client per month', b.oppsPerClientMonthMean, 'history median ' + b.oppsPerClientMonthMedian + ' · now ' + pctTxt(p.paceVsHistoryPct) + ' of that pace') +
+        k('Next 3 months (expected)', fmt(p.next3Expected), 'opportunities · ' + fmt(p.next3RunRate) + ' if every client stays') +
+        k('Clients expected in 6 months', p.expectedClientsIn6 + ' of ' + p.clients, p.expectedClientsIn12 + ' in 12 months, before new signings') +
+        k('A new client is worth', '~' + nc.expectedOpportunities + ' opps', 'over ~' + nc.expectedMonths + ' months · ~' + nc.firstQuarterOpps + ' in its first 3') +
+        '</div>' +
+        '<div style="overflow:auto"><table class="data-table"><thead><tr><th>Client</th><th>Months with us</th><th>Opps to date</th><th>Last 3 mo / month</th><th class="hide-sm">Pace vs history</th><th>Stays 6 more mo</th><th>Next 3 mo (exp.)</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+        '<p class="muted" style="font-size:11px;margin-top:10px">Retention and pace come from every Gershon client since 2021 (Straight-in sheet + finance roster). Expected opportunities = each client\'s last 3 full months × the historical chance a client of that age is still with us. Clients with fewer than 3 months follow the average ramp of a new campaign.</p></div>';
+    }).catch(function () { el.innerHTML = ''; });
+  }
+  function clientHistory(no) {
+    var el = $('history'); if (!el) return;
+    el.innerHTML = '<div class="card"><span class="skeleton">Loading the track record…………</span></div>';
+    getJSON('/api/v3/history/' + no).then(function (h) {
+      var c = h.client, b = h.benchmarks;
+      var stat = function (k, v) { return '<div><div class="k">' + k + '</div><div class="v">' + v + '</div></div>'; };
+      var basis = c.basis === 'run-rate' ? 'based on its last 3 full months' : c.basis === 'ramp' ? 'based on how a typical new campaign ramps up' : 'blending its first months with a typical new campaign';
+      el.innerHTML = '<div class="grid cols-2"><div class="card"><div class="card-header"><h3><i class="fas fa-clock-rotate-left" style="color:var(--brand)"></i> Track record</h3><span class="muted" style="font-size:11px">' + (c.start ? 'with us since ' + esc(c.start) : 'start date unknown') + '</span></div>' +
+        '<div class="stat-grid">' + stat('Months with us', c.tenureMonths == null ? '—' : c.tenureMonths) + stat('Opportunities to date', fmt(c.totalOpportunities)) + stat('Avg per month', c.avgPerMonth) + '</div>' +
+        '<div class="stat-grid">' + stat('Last 3 months / month', c.last3Avg == null ? '—' : c.last3Avg) + stat('Pace vs average client', '<span class="score ' + paceBand(c.vsBenchmarkPct) + '">' + pctTxt(c.vsBenchmarkPct) + '</span>') + stat('History average', b.oppsPerClientMonthMean + ' / mo') + '</div>' +
+        '<div class="section-title" style="margin-top:12px">Opportunities per month</div>' + oppBars(c.series.slice(-24)) +
+        '<div class="muted" style="font-size:11px;margin-top:6px">Grey: Straight-in sheet · red: live weekly reports</div></div>' +
+        '<div class="card"><div class="card-header"><h3><i class="fas fa-chart-line" style="color:var(--brand)"></i> Projection</h3><span class="muted" style="font-size:11px">' + basis + '</span></div>' +
+        '<div class="big">' + fmt(c.next3Expected) + ' <span style="font-size:15px;color:var(--text-muted)">opportunities expected in the next 3 months</span></div>' +
+        '<div class="muted" style="font-size:12px;margin:6px 0 10px">' + fmt(c.next3RunRate) + ' if the campaign keeps running at this pace · ' + fmt(c.next12Expected) + ' expected over 12 months</div>' +
+        '<div class="stat-grid">' + stat('Still with us in 3 months', pctTxt(c.stay3)) + stat('In 6 months', pctTxt(c.stay6)) + stat('In 12 months', pctTxt(c.stay12)) + '</div>' +
+        '<div class="note" style="margin-top:12px">Clients who reach ' + (c.tenureMonths == null ? 'this point' : Math.round(c.tenureMonths) + ' months') + ' typically stay about <b>' + (c.expectedLifetime == null ? '—' : c.expectedLifetime) + ' months</b> in total (average across all clients: ' + b.lifetimeMeanMonths + ', median ' + b.lifetimeMedianMonths + '). ' + (c.vsBenchmarkPct != null && c.vsBenchmarkPct < 60 ? 'The pace is well below the historical average: worth a targeting review with Straight-in.' : c.vsBenchmarkPct != null && c.vsBenchmarkPct >= 100 ? 'The pace is at or above the historical average.' : '') + '</div></div></div>';
+    }).catch(function () { el.innerHTML = ''; });
   }
 
   // ── Client page ──
@@ -137,7 +189,7 @@
         $('details').innerHTML = det;
       });
     }
-    setupSeg(load); load();
+    setupSeg(load); load(); clientHistory(no);
   }
 
   // ── Reports ──

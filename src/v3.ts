@@ -8,6 +8,7 @@ import {
   CLIENT_REGISTRY, registryByNo, readSettings, saveSettings, monthWin, lastFullMonthKey, todayNY,
   getClientMonth, portfolioOf, type Deps, type V3Settings, type ClientMonth,
 } from './v3-data'
+import { registerHistory } from './v3-history'
 import { clientModel, internalModel, straightinModel, reportHtml, reportPdfBase64, pdfBytesFromBase64, type ReportKind, type ReportModel } from './v3-reports'
 
 const esc = (s: any) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -39,7 +40,7 @@ function shell(opts: { title: string; active: string; h1: string; right?: string
   <div class="content">${opts.body}</div>
 </main></div>
 <div id="toast"></div>
-<script src="/static/v3.js?v=6"></script></body></html>`
+<script src="/static/v3.js?v=7"></script></body></html>`
 }
 
 function monthSeg(): string {
@@ -53,6 +54,7 @@ function dashboardPage(): string {
     body: `
 <div class="summary" id="summary"><div class="summary-text" id="summaryText"><span class="skeleton">Loading the portfolio…………………………</span></div><a class="btn primary" href="/reports"><i class="fas fa-file-lines"></i> Monthly reports</a></div>
 <div class="kpi-row" id="kpis"></div>
+<div id="track"></div>
 <div class="card" style="padding:0;overflow:auto">
   <table class="ctable"><thead><tr><th>Client</th><th>Promote <span class="muted" id="thP" style="text-transform:none;font-weight:500"></span></th><th>Network <span class="muted" id="thN" style="text-transform:none;font-weight:500"></span></th><th>Engage <span class="muted" id="thE" style="text-transform:none;font-weight:500"></span></th><th class="hide-sm" style="text-align:center">Score</th></tr></thead>
   <tbody id="rows"></tbody></table>
@@ -69,7 +71,8 @@ function clientPage(no: number, name: string, keys: string[]): string {
     body: `
 <div class="summary" id="summary"><div class="summary-text" id="summaryText"><span class="skeleton">Loading…………………………………</span></div><div id="scoreBox"></div></div>
 <div class="grid cols-3" id="channels"></div>
-<div class="grid cols-2" id="details"></div>`,
+<div class="grid cols-2" id="details"></div>
+<div id="history"></div>`,
   })
 }
 
@@ -155,6 +158,8 @@ export function registerV3(app: Hono<any>, deps: Deps) {
     const headers = new Headers(c.res.headers); headers.delete('content-length')
     c.res = new Response(html, { status: c.res.status, headers })
   })
+
+  registerHistory(app, deps)
 
   const htmlV3 = (c: any, body: string) => { c.header('x-gc-v3', '1'); return c.html(body) }
 
