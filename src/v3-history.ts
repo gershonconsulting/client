@@ -37,7 +37,7 @@ export function registerHistory(app: Hono<any>, deps: Deps) {
     }
     const clients = []
     for (const r of CLIENT_REGISTRY) clients.push(await clientProjection(c.env, deps, r, s))
-    const live = clients.filter(x => x.monthsWithData > 0)
+    const live = clients.filter(x => x.monthsWithData > 0 && x.basis !== 'inactive' && x.basis !== 'none')
     const portfolio = {
       clients: live.length,
       next3Expected: live.reduce((a, x) => a + x.next3Expected, 0),

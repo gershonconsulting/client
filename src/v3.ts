@@ -40,7 +40,7 @@ function shell(opts: { title: string; active: string; h1: string; right?: string
   <div class="content">${opts.body}</div>
 </main></div>
 <div id="toast"></div>
-<script src="/static/v3.js?v=7"></script></body></html>`
+<script src="/static/v3.js?v=8"></script></body></html>`
 }
 
 function monthSeg(): string {
