@@ -205,7 +205,7 @@ export function usersPageBody(): string {
   function api(method,url,body){return fetch(url,{method:method,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined}).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Request failed');return d})})}
   function load(){return api('GET','/api/users').then(function(d){users=d.users||[];configured=d.linkedinConfigured;render()}).catch(function(e){msg('err',e.message)})}
   function render(){
-    $('cfgNote').innerHTML=configured?'':'<div class="u-msg err" style="display:block"><b>LinkedIn sign-in is waiting for its secret on the server.</b> You can create users and copy invite links now; the links start working as soon as the secret is set.</div>';
+    $('cfgNote').innerHTML=configured?'':'<div class="u-msg err" style="display:block"><b>LinkedIn sign-in is not switched on yet.</b> One last setting (the LinkedIn password of this app) must be added in Cloudflare by Charles. Until then the LinkedIn button is grey. You can already add people here — their invite will work the moment it is switched on.</div>';
     var c={t:users.length,a:users.filter(function(u){return u.linkedinLinked}).length,ad:users.filter(function(u){return u.role==='admin'}).length};
     $('kpis').innerHTML=[['Users',c.t],['Signed in',c.a],['Waiting for first sign-in',c.t-c.a],['Admins',c.ad]].map(function(k){return '<div class="u-kpi"><div class="l">'+k[0]+'</div><div class="v">'+k[1]+'</div></div>'}).join('');
     var q=$('q').value.trim().toLowerCase();
