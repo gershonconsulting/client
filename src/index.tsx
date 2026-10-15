@@ -1,7 +1,8 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/cloudflare-workers'
-import { registerV3 } from './v3'
+import { registerV3, shell as v3Shell } from './v3'
+import { registerUsers, linkedInConfigured } from './users'
 
 type Bindings = {
   COMPANIES_KV: KVNamespace
@@ -16,6 +17,8 @@ type Bindings = {
   AUTH_PASSWORD_HASH?: string
   SESSION_SECRET?: string
   SOCIAL_PROMOTE_KEY?: string
+  LINKEDIN_CLIENT_ID?: string
+  LINKEDIN_CLIENT_SECRET?: string
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -72,11 +75,25 @@ app.use('*', async (c, next) => {
 })
 
 // Login page
+const LI_ERRORS: Record<string, string> = {
+  not_registered: 'This LinkedIn account has no access yet. Ask Olivier to add you — he will send you an invite link.',
+  cancelled: 'LinkedIn sign-in was cancelled.',
+  state: 'The sign-in took too long or was opened in another tab. Please try again.',
+  token: 'LinkedIn refused the sign-in. Please try again.',
+  userinfo: 'LinkedIn did not return your profile. Please try again.',
+  not_configured: 'LinkedIn sign-in is being activated. Use your e-mail and password for now.',
+}
 app.get('/login', (c) => {
   const next = c.req.query('next') || '/'
-  const error = c.req.query('error') === '1' ? 'Incorrect email or password.' : undefined
-  return c.html(renderLoginPage(next, error))
+  const liErr = c.req.query('li_error')
+  const error = c.req.query('error') === '1' ? 'Incorrect email or password.'
+    : liErr ? (LI_ERRORS[liErr] || 'Sign-in failed. Please try again.') + (liErr === 'not_registered' && c.req.query('detail') ? ` (LinkedIn account: ${String(c.req.query('detail')).replace(/[<>&"]/g, '')})` : '')
+    : undefined
+  const invite = (c.req.query('invite') || '').replace(/[^a-zA-Z0-9-]/g, '').slice(0, 64)
+  return c.html(renderLoginPage(next, error, invite, linkedInConfigured(c.env)))
 })
+
+app.get('/favicon.ico', (c) => c.redirect('/static/clients-icon.svg', 301))
 
 // Login submit — accepts both form posts and JSON
 app.post('/api/auth/login', async (c) => {
@@ -270,6 +287,14 @@ function readCookie(header: string | undefined, name: string): string | null {
   return null
 }
 
+// Sign in with LinkedIn + Users admin panel (owner only) — src/users.ts
+registerUsers(app, {
+  createSessionToken: (env: Bindings, user: string) => createSessionToken(env, user),
+  sessionUser: async (c: any) => { const t = readCookie(c.req.header('Cookie'), SESSION_COOKIE); return t ? verifySessionToken(c.env, t) : null },
+  sessionCookie: SESSION_COOKIE,
+  sessionTtl: SESSION_TTL_SECONDS,
+}, (body: string) => v3Shell({ title: 'Users', active: 'users', h1: 'Users <span class="muted" style="font-size:13px;font-weight:500">who can sign in with LinkedIn</span>', body }))
+
 function renderHomePage(): string {
   const feature = (icon: string, color: string, title: string, body: string) => `
     <div class="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-lg transition-shadow">
@@ -440,7 +465,8 @@ function renderHomePage(): string {
 </html>`
 }
 
-function renderLoginPage(next: string, error?: string): string {
+function renderLoginPage(next: string, error?: string, invite = '', liOn = true): string {
+  const liHref = '/api/auth/linkedin/login?next=' + encodeURIComponent(next === '/' ? '/dashboard' : next) + (invite ? '&invite=' + invite : '')
   // Linalysis design, Gershon.ai red — same tokens as /static/gershon.css
   return `<!DOCTYPE html>
 <html lang="en">
@@ -449,6 +475,7 @@ function renderLoginPage(next: string, error?: string): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
   <title>Sign in — client.gershonCRM</title>
+  <link rel="icon" type="image/svg+xml" href="/static/clients-icon.svg">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
   <link rel="stylesheet" href="/static/gershon.css?v=3">
   <style>
@@ -459,17 +486,26 @@ function renderLoginPage(next: string, error?: string): string {
     .login input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(254,27,4,.12)}
     .login label{display:block;font-size:12px;font-weight:700;margin:0 0 6px}
     .login .btn.primary{width:100%;justify-content:center;padding:12px;font-size:14px;margin-top:6px}
+    .login .li-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;box-sizing:border-box;background:#0a66c2;color:#fff;font-weight:700;font-size:15px;padding:12px;border-radius:8px;text-decoration:none}
+    .login .li-btn:hover{background:#004182}
+    .login .li-btn.off{background:#9bb7d4;pointer-events:none}
+    .login .or{display:flex;align-items:center;gap:10px;color:var(--text-muted);font-size:12px;margin:18px 0}
+    .login .or:before,.login .or:after{content:"";flex:1;height:1px;background:var(--border)}
+    .login .inv{background:#eef5fc;border:1px solid #c7dcf2;color:#0a4a8c;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:14px}
     .login .err{background:var(--error-light);color:var(--error);border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:14px}
   </style>
 </head>
 <body>
   <div class="login-wrap"><div class="login">
     <div style="display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:22px">
-      <span class="brand-mark" style="width:38px;height:38px;font-size:19px">G</span>
+      <img src="/static/clients-icon.svg" alt="" width="42" height="42">
       <div><div style="font-weight:800;font-size:21px;color:var(--brand);letter-spacing:-.02em;line-height:1">Gershon</div><div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.08em;text-transform:uppercase">Client results</div></div>
     </div>
     <div class="card">
       ${error ? `<div class="err"><i class="fas fa-circle-exclamation"></i> ${error}</div>` : ''}
+      ${invite ? `<div class="inv"><b>You have been invited.</b> Sign in with LinkedIn once on this page to activate your access.</div>` : ''}
+      <a class="li-btn${liOn ? '' : ' off'}" href="${liHref}"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect width="24" height="24" rx="4" fill="#fff"/><path fill="#0a66c2" d="M6.94 8.5H4.3V19h2.64zM5.62 4.5a1.53 1.53 0 1 0 0 3.06 1.53 1.53 0 0 0 0-3.06zM19.7 13.1c0-2.83-1.5-4.15-3.52-4.15a3.04 3.04 0 0 0-2.75 1.51V8.5h-2.53V19h2.64v-5.2c0-1.37.26-2.7 1.96-2.7 1.67 0 1.7 1.57 1.7 2.79V19h2.5z"/></svg>${liOn ? 'Sign in with LinkedIn' : 'LinkedIn sign-in — being activated'}</a>
+      <div class="or">or with e-mail and password</div>
       <form method="POST" action="/api/auth/login">
         <input type="hidden" name="next" value="${next.replace(/"/g, '&quot;')}" />
         <div style="margin-bottom:14px"><label for="email">Email address</label>

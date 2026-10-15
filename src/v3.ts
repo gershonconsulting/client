@@ -14,7 +14,7 @@ import { clientModel, internalModel, straightinModel, reportHtml, reportPdfBase6
 const esc = (s: any) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
 // ── Shell ────────────────────────────────────────────────────────────────────
-function shell(opts: { title: string; active: string; h1: string; right?: string; body: string; data?: Record<string, string> }): string {
+export function shell(opts: { title: string; active: string; h1: string; right?: string; body: string; data?: Record<string, string> }): string {
   const nav = (href: string, icon: string, label: string, key: string) =>
     `<a class="nav-item${opts.active === key ? ' active' : ''}" href="${href}"><i class="fas ${icon}"></i><span>${label}</span></a>`
   const clients = CLIENT_REGISTRY.map(r =>
@@ -22,7 +22,7 @@ function shell(opts: { title: string; active: string; h1: string; right?: string
   const data = Object.entries(opts.data || {}).map(([k, v]) => ` data-${k}="${esc(v)}"`).join('')
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><title>${esc(opts.title)} · client.gershonCRM</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23FE1B04'/%3E%3Ctext x='16' y='22' font-family='Arial' font-weight='700' font-size='17' fill='white' text-anchor='middle'%3EG%3C/text%3E%3C/svg%3E">
+<link rel="icon" type="image/svg+xml" href="/static/clients-icon.svg"><link rel="apple-touch-icon" href="/static/clients-icon.svg">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 <link rel="stylesheet" href="/static/gershon.css?v=4"></head>
 <body${data}><div class="app">
@@ -30,7 +30,7 @@ function shell(opts: { title: string; active: string; h1: string; right?: string
   <a class="brand" href="/dashboard"><span class="brand-mark">G</span><span>Gershon<span class="tag">Client results</span></span></a>
   <div class="nav-group">${nav('/dashboard', 'fa-gauge-high', 'Dashboard', 'dashboard')}${nav('/reports', 'fa-file-lines', 'Monthly reports', 'reports')}</div>
   <div class="nav-group"><div class="nav-group-label">Clients</div>${clients}</div>
-  <div class="nav-group"><div class="nav-group-label">Data</div>${nav('/straightin', 'fa-link', 'Straight-in links', 'straightin')}${nav('/settings', 'fa-sliders', 'Targets & recipients', 'settings')}${nav('/admin', 'fa-gear', 'Admin', 'admin')}</div>
+  <div class="nav-group"><div class="nav-group-label">Data</div>${nav('/straightin', 'fa-link', 'Straight-in links', 'straightin')}${nav('/settings', 'fa-sliders', 'Targets & recipients', 'settings')}${nav('/admin', 'fa-gear', 'Admin', 'admin')}${nav('/users', 'fa-user-shield', 'Users', 'users')}</div>
   <div class="nav-spacer"></div>
   <a class="nav-item" href="/api/auth/logout"><i class="fas fa-right-from-bracket"></i><span>Sign out</span></a>
   <div class="sidebar-footer">Promote · social.gershon.ai<br>Network · Straight-in<br>Engage · Streak</div>
@@ -147,12 +147,19 @@ export function registerV3(app: Hono<any>, deps: Deps) {
     if (!ct.includes('text/html') || c.res.headers.get('x-gc-v3')) return
     const path = new URL(c.req.url).pathname
     let html = await c.res.text()
-    if (html.includes('/static/gershon.css')) { c.res = new Response(html, c.res); return }
+    // App icon (red "clients" badge) on every page
+    const icon = '<link rel="icon" type="image/svg+xml" href="/static/clients-icon.svg"><link rel="apple-touch-icon" href="/static/clients-icon.svg">'
+    html = html.replace(/<link[^>]+rel=["'](?:shortcut )?icon["'][^>]*>/gi, '')
+    html = html.includes('</head>') ? html.replace('</head>', icon + '</head>') : icon + html
+    if (html.includes('/static/gershon.css')) {
+      const h0 = new Headers(c.res.headers); h0.delete('content-length')
+      c.res = new Response(html, { status: c.res.status, headers: h0 }); return
+    }
     const theme = '<link rel="stylesheet" href="/static/gershon-theme.css?v=3">'
     html = html.includes('</head>') ? html.replace('</head>', theme + '</head>') : theme + html
     const showBar = path !== '/login' && !(path === '/' && !new URL(c.req.url).searchParams.get('company'))
     if (showBar) {
-      const bar = `<div id="gc-topnav"><span class="b">Gershon</span><a href="/dashboard">Dashboard</a><a href="/reports">Monthly reports</a><a href="/straightin">Straight-in links</a><a href="/settings">Settings</a><a href="/admin">Admin</a></div>`
+      const bar = `<div id="gc-topnav"><span class="b">Gershon</span><a href="/dashboard">Dashboard</a><a href="/reports">Monthly reports</a><a href="/straightin">Straight-in links</a><a href="/settings">Settings</a><a href="/admin">Admin</a><a href="/users">Users</a></div>`
       html = html.replace(/<body([^>]*)>/i, (m0) => m0 + bar)
     }
     const headers = new Headers(c.res.headers); headers.delete('content-length')
