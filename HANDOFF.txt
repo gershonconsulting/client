@@ -1,0 +1,25 @@
+HANDOFF — gershonconsulting/client (client.gershon.ai / client.gershoncrm.com)
+Updated 2026-10-15 by Claude. Read the master handoff: gershonconsulting/memory -> HANDOFF.txt
+Rules: Olivier never runs commands/uploads. Executors: Ariel (code/repo), Charles (dashboards).
+
+DONE ✅ (2026-10-15)
+- ✅ Sign in with LinkedIn (src/users.ts): LinkedIn app "Client" id 78up2kwkdki2kh,
+  callback https://client.gershon.ai/api/auth/linkedin/callback (registered by Olivier).
+  Password login kept as fallback. Health: /api/auth/linkedin/health
+- ✅ /users panel — owner only (olivier@attia.com, oattia@gmail.com, olivier@gershonconsulting.com,
+  admin@gershonconsulting password login). Create from LinkedIn link, one-time invite links
+  (/login?invite=…), invite e-mail via Resend, edit, reset LinkedIn, remove. KV key __app_users__.
+- ✅ New app icon public/static/clients-icon.svg on every page (original SVG, red badge, two people).
+- ✅ client.gershon.ai attached to Pages project gershoncrm-client (.github/workflows/attach-domain.yml).
+
+PENDING ❌
+- ❌ DNS CNAME client -> gershoncrm-client.pages.dev in gershon.ai zone (CF token lacks DNS edit;
+  dashboard step for Charles — docs/HANDOFF-charles-client-gershon-ai.md)
+- ❌ LINKEDIN_CLIENT_SECRET Pages secret (Charles, same doc). Until then the LinkedIn button is greyed out.
+- ❌ After both: optional 308 redirect of pages from client.gershoncrm.com -> client.gershon.ai
+  (keep /api/* on old host; social calls it). See social docs/DOMAIN-MOVE-PLAYBOOK.md.
+- ❌ Roles: team vs admin are stored but every signed-in user still sees all pages.
+
+GOTCHAS
+- Do not commit dist/ (CI builds). npm ci works. CI version-bump job can race on double triggers (harmless).
+- Routes using SESSION_COOKIE must be registered after its const declaration in index.tsx (TDZ).
