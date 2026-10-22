@@ -11,7 +11,7 @@ import { band, clientLabel, overallScore, pctOf, type ClientMonth, type Portfoli
 
 export type ReportKind = 'straightin' | 'internal' | 'client'
 
-const RED = '#FE1B04', INK = '#1d1d1f', MUT = '#6e6e73', RULE = '#e5e7eb', TINT = '#fafafa', GOOD = '#057642', WARN = '#b76b00'
+const RED = '#CC3333', INK = '#1d1d1f', MUT = '#6e6e73', RULE = '#e5e7eb', TINT = '#fafafa', GOOD = '#057642', WARN = '#b76b00'
 const fmt = (n: number | null | undefined) => (n == null ? '—' : Math.round(n).toLocaleString('en-US'))
 const esc = (s: any) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 const plural = (n: number, w: string) => `${fmt(n)} ${w}${Math.round(n) === 1 ? '' : 's'}`
