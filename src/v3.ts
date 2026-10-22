@@ -13,6 +13,16 @@ import { clientModel, internalModel, straightinModel, reportHtml, reportPdfBase6
 
 const esc = (s: any) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
+// Unified Gershon design (v1.4.0, 2026-10-22): /static/unified-theme.css is the LAST
+// stylesheet on every page — linked here for v3 pages and by the HTML middleware below
+// for legacy pages. __APP_VERSION__ comes from package.json (vite define).
+declare const __APP_VERSION__: string
+const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : ''
+const UNIFIED_THEME_HREF = '/static/unified-theme.css?v=' + APP_VERSION
+const UNIFIED_THEME_LINK = '<link rel="stylesheet" href="' + UNIFIED_THEME_HREF + '">'
+const withUnifiedTheme = (html: string) =>
+  html.includes('/static/unified-theme.css') ? html : html.includes('</head>') ? html.replace('</head>', UNIFIED_THEME_LINK + '</head>') : UNIFIED_THEME_LINK + html
+
 // ── Shell ────────────────────────────────────────────────────────────────────
 export function shell(opts: { title: string; active: string; h1: string; right?: string; body: string; data?: Record<string, string> }): string {
   const nav = (href: string, icon: string, label: string, key: string) =>
@@ -24,7 +34,8 @@ export function shell(opts: { title: string; active: string; h1: string; right?:
 <meta name="robots" content="noindex,nofollow"><title>${esc(opts.title)} · client.gershonCRM</title>
 <link rel="icon" type="image/svg+xml" href="/static/clients-icon.svg"><link rel="apple-touch-icon" href="/static/clients-icon.svg">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-<link rel="stylesheet" href="/static/gershon.css?v=4"></head>
+<link rel="stylesheet" href="/static/gershon.css?v=5">
+<link rel="stylesheet" href="${UNIFIED_THEME_HREF}"></head>
 <body${data}><div class="app">
 <aside class="sidebar" id="sidebar">
   <a class="brand" href="/dashboard"><span class="brand-mark">G</span><span>Gershon<span class="tag">Client results</span></span></a>
@@ -33,7 +44,7 @@ export function shell(opts: { title: string; active: string; h1: string; right?:
   <div class="nav-group"><div class="nav-group-label">Data</div>${nav('/straightin', 'fa-link', 'Straight-in links', 'straightin')}${nav('/settings', 'fa-sliders', 'Targets & recipients', 'settings')}${nav('/admin', 'fa-gear', 'Admin', 'admin')}${nav('/users', 'fa-user-shield', 'Users', 'users')}</div>
   <div class="nav-spacer"></div>
   <a class="nav-item" href="/api/auth/logout"><i class="fas fa-right-from-bracket"></i><span>Sign out</span></a>
-  <div class="sidebar-footer">Promote · social.gershon.ai<br>Network · Straight-in<br>Engage · Streak</div>
+  <div class="sidebar-footer">Promote · social.gershon.ai<br>Network · Straight-in<br>Engage · Streak<span class="ver">v${APP_VERSION}</span></div>
 </aside>
 <main>
   <header class="topbar"><div style="display:flex;align-items:center;gap:10px"><button class="btn menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')"><i class="fas fa-bars"></i></button><h1>${opts.h1}</h1></div><div class="topbar-right">${opts.right || ''}</div></header>
@@ -69,7 +80,7 @@ function clientPage(no: number, name: string, keys: string[]): string {
     title: `#${no} ${name}`, active: 'c' + no, h1: `<span class="cno">#${no}</span> ${esc(name)}`, data: { page: 'client', no: String(no) },
     right: `${monthSeg()}<a class="btn" id="pdfBtn" href="#" target="_blank"><i class="fas fa-file-pdf"></i> Client report</a>${legacy}`,
     body: `
-<div class="summary" id="summary"><div class="summary-text" id="summaryText"><span class="skeleton">Loading…………………………………</span></div><div id="scoreBox"></div></div>
+<div class="summary" id="summary"><div class="summary-text" id="summaryText"><span class="skeleton">Loading………………………………</span></div><div id="scoreBox"></div></div>
 <div class="grid cols-3" id="channels"></div>
 <div class="grid cols-2" id="details"></div>
 <div id="history"></div>`,
@@ -152,11 +163,13 @@ export function registerV3(app: Hono<any>, deps: Deps) {
     html = html.replace(/<link[^>]+rel=["'](?:shortcut )?icon["'][^>]*>/gi, '')
     html = html.includes('</head>') ? html.replace('</head>', icon + '</head>') : icon + html
     if (html.includes('/static/gershon.css')) {
+      html = withUnifiedTheme(html)
       const h0 = new Headers(c.res.headers); h0.delete('content-length')
       c.res = new Response(html, { status: c.res.status, headers: h0 }); return
     }
     const theme = '<link rel="stylesheet" href="/static/gershon-theme.css?v=3">'
     html = html.includes('</head>') ? html.replace('</head>', theme + '</head>') : theme + html
+    html = withUnifiedTheme(html)   // after gershon-theme.css, so it wins
     const showBar = path !== '/login' && !(path === '/' && !new URL(c.req.url).searchParams.get('company'))
     if (showBar) {
       const bar = `<div id="gc-topnav"><span class="b">Gershon</span><a href="/dashboard">Dashboard</a><a href="/reports">Monthly reports</a><a href="/straightin">Straight-in links</a><a href="/settings">Settings</a><a href="/admin">Admin</a><a href="/users">Users</a></div>`
