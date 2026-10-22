@@ -11,6 +11,7 @@ import {
 import { registerHistory } from './v3-history'
 import { clientModel, internalModel, straightinModel, reportHtml, reportPdfBase64, pdfBytesFromBase64, type ReportKind, type ReportModel } from './v3-reports'
 
+declare const __APP_VERSION__: string
 const esc = (s: any) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
 // ── Shell ────────────────────────────────────────────────────────────────────
@@ -18,13 +19,13 @@ export function shell(opts: { title: string; active: string; h1: string; right?:
   const nav = (href: string, icon: string, label: string, key: string) =>
     `<a class="nav-item${opts.active === key ? ' active' : ''}" href="${href}"><i class="fas ${icon}"></i><span>${label}</span></a>`
   const clients = CLIENT_REGISTRY.map(r =>
-    `<a class="nav-item${opts.active === 'c' + r.no ? ' active' : ''}" href="/client/${r.no}" style="padding:6px 12px;font-size:13px"><span class="cno" style="min-width:30px;${opts.active === 'c' + r.no ? 'color:#fff' : ''}">${r.no}</span><span>${esc(r.name)}</span></a>`).join('')
+    `<a class="nav-item${opts.active === 'c' + r.no ? ' active' : ''}" href="/client/${r.no}" style="padding:6px 12px;font-size:13px"><span class="cno" style="min-width:38px;${opts.active === 'c' + r.no ? 'color:#fff' : ''}">#${r.no}</span><span>${esc(r.name)}</span></a>`).join('')
   const data = Object.entries(opts.data || {}).map(([k, v]) => ` data-${k}="${esc(v)}"`).join('')
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><title>${esc(opts.title)} · client.gershonCRM</title>
 <link rel="icon" type="image/svg+xml" href="/static/clients-icon.svg"><link rel="apple-touch-icon" href="/static/clients-icon.svg">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-<link rel="stylesheet" href="/static/gershon.css?v=4"></head>
+<link rel="stylesheet" href="/static/gershon.css?v=4"><link rel="stylesheet" href="/static/unified-theme.css?v=1"></head>
 <body${data}><div class="app">
 <aside class="sidebar" id="sidebar">
   <a class="brand" href="/dashboard"><span class="brand-mark">G</span><span>Gershon<span class="tag">Client results</span></span></a>
@@ -33,14 +34,14 @@ export function shell(opts: { title: string; active: string; h1: string; right?:
   <div class="nav-group"><div class="nav-group-label">Data</div>${nav('/straightin', 'fa-link', 'Straight-in links', 'straightin')}${nav('/settings', 'fa-sliders', 'Targets & recipients', 'settings')}${nav('/admin', 'fa-gear', 'Admin', 'admin')}${nav('/users', 'fa-user-shield', 'Users', 'users')}</div>
   <div class="nav-spacer"></div>
   <a class="nav-item" href="/api/auth/logout"><i class="fas fa-right-from-bracket"></i><span>Sign out</span></a>
-  <div class="sidebar-footer">Promote · social.gershon.ai<br>Network · Straight-in<br>Engage · Streak</div>
+  <div class="sidebar-footer">Promote · social.gershon.ai<br>Network · Straight-in<br>Engage · Streak<span class="ver">v${__APP_VERSION__}</span></div>
 </aside>
 <main>
   <header class="topbar"><div style="display:flex;align-items:center;gap:10px"><button class="btn menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')"><i class="fas fa-bars"></i></button><h1>${opts.h1}</h1></div><div class="topbar-right">${opts.right || ''}</div></header>
   <div class="content">${opts.body}</div>
 </main></div>
 <div id="toast"></div>
-<script src="/static/v3.js?v=8"></script></body></html>`
+<script src="/static/v3.js?v=9"></script></body></html>`
 }
 
 function monthSeg(): string {
@@ -69,7 +70,7 @@ function clientPage(no: number, name: string, keys: string[]): string {
     title: `#${no} ${name}`, active: 'c' + no, h1: `<span class="cno">#${no}</span> ${esc(name)}`, data: { page: 'client', no: String(no) },
     right: `${monthSeg()}<a class="btn" id="pdfBtn" href="#" target="_blank"><i class="fas fa-file-pdf"></i> Client report</a>${legacy}`,
     body: `
-<div class="summary" id="summary"><div class="summary-text" id="summaryText"><span class="skeleton">Loading…………………………………</span></div><div id="scoreBox"></div></div>
+<div class="summary" id="summary"><div class="summary-text" id="summaryText"><span class="skeleton">Loading……………………………</span></div><div id="scoreBox"></div></div>
 <div class="grid cols-3" id="channels"></div>
 <div class="grid cols-2" id="details"></div>
 <div id="history"></div>`,
@@ -138,8 +139,29 @@ async function sendReport(env: any, m: ReportModel, to: string[], bcc: string[] 
 }
 const emails = (s: string) => String(s || '').split(/[,;\s]+/).map(x => x.trim()).filter(x => /.+@.+\..+/.test(x))
 
+// ── Report sender display name ──────────────────────────────────────────────
+// Naming rule (2026-10-22): automated Gershon-internal report e-mails show a
+// display name starting with "GC ". Only the DISPLAY NAME changes: the address
+// stays whatever REPORT_FROM_EMAIL holds (or the old default), recipients and
+// schedule are untouched.
+export function gcFrom(configured: string | undefined, displayName: string): string {
+  const raw = String(configured || 'Gershon.AI Reports <reports@gershoncrm.com>').trim()
+  const addr = ((raw.match(/<([^>]+)>/) || [])[1] || (raw.includes('@') ? raw : 'reports@gershoncrm.com')).trim()
+  const current = raw.includes('<') ? raw.slice(0, raw.indexOf('<')).trim().replace(/^"|"$/g, '') : ''
+  return `${current.startsWith('GC ') ? current : displayName} <${addr}>`
+}
+
 // ── Registration ─────────────────────────────────────────────────────────────
 export function registerV3(app: Hono<any>, deps: Deps) {
+  // Legacy weekly/monthly report senders (index.tsx) read REPORT_FROM_EMAIL;
+  // hand them a GC-named sender for this request only (env is not mutated).
+  for (const p of ['/api/reports/weekly/send', '/api/reports/monthly/send']) {
+    app.use(p, async (c, next) => {
+      c.env = { ...(c.env || {}), REPORT_FROM_EMAIL: gcFrom(c.env?.REPORT_FROM_EMAIL, 'GC Client Report') }
+      await next()
+    })
+  }
+
   // Theme + top bar on every legacy HTML page (v3 pages are already styled).
   app.use('*', async (c, next) => {
     await next()
@@ -151,11 +173,13 @@ export function registerV3(app: Hono<any>, deps: Deps) {
     const icon = '<link rel="icon" type="image/svg+xml" href="/static/clients-icon.svg"><link rel="apple-touch-icon" href="/static/clients-icon.svg">'
     html = html.replace(/<link[^>]+rel=["'](?:shortcut )?icon["'][^>]*>/gi, '')
     html = html.includes('</head>') ? html.replace('</head>', icon + '</head>') : icon + html
+    const unified = '<link rel="stylesheet" href="/static/unified-theme.css?v=1">'
     if (html.includes('/static/gershon.css')) {
+      if (!html.includes('/static/unified-theme.css')) html = html.replace('</head>', unified + '</head>')
       const h0 = new Headers(c.res.headers); h0.delete('content-length')
       c.res = new Response(html, { status: c.res.status, headers: h0 }); return
     }
-    const theme = '<link rel="stylesheet" href="/static/gershon-theme.css?v=3">'
+    const theme = '<link rel="stylesheet" href="/static/gershon-theme.css?v=3">' + unified
     html = html.includes('</head>') ? html.replace('</head>', theme + '</head>') : theme + html
     const showBar = path !== '/login' && !(path === '/' && !new URL(c.req.url).searchParams.get('company'))
     if (showBar) {

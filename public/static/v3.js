@@ -51,7 +51,7 @@
       var my = ++gen, m = monthKey(current);
       results = {};
       $('rows').innerHTML = reg.clients.map(function (r) {
-        return '<tr class="row" data-no="' + r.no + '" onclick="location.href=\'/client/' + r.no + '\'"><td><span class="cno">' + r.no + '</span> <b>' + esc(r.name) + '</b></td><td colspan="3"><span class="skeleton">loading three channels………………………………………………</span></td><td class="hide-sm"></td></tr>';
+        return '<tr class="row" data-no="' + r.no + '" onclick="location.href=\'/client/' + r.no + '\'"><td><span class="cno">#' + r.no + '</span> <b>' + esc(r.name) + '</b></td><td colspan="3"><span class="skeleton">loading three channels……………………………………………</span></td><td class="hide-sm"></td></tr>';
       }).join('');
       $('kpis').innerHTML = '';
       $('summaryText').innerHTML = '<span class="skeleton">Loading the portfolio…………………………</span>';
@@ -69,7 +69,7 @@
               if (my !== gen) return;
               var cm = d.client; results[r.no] = cm;
               var tr = document.querySelector('tr[data-no="' + r.no + '"]');
-              tr.innerHTML = '<td><span class="cno">' + r.no + '</span> <b>' + esc(r.name) + '</b></td><td>' + chanP(cm) + '</td><td>' + chanN(cm) + '</td><td>' + chanE(cm) + '</td><td class="hide-sm" style="text-align:center">' + scoreBadge(score(cm)) + '</td>';
+              tr.innerHTML = '<td><span class="cno">#' + r.no + '</span> <b>' + esc(r.name) + '</b></td><td>' + chanP(cm) + '</td><td>' + chanN(cm) + '</td><td>' + chanE(cm) + '</td><td class="hide-sm" style="text-align:center">' + scoreBadge(score(cm)) + '</td>';
               totals(d.month, s);
             }).catch(function () { }).then(function () { running--; next(); });
           })(queue.shift());
