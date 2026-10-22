@@ -1,6 +1,31 @@
 HANDOFF — gershonconsulting/client (client.gershon.ai / client.gershoncrm.com)
-Updated 2026-10-15 by Claude. Read the master handoff: gershonconsulting/memory -> HANDOFF.txt
+Updated 2026-10-15 by Claude (2026-10-22 nightly section added). Read the master handoff: gershonconsulting/memory -> HANDOFF.txt
 Rules: Olivier never runs commands/uploads. Executors: Ariel (code/repo), Charles (dashboards).
+
+2026-10-22 nightly — unified Gershon design (branch nightly/2026-10-22-client-unified, PR #1, v1.4.0)
+  What: client.gershonCRM re-skinned to the unified design (Linalysis layout, Gershon.ai red #CC3333).
+    UI/CSS only. New public/static/unified-theme.css, loaded LAST on every HTML page
+    (Radar/Pulse pattern). src/v3.ts: shell() links it and the HTML middleware appends it
+    after gershon-theme.css. gershon.css: tokens moved to #CC3333 + sign-in page rules
+    (/login is served before the middleware, so gershon.css is the only stylesheet it gets).
+    Legacy Tailwind pages: blue->red palette moved from #FE1B04 to the #CC3333 scale.
+    Landing: red pill buttons + red closing band. Phone: no horizontal scroll on dashboard,
+    client, admin and straight-in pages; header controls wrap below the title.
+    Version 1.3.69 -> 1.4.0.
+  NOT touched: any /api/* route (incl. /api/reports/weekly/send used by the Monday task),
+    the e-mailed/PDF reports (v3-reports.ts), src/index.tsx, gershon-theme.css.
+  ✅ Ready to test on the preview: Claude artifact "Client Unified Design"
+     https://claude.ai/artifact/LU3DjH2iBpKfxQrXYpSoNr (sample data, the real rendered pages).
+     Verified locally: real worker + Playwright, 9 pages at 1280px and 390px,
+     0 console errors, no horizontal scroll.
+  ❌ No branch test link: Pages builds main only (CI). Merge = live (Olivier's call).
+  Deploy route: merge PR #1 -> GitHub Actions builds and deploys to Pages project
+    gershoncrm-client (client.gershoncrm.com / client.gershon.ai). CI bumps the patch on merge,
+    so production will show v1.4.1.
+  Next action: Olivier reviews the preview and merges PR #1. After the merge, hard-refresh once
+    (the stylesheet link has a ?v=<version> cache-buster).
+  Note: the ellipsis in the client-page loading placeholder in v3.ts went from 12 characters
+    to 11 (cosmetic only).
 
 DONE ✅ (2026-10-15)
 - ✅ Sign in with LinkedIn (src/users.ts): LinkedIn app "Client" id 78up2kwkdki2kh,
@@ -18,6 +43,7 @@ PENDING ❌
 - ❌ LINKEDIN_CLIENT_SECRET Pages secret (Charles, same doc). Until then the LinkedIn button is greyed out.
 - ❌ After both: optional 308 redirect of pages from client.gershoncrm.com -> client.gershon.ai
   (keep /api/* on old host; social calls it). See social docs/DOMAIN-MOVE-PLAYBOOK.md.
+- ❌ Unified design PR #1 (nightly/2026-10-22-client-unified): merge pending (Olivier's call).
 - ❌ Roles: team vs admin are stored but every signed-in user still sees all pages.
 
 GOTCHAS
