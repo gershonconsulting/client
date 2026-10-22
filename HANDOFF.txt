@@ -1,18 +1,36 @@
 HANDOFF — gershonconsulting/client (client.gershon.ai / client.gershoncrm.com)
-Updated 2026-10-15 by Claude. Read the master handoff: gershonconsulting/memory -> HANDOFF.txt
+Updated 2026-10-22 by Claude (nightly). Read the master handoff: gershonconsulting/memory -> HANDOFF.txt
 Rules: Olivier never runs commands/uploads. Executors: Ariel (code/repo), Charles (dashboards).
 
-DONE ✅ (2026-10-15)
-- ✅ Sign in with LinkedIn (src/users.ts): LinkedIn app "Client" id 78up2kwkdki2kh,
-  callback https://client.gershon.ai/api/auth/linkedin/callback (registered by Olivier).
-  Password login kept as fallback. Health: /api/auth/linkedin/health
-- ✅ /users panel — owner only (olivier@attia.com, oattia@gmail.com, olivier@gershonconsulting.com,
-  admin@gershonconsulting password login). Create from LinkedIn link, one-time invite links
-  (/login?invite=…), invite e-mail via Resend, edit, reset LinkedIn, remove. KV key __app_users__.
-- ✅ New app icon public/static/clients-icon.svg on every page (original SVG, red badge, two people).
-- ✅ client.gershon.ai attached to Pages project gershoncrm-client (.github/workflows/attach-domain.yml).
+STACK / DEPLOY
+- Hono on Cloudflare Pages (project gershoncrm-client), Vite build, KV COMPANIES_KV.
+- Deploy: push to main -> .github/workflows/deploy.yml (CI bumps patch version, builds, deploys).
+- No branch previews for this app: PRs are previewed as a static Claude artifact.
+
+NIGHTLY 2026-10-22 — unified Gershon design (branch nightly/2026-10-22-client-unified-design, v1.4.0)
+- ✅ public/static/unified-theme.css (NEW, additive, same approach as Pulse PR #1 / Radar):
+  brand #CC3333 / dark #a8281f / tint #fdf2f2, text #1d1d1f, borders #e5e7eb, page #fafafa,
+  white 240px sidebar with red active pill, 12px white cards, red primary buttons + segmented tabs,
+  red focus rings on inputs/buttons/links. Semantic good/warn/crit colours untouched.
+  Loaded by: v3 shell (src/v3.ts), gershon.css (@import, so /login gets it), and the v3
+  middleware after gershon-theme.css on every legacy Tailwind page (/, /admin, /straightin, ?company=).
+  Legacy Tailwind blue/indigo/purple/sky/violet utilities re-mapped from #FE1B04 to the #CC3333 scale.
+- ✅ Phone: no horizontal page scroll (checked at 375px on /, /login, /dashboard, /client/:no,
+  /reports, /settings, /users, /straightin, /admin, /?company=…). Legacy fixed sidebar stacks on phones.
+- ✅ Client numbers: sidebar + dashboard rows now show "#175 Finance Montreal" like the client
+  pages, reports and track record (registry = canonical IDs 175/200/212/229/233/245/246/247/248/250).
+- ✅ Weekly + monthly legacy report e-mails (/api/reports/weekly/send, /api/reports/monthly/send):
+  sender DISPLAY NAME forced to "GC Client Report" (unless REPORT_FROM_EMAIL already starts with
+  "GC "); address and recipients unchanged. Done as a route middleware in src/v3.ts (gcFrom()).
+- ✅ Version 1.4.0 visible in the v3 sidebar footer and on /admin.
 
 PENDING ❌
+- ❌ src/index.tsx (470 KB) cannot be edited through the GitHub connector (~250 KB/file limit), so
+  these stay for Ariel: weekly report body still lists company names without "#no" (use
+  registryByKey in collectReportData); legacy weekly/monthly e-mail HTML still uses the old
+  indigo header gradient; login page inline focus colour (overridden by unified-theme.css anyway).
+- ❌ src/v3-reports.ts RED = '#FE1B04' (monthly report e-mail/PDF) and users.ts invite e-mail
+  header colour -> change to #CC3333 in a follow-up (left out to keep this PR small).
 - ❌ DNS CNAME client -> gershoncrm-client.pages.dev in gershon.ai zone (CF token lacks DNS edit;
   dashboard step for Charles — docs/HANDOFF-charles-client-gershon-ai.md)
 - ❌ LINKEDIN_CLIENT_SECRET Pages secret (Charles, same doc). Until then the LinkedIn button is greyed out.
@@ -20,6 +38,22 @@ PENDING ❌
   (keep /api/* on old host; social calls it). See social docs/DOMAIN-MOVE-PLAYBOOK.md.
 - ❌ Roles: team vs admin are stored but every signed-in user still sees all pages.
 
-GOTCHAS
-- Do not commit dist/ (CI builds). npm ci works. CI version-bump job can race on double triggers (harmless).
+DONE EARLIER ✅ (2026-10-15)
+- ✅ Sign in with LinkedIn (src/users.ts): LinkedIn app "Client" id 78up2kwkdki2kh,
+  callback https://client.gershon.ai/api/auth/linkedin/callback (registered by Olivier).
+  Password login kept as fallback. Health: /api/auth/linkedin/health
+- ✅ /users panel — owner only. Create from LinkedIn link, one-time invite links
+  (/login?invite=…), invite e-mail via Resend, edit, reset LinkedIn, remove. KV key __app_users__.
+- ✅ App icon public/static/clients-icon.svg on every page.
+- ✅ client.gershon.ai attached to Pages project gershoncrm-client (.github/workflows/attach-domain.yml).
+
+KNOWN BUGS / GOTCHAS
+- Do not commit dist/ (CI builds). npm ci + npm run build work (verified 2026-10-22).
+- CI version-bump job can race on double triggers (harmless). After merge CI makes it 1.4.1.
 - Routes using SESSION_COOKIE must be registered after its const declaration in index.tsx (TDZ).
+- Routes registered in index.tsx BEFORE registerV3() (e.g. /login) skip the v3 middleware; that is
+  why gershon.css @imports unified-theme.css.
+- Scheduled task #24 calls POST /api/reports/weekly/send — never call it by hand for testing.
+
+NEXT ACTION
+- Olivier: review the artifact preview, then merge the PR (no other PR is stacked on it).
