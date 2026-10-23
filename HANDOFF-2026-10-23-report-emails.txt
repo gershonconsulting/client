@@ -18,8 +18,10 @@ WHAT CHANGED
 [TODO - Ariel, ~15 min, needs git] Do it properly in src/index.tsx: apply the same styles in
   generateComprehensiveReportHtml(), use reportFrom() from src/report-email.ts in the two
   /api/reports/*/send handlers, then delete installReportEmailStyle().
-[TODO - small] The v3 monthly "Gershon — our results" e-mail is sent as "GC Client Reports"
-  (src/v3.ts sendReport); rename to "GC Client Report" for one consistent name.
+[READY TO TEST] (follow-up, same night) The v3 monthly "Gershon — our results" internal e-mail
+  now comes from "GC Client Report" (was "GC Client Reports"), the same name as the weekly.
+  One-line change in src/v3.ts sendReport(); address, recipients and the client-facing
+  "Gershon Consulting" sender are unchanged.
 
 PROMOTE ZEROS (diagnosis, not changed)
 - Followers 0 is "no data": social.gershon.ai has no follower snapshots for these clients
