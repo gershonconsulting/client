@@ -8,6 +8,9 @@ import type { Hono } from 'hono'
 import { CLIENT_REGISTRY, registryByNo, readSettings, getClientMonth, monthWin, todayNY, type Deps, type RegistryEntry, type V3Settings } from './v3-data'
 import { CLIENT_HISTORY, LIVE_FROM, HISTORY_BENCHMARKS } from './v3-history-data'
 import { projectClient, newClientOutlook, type MonthPoint, type ClientProjection } from './history-model'
+// Side effect (2026-10-23): re-dresses the legacy weekly/monthly portfolio report e-mail
+// (src/index.tsx) in the report house style with sender "GC Client Report". See the file.
+import './report-email'
 
 const addMonth = (k: string, n: number) => { const [y, m] = k.split('-').map(Number); const d = new Date(Date.UTC(y, m - 1 + n, 15)); return d.toISOString().slice(0, 7) }
 

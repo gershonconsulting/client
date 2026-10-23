@@ -1,0 +1,38 @@
+2026-10-23 nightly - weekly/monthly portfolio report e-mail (branch nightly/2026-10-23-report-emails)
+(Kept in its own file because open PRs #1 and #2 both rewrite HANDOFF.txt; fold it in after they merge.)
+Preview: https://claude.ai/artifact/KJjafTUE8znwZX87p7hTf2  (tab "Client weekly report", sample data)
+
+WHAT CHANGED
+[READY TO TEST] The "🔴 Weekly Report — N% of target ..." e-mail (and the monthly twin) now:
+  - comes from "GC Client Report" (was "GershonCRM Reports"); address and recipients unchanged.
+  - white page, 680px, one column (the Promote / Network / Engage panels are stacked),
+    light header with a #CC3333 line instead of the indigo band with white text,
+    "Source: ... · Data as of ... ET" footer.
+  - Promote Followers shows "— not collected" instead of "0 · +0 last 7d".
+[HOW] src/report-email.ts, loaded from src/v3-history.ts. src/index.tsx (where the template and
+  the send handlers live) is 470 KB, too big for the GitHub API the nightly agent writes with,
+  and git push is blocked from its machine. So the module re-dresses the finished e-mail just
+  before it is handed to Resend. It only touches POST https://api.resend.com/emails whose subject is
+  "... Weekly Report — ..." / "... Monthly Report — ..." AND whose html carries the old header
+  "Gershon.AI · Promote · Network · Engage"; any error sends the original untouched.
+[TODO - Ariel, ~15 min, needs git] Do it properly in src/index.tsx: apply the same styles in
+  generateComprehensiveReportHtml(), use reportFrom() from src/report-email.ts in the two
+  /api/reports/*/send handlers, then delete installReportEmailStyle().
+[READY TO TEST] (follow-up, same night) The v3 monthly "Gershon — our results" internal e-mail
+  now comes from "GC Client Report" (was "GC Client Reports"), the same name as the weekly.
+  One-line change in src/v3.ts sendReport(); address, recipients and the client-facing
+  "Gershon Consulting" sender are unchanged.
+
+PROMOTE ZEROS (diagnosis, not changed)
+- Followers 0 is "no data": social.gershon.ai has no follower snapshots for these clients
+  (only the old API connections wrote them; the Chrome extension collects posts, not followers).
+- Engagement 0 for 7 days while posts > 0 (Oct 19 e-mail: 83 posts, 0 engagements for all 10 clients)
+  is NOT the e-mail code: posts and engagement come from the same social.gershon.ai call
+  (/api/report/promote?resource=summary&days=7), so the posts it counts carry 0 likes/comments/shares.
+  Likely cause: this legacy report finds each client's social account by NAME, and social.gershon.ai
+  now has two accounts for several clients (e.g. VALOS campaign + VALOS internal, Enzymicals AG,
+  PhiTech, Flying Secoya), so it can pick the publishing copy. The v3 reports use the fixed social id
+  in CLIENT_REGISTRY instead. Fix options: (1) set socialClientId on each company (KV company:<key>)
+  to the registry socialId; (2) in src/index.tsx resolveSocialClient(), use registryByKey(company.key)
+  .socialId first (needs git); (3) check in social.gershon.ai whether the matched account's posts
+  really have 0 likes (engagement collection on own-company pages).

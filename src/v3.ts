@@ -127,7 +127,7 @@ ${resendOk ? '' : `<div class="summary" style="border-left-color:var(--warn)"><d
 async function sendReport(env: any, m: ReportModel, to: string[], bcc: string[] = []): Promise<{ ok: boolean; id?: string; error?: string }> {
   if (!env.RESEND_API_KEY) return { ok: false, error: 'RESEND_API_KEY not configured on the Cloudflare project' }
   const addr = ((env.REPORT_FROM_EMAIL || '').match(/<([^>]+)>/) || [])[1] || (env.REPORT_FROM_EMAIL && env.REPORT_FROM_EMAIL.includes('@') ? env.REPORT_FROM_EMAIL : 'reports@gershon.ai')
-  const from = m.kind === 'internal' ? `GC Client Reports <${addr}>` : `Gershon Consulting <${addr}>`
+  const from = m.kind === 'internal' ? `GC Client Report <${addr}>` : `Gershon Consulting <${addr}>`
   const r = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
