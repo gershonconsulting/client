@@ -23,7 +23,7 @@ const arrow = (cur: number, prev: number) => {
 }
 
 export interface Tile { label: string; value: string; sub: string; color?: string }
-export interface Section { title: string; bars?: { label: string; value: string; pct: number }[]; lines?: string[]; table?: { head: string[]; rows: string[][]; align?: ('l' | 'r')[] } }
+export interface Section { title: string; bars?: { label: string; value: string; pct: number; color?: string }[]; lines?: string[]; table?: { head: string[]; rows: string[][]; align?: ('l' | 'r')[] } }
 export interface ReportModel {
   kind: ReportKind
   title: string          // big heading
@@ -53,7 +53,7 @@ function improvementSources(p: Portfolio, s: V3Settings): string[] {
     for (const m of (c.network?.staleCampaigns || [])) out.push({ w: 76, t: `${L} — Network: the ${m} campaign report has no week in this month (stale link or campaign paused).` })
     if (!c.network && c.keys.length) out.push({ w: 70, t: `${L} — Network: no Straight-in campaign report linked. Paste this week's link on the Straight-in page.` })
     else if (c.network && c.network.sent === 0) out.push({ w: 75, t: `${L} — Network: no invitations sent this month. Check the Straight-in campaign is running.` })
-    else if (c.network && c.network.rate < s.acceptTarget * 0.8) out.push({ w: 55, t: `${L} — Network: acceptance ${c.network.rate}% vs ${s.acceptTarget}% target. Review targeting and the connection note with Straight-in.` })
+    else if (c.network && !c.network.pending && c.network.rate < s.acceptTarget) out.push({ w: 74 - c.network.rate, t: `${L} — Network: acceptance ${c.network.rate}% vs ${s.acceptTarget}% target. Review targeting and the connection note with Straight-in.` })
     if (!c.engage && c.keys.length) out.push({ w: 65, t: `${L} — Engage: Streak pipeline could not be read.` })
     else if (!c.keys.length) out.push({ w: 80, t: `${L} — Engage: no Streak pipeline configured in this platform yet.` })
     else if (c.engage && c.engage.newLeads === 0) out.push({ w: 72, t: `${L} — Engage: 0 new leads this month (goal ${c.engage.target}). Push accepted connections into the pipeline.` })
@@ -79,7 +79,7 @@ export function internalModel(p: Portfolio, s: V3Settings): ReportModel {
   const rows = [...p.clients].sort((a, b) => (overallScore(b) ?? -1) - (overallScore(a) ?? -1)).map(c => [
     `#${c.no}`, c.name,
     c.promote ? `${c.promote.posts}/${c.promote.target} · ${c.promote.pct}%` : c.promoteInPlan === false ? 'not in plan' : '—',
-    c.network ? `${c.network.rate}% · ${fmt(c.network.accepted)}/${fmt(c.network.sent)}` : '—',
+    c.network ? (c.network.pending ? 'pending' : `${c.network.rate}%${c.network.rate >= s.acceptTarget ? '' : ' (low)'} · ${fmt(c.network.accepted)}/${fmt(c.network.sent)}`) : '—',
     c.engage ? `${c.engage.newLeads} · ${c.engage.pct}%` : '—',
     overallScore(c) == null ? '—' : `${overallScore(c)}%`,
   ])
@@ -87,7 +87,7 @@ export function internalModel(p: Portfolio, s: V3Settings): ReportModel {
   return {
     kind: 'internal', eyebrow: 'GC · Internal monthly review', title: 'Our results', month: p.month.label,
     headline: t.score == null ? 'No data collected this month' : `Portfolio at ${t.score}% of plan`,
-    subline: `${p.clients.length} clients · Promote ${t.postsPct}% · Network ${t.ratePct}% · Engage ${t.leadsPct}% of target`,
+    subline: `${p.clients.length} clients · Promote ${t.postsPct}% · Network ${t.ratePct}% · Engage ${t.leadsPct}% of target · ${p.clients.filter(c => c.network && !c.network.pending && c.network.rate >= s.acceptTarget).length} of ${p.clients.filter(c => c.network && !c.network.pending).length} clients at ${s.acceptTarget}%+ acceptance`,
     tiles: [
       { label: 'PROMOTE', value: `${t.postsPct}%`, sub: `${fmt(t.posts)} of ${fmt(t.postsTarget)} posts`, color: bandColor(t.postsPct) },
       { label: 'NETWORK', value: `${t.rate}%`, sub: `acceptance · target ${s.acceptTarget}% · ${fmt(t.sent)} sent`, color: bandColor(t.ratePct) },
@@ -95,7 +95,7 @@ export function internalModel(p: Portfolio, s: V3Settings): ReportModel {
       { label: 'MEETINGS', value: fmt(t.meetings), sub: `moved to meeting+ · ${fmt(t.opportunities)} Straight-in opps`, color: INK },
     ],
     sections: [
-      { title: 'Results by client', table: { head: ['#', 'Client', 'Promote', 'Network', 'Engage', 'Score'], rows, align: ['l', 'l', 'r', 'r', 'r', 'r'] } },
+      { title: 'Results by client', table: { head: ['#', 'Client', 'Promote', 'Accept (>=' + s.acceptTarget + '%)', 'Engage', 'Score'], rows, align: ['l', 'l', 'r', 'r', 'r', 'r'] } },
       { title: 'Sources for improvement (highest impact first)', lines: sources.length ? sources.slice(0, 12) : ['Every channel is on plan this month.'] },
       { title: 'What worked', lines: winsOf(p) },
     ],
@@ -105,54 +105,77 @@ export function internalModel(p: Portfolio, s: V3Settings): ReportModel {
   }
 }
 
-// Straight-in is contracted to bring 10 qualified leads a month per client. The
-// report answers one question: how far is each client from that goal, in %.
-// Qualified lead = new box in the client's Engage (Streak) pipeline that month.
+// Straight-in has two equally important goals per client, every month:
+//   1. 10 qualified leads per LinkedIn user (qualified lead = new box in the client's Engage/Streak pipeline)
+//   2. an acceptance rate above the target (20% by default, Settings → acceptTarget)
+// The report answers how far each client is from each goal, in %.
 export function straightinModel(p: Portfolio, s: V3Settings): ReportModel {
-  const goal = s.leadsPerMonth
+  const goal = s.leadsPerMonth, aT = s.acceptTarget
   const C = p.clients.filter(c => c.network && c.engage) // clients Straight-in runs a campaign for
   const g = (c: ClientMonth) => c.engage!.target   // 10 × LinkedIn users on the campaign
   const leads = C.reduce((a, c) => a + c.engage!.newLeads, 0)
   const totalGoal = C.reduce((a, c) => a + g(c), 0)
   const pct = pctOf(leads, totalGoal)
-  const atGoal = C.filter(c => c.engage!.newLeads >= g(c)).length
+  const leadsOk = (c: ClientMonth) => c.engage!.newLeads >= g(c)
+  const hasRate = (c: ClientMonth) => !c.network!.pending && c.network!.sent > 0
+  const accOk = (c: ClientMonth) => hasRate(c) && c.network!.rate >= aT
+  const atGoal = C.filter(leadsOk).length
+  const R = C.filter(hasRate)
+  const atAcc = R.filter(accOk).length
+  const bothOk = C.filter(c => leadsOk(c) && accOk(c)).length
+  const sent = R.reduce((a, c) => a + c.network!.sent, 0), acc = R.reduce((a, c) => a + c.network!.accepted, 0)
+  const rate = sent ? Math.round((acc / sent) * 1000) / 10 : 0
   const sorted = [...C].sort((a, b) => b.engage!.newLeads - a.engage!.newLeads)
+  const users = (c: ClientMonth) => (c.campaigns || []).length > 1 ? ` (${c.campaigns.length} users)` : ''
   const bars = sorted.map(c => ({
-    label: `#${c.no} ${c.name}${(c.campaigns || []).length > 1 ? ` (${c.campaigns.length} users)` : ''}`,
+    label: `#${c.no} ${c.name}${users(c)}`,
     value: `${c.engage!.newLeads} / ${g(c)} · ${pctOf(c.engage!.newLeads, g(c))}%`,
     pct: pctOf(c.engage!.newLeads, g(c)),
   }))
+  const accBars = [...C].sort((a, b) => (hasRate(b) ? b.network!.rate : -1) - (hasRate(a) ? a.network!.rate : -1)).map(c => ({
+    label: `#${c.no} ${c.name}${users(c)}`,
+    value: hasRate(c) ? `${c.network!.rate}% / ${aT}%${accOk(c) ? ' OK' : ''}` : 'no data',
+    pct: hasRate(c) ? pctOf(c.network!.rate, aT) : 0,
+    color: !hasRate(c) ? MUT : accOk(c) ? GOOD : c.network!.rate >= aT * 0.75 ? WARN : RED,
+  }))
   const rows = sorted.map(c => {
     const n = c.network!, e = c.engage!
-    return [`#${c.no}`, c.name, `${fmt(e.newLeads)}/${g(c)}`, `${pctOf(e.newLeads, g(c))}%`, e.newLeads >= g(c) ? 'on goal' : `-${g(c) - e.newLeads}`,
-      n.pending ? '—' : fmt(n.sent), n.pending ? '—' : `${n.rate}%`, n.pending ? '—' : fmt(n.opportunities)]
+    return [`#${c.no}`, c.name, `${fmt(e.newLeads)}/${g(c)}`, `${pctOf(e.newLeads, g(c))}%`,
+      n.pending ? '—' : fmt(n.sent), hasRate(c) ? `${n.rate}%` : '—', hasRate(c) ? `${pctOf(n.rate, aT)}%` : '—',
+      `${leadsOk(c) && accOk(c) ? 'both OK' : leadsOk(c) ? 'accept miss' : accOk(c) ? 'leads miss' : hasRate(c) ? 'both miss' : 'leads miss'}`]
   })
   const opps = p.clients.flatMap(c => (c.network?.namedOpps || []).map(o => `#${c.no} ${c.name} — ${o.name}${o.title ? ', ' + o.title : ''}${o.company ? ' at ' + o.company : ''} (${o.type}, ${o.date})`))
   const asks: string[] = []
   for (const c of sorted) {
     const gap = g(c) - c.engage!.newLeads
-    if (gap > 0) asks.push(`#${c.no} ${c.name}: ${gap} qualified lead${gap === 1 ? '' : 's'} short of the ${g(c)} (${pctOf(c.engage!.newLeads, g(c))}%)${c.network!.rate && c.network!.rate < s.acceptTarget ? ` — acceptance only ${c.network!.rate}%, please refresh targeting` : ''}.`)
+    if (gap > 0) asks.push(`#${c.no} ${c.name}: ${gap} qualified lead${gap === 1 ? '' : 's'} short of the ${g(c)} (${pctOf(c.engage!.newLeads, g(c))}%).`)
+    if (hasRate(c) && !accOk(c)) {
+      const low = (c.network!.campaigns || []).filter(k => k.sent > 0 && k.rate < aT)
+      const who = (c.network!.campaigns || []).length > 1 && low.length ? ` (${low.map(k => `${k.label} ${k.rate}%`).join(', ')})` : ''
+      asks.push(`#${c.no} ${c.name}: acceptance ${c.network!.rate}%, below the ${aT}% goal${who} — please refresh targeting and the connection note.`)
+    }
     for (const m of (c.network!.missingCampaigns || [])) asks.push(`#${c.no} ${c.name}: please send the weekly report for the ${m} campaign.`)
     for (const m of (c.network!.staleCampaigns || [])) asks.push(`#${c.no} ${c.name}: the ${m} campaign has no report this month — is it still running?`)
   }
   return {
-    kind: 'straightin', eyebrow: 'Gershon Consulting · Monthly report for Straight-in', title: 'Qualified leads vs goal', month: p.month.label,
-    headline: `${pct}% of the goal — ${fmt(leads)} of ${fmt(totalGoal)} qualified leads`,
-    subline: `Goal: ${goal} qualified leads per LinkedIn user per month (Finance Montreal and Altavia run 2 users = ${goal * 2}) · ${atGoal} of ${C.length} clients reached it · a qualified lead = a new prospect added to the client's pipeline`,
+    kind: 'straightin', eyebrow: 'Gershon Consulting · Monthly report for Straight-in', title: 'Qualified leads & acceptance vs goal', month: p.month.label,
+    headline: `Leads ${pct}% of goal (${fmt(leads)} of ${fmt(totalGoal)}) · acceptance ${rate}% vs ${aT}% goal`,
+    subline: `Two equal goals: ${goal} leads/user/month AND ${aT}%+ acceptance · leads goal ${atGoal}/${C.length} clients · acceptance goal ${atAcc}/${R.length} · both ${bothOk}`,
     tiles: [
-      { label: '% OF GOAL', value: `${pct}%`, sub: `all clients combined`, color: bandColor(pct) },
-      { label: 'QUALIFIED LEADS', value: fmt(leads), sub: `goal ${fmt(totalGoal)}`, color: bandColor(pct) },
-      { label: 'CLIENTS AT GOAL', value: `${atGoal} / ${C.length}`, sub: 'reached their monthly goal', color: atGoal === C.length ? GOOD : RED },
-      { label: 'GAP TO GOAL', value: fmt(Math.max(0, totalGoal - leads)), sub: 'qualified leads missing', color: INK },
+      { label: 'LEADS · % OF GOAL', value: `${pct}%`, sub: `${fmt(leads)} of ${fmt(totalGoal)} qualified leads`, color: bandColor(pct) },
+      { label: 'ACCEPTANCE RATE', value: `${rate}%`, sub: `goal ${aT}% · ${fmt(acc)} of ${fmt(sent)} invites`, color: rate >= aT ? GOOD : bandColor(pctOf(rate, aT)) },
+      { label: 'CLIENTS AT LEADS GOAL', value: `${atGoal} / ${C.length}`, sub: `${goal} leads per user`, color: atGoal === C.length ? GOOD : RED },
+      { label: `CLIENTS AT ${aT}%+ ACCEPT`, value: `${atAcc} / ${R.length}`, sub: `${bothOk} client${bothOk === 1 ? '' : 's'} on both goals`, color: R.length && atAcc === R.length ? GOOD : RED },
     ],
     sections: [
-      { title: `Progress to ${goal} qualified leads per user per month`, bars },
-      { title: 'Detail by client (Gershon client number)', table: { head: ['#', 'Client', 'Leads', '% goal', 'Gap', 'Invites', 'Accept', 'Opps'], rows, align: ['l', 'l', 'r', 'r', 'r', 'r', 'r', 'r'] } },
-      { title: 'Requests for next month', lines: asks.length ? asks.slice(0, 10) : ['Every client reached its goal — keep the same pace.'] },
+      { title: `Goal 1 — ${goal} qualified leads per user per month`, bars },
+      { title: `Goal 2 — acceptance rate above ${aT}%`, bars: accBars },
+      { title: 'Requests for next month', lines: asks.length ? asks.slice(0, 12) : ['Every client reached both goals — keep the same pace.'] },
+      { title: 'Detail by client (Gershon client number)', table: { head: ['#', 'Client', 'Leads', '% goal', 'Invites', 'Accept', `% of ${aT}%`, 'Goals'], rows, align: ['l', 'l', 'r', 'r', 'r', 'r', 'r', 'r'] } },
       { title: 'Opportunities logged this month', lines: opps.length ? opps.slice(0, 8) : ['None logged in the weekly reports this month.'] },
     ],
-    footer: `Gershon Consulting · goal ${goal} qualified leads / LinkedIn user / month · client numbers are shared across all Gershon platforms`,
-    subject: `Gershon × Straight-in — ${p.month.label}: ${pct}% of the ${goal} qualified leads goal`,
+    footer: `Gershon Consulting · goals: ${goal} qualified leads / LinkedIn user / month and >${aT}% acceptance · client numbers are shared across all Gershon platforms`,
+    subject: `Gershon × Straight-in — ${p.month.label}: leads ${pct}% of goal · acceptance ${rate}% (goal ${aT}%)`,
     filename: `Gershon-Straight-in-${p.month.key}.pdf`,
   }
 }
@@ -224,8 +247,8 @@ export function reportHtml(m: ReportModel): string {
     let body = ''
     if (s.bars) body += s.bars.map(b => `<table style="width:100%;border-collapse:collapse;margin:0 0 8px;"><tr>
         <td style="width:34%;font-size:12px;font-weight:600;padding-right:8px;">${esc(b.label)}</td>
-        <td><div style="height:10px;background:#eef0f3;border-radius:99px;overflow:hidden;"><div style="height:10px;width:${Math.max(2, Math.min(100, b.pct))}%;background:${bandColor(b.pct)};border-radius:99px;"></div></div></td>
-        <td style="width:24%;text-align:right;font-size:12px;font-weight:700;color:${bandColor(b.pct)};padding-left:8px;white-space:nowrap;">${esc(b.value)}</td></tr></table>`).join('')
+        <td><div style="height:10px;background:#eef0f3;border-radius:99px;overflow:hidden;"><div style="height:10px;width:${Math.max(2, Math.min(100, b.pct))}%;background:${b.color || bandColor(b.pct)};border-radius:99px;"></div></div></td>
+        <td style="width:24%;text-align:right;font-size:12px;font-weight:700;color:${b.color || bandColor(b.pct)};padding-left:8px;white-space:nowrap;">${esc(b.value)}</td></tr></table>`).join('')
     if (s.table) {
       body = `<table style="width:100%;border-collapse:collapse;font-size:12px;">
         <tr>${s.table.head.map((h, i) => `<th style="text-align:${s.table!.align?.[i] === 'r' ? 'right' : 'left'};font-size:10px;color:${MUT};text-transform:uppercase;letter-spacing:.05em;padding:7px 8px;border-bottom:1px solid ${RULE};background:${TINT};">${esc(h)}</th>`).join('')}</tr>
@@ -341,7 +364,7 @@ export function reportPdfBase64(m: ReportModel): string {
       for (const b of s.bars) {
         if (y < M + 40) break
         y -= 15
-        const col = hex(bandColor(b.pct)), bx = M + 175, bw = CW - 175 - 110
+        const col = hex(b.color || bandColor(b.pct)), bx = M + 175, bw = CW - 175 - 110
         p.text(M, y, clip(b.label, 8, true, 168), 8, true, C.INK)
         p.rect(bx, y - 1, bw, 7, C.ZERO)
         p.rect(bx, y - 1, Math.max(2, (Math.min(100, b.pct) / 100) * bw), 7, col)
