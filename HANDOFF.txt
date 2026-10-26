@@ -1,5 +1,5 @@
 HANDOFF — gershonconsulting/client (client.gershon.ai / client.gershoncrm.com)
-Updated 2026-10-15 by Claude. Read the master handoff: gershonconsulting/memory -> HANDOFF.txt
+Updated 2026-10-26 by Claude (previous: 2026-10-15). Read the master handoff: gershonconsulting/memory -> HANDOFF.txt
 Rules: Olivier never runs commands/uploads. Executors: Ariel (code/repo), Charles (dashboards).
 
 DONE ✅ (2026-10-15)
@@ -19,6 +19,26 @@ PENDING ❌
 - ❌ After both: optional 308 redirect of pages from client.gershoncrm.com -> client.gershon.ai
   (keep /api/* on old host; social calls it). See social docs/DOMAIN-MOVE-PLAYBOOK.md.
 - ❌ Roles: team vs admin are stored but every signed-in user still sees all pages.
+
+PENDING ❌ (2026-10-26 — PR nightly/2026-10-26-client-crons: Claude tasks #24 + #07 moved into the app)
+- ❌ Merge pending Olivier's OK (PR "client: Monday crons for #24 weekly report and #07 next due dates").
+- ❌ After merge — GitHub repo secret REPORT_CRON_KEY (Charles: any long random string; GitHub
+  Settings → Secrets → Actions). deploy.yml pushes it to Pages, deploy-cron.yml to Worker gershon-client-cron.
+- ❌ After merge — Google Calendar for #07 (Charles): GCP OAuth client (Web) in a project of
+  olivier@gershonconsulting.com's Workspace, Calendar API enabled, redirect URI
+  https://client.gershoncrm.com/api/auth/google-calendar/callback → GitHub secrets
+  GOOGLE_CALENDAR_CLIENT_ID + GOOGLE_CALENDAR_CLIENT_SECRET → re-run "Deploy to Cloudflare Pages" →
+  open /api/admin/google-calendar/connect once signed in as olivier@gershonconsulting.com
+  (stores refresh token encrypted in KV). Check: /api/admin/google-calendar/status → ok:true.
+- ❌ After the first good Monday run of each: retire Claude scheduled tasks #24 and #07 (until then the
+  per-day sent-log in KV keeps #24 from going out twice).
+- ❌ Optional later: require REPORT_CRON_KEY on /api/reports/weekly/send too (still open for task #24).
+
+NEW (in the PR, not live until merged)
+- cron/ = Worker gershon-client-cron: Mon 09:05 UTC → POST /api/reports/weekly/send (#24),
+  Mon 13:10 UTC → POST /api/reports/next-due/send (#07). Bearer REPORT_CRON_KEY.
+- src/next-due.ts: [07] report. Preview /api/reports/next-due (?format=json). Send: key or session, ?force=1.
+- Sent-log KV keys __report_sent__:24:<NY date> and __report_sent__:07:<NY date> (14-day TTL).
 
 GOTCHAS
 - Do not commit dist/ (CI builds). npm ci works. CI version-bump job can race on double triggers (harmless).

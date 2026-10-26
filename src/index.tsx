@@ -3,6 +3,7 @@ import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/cloudflare-workers'
 import { registerV3, shell as v3Shell } from './v3'
 import { registerUsers, linkedInConfigured } from './users'
+import { registerNextDue, nyDate } from './next-due'
 
 type Bindings = {
   COMPANIES_KV: KVNamespace
@@ -19,6 +20,14 @@ type Bindings = {
   SOCIAL_PROMOTE_KEY?: string
   LINKEDIN_CLIENT_ID?: string
   LINKEDIN_CLIENT_SECRET?: string
+  // Companion Worker gershon-client-cron sends this as "Authorization: Bearer <key>"
+  REPORT_CRON_KEY?: string
+  // [07] Next Due Dates report — Google Calendar read access (see src/next-due.ts)
+  GOOGLE_CALENDAR_CLIENT_ID?: string
+  GOOGLE_CALENDAR_CLIENT_SECRET?: string
+  GOOGLE_CALENDAR_REFRESH_TOKEN?: string
+  GOOGLE_CALENDAR_ID?: string
+  GC_PIPELINE_KEY?: string
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -210,6 +219,7 @@ const PUBLIC_EXACT_PATHS = [
   '/api/reports/weekly/send',
   '/api/reports/monthly/send',
   '/api/v3/monthly/run',
+  '/api/reports/next-due/send', // guarded inside by REPORT_CRON_KEY or a session
 ]
 
 function isPublicPath(path: string): boolean {
@@ -3024,11 +3034,26 @@ app.get('/api/reports/monthly', async (c) => {
   }
 })
 
-// Send weekly report via email
+// Requests from the gershon-client-cron Worker carry REPORT_CRON_KEY.
+function cronAuthorized(c: any): boolean {
+  const want = c.env.REPORT_CRON_KEY
+  if (!want) return false
+  const h = c.req.header('Authorization') || ''
+  const got = h.startsWith('Bearer ') ? h.slice(7) : (c.req.header('X-Report-Cron-Key') || '')
+  return safeEqual(got, want)
+}
+
+// Send weekly report via email (#24). Called every Monday by gershon-client-cron.
+// Sent once per New York day (KV sent-log) so the cron and any other caller
+// cannot double-send; ?force=1 resends.
 app.post('/api/reports/weekly/send', async (c) => {
   try {
     if (!c.env.RESEND_API_KEY) {
       return c.json({ error: 'RESEND_API_KEY not configured' }, 500)
+    }
+    const sentKey = `__report_sent__:24:${nyDate()}`
+    if (c.req.query('force') !== '1' && await c.env.COMPANIES_KV.get(sentKey)) {
+      return c.json({ success: true, skipped: 'already sent today', date: nyDate() })
     }
     const data = await collectReportData(c.env.COMPANIES_KV)
     const now = new Date()
@@ -3049,6 +3074,7 @@ app.post('/api/reports/weekly/send', async (c) => {
       html
     })
 
+    await c.env.COMPANIES_KV.put(sentKey, result?.id || 'sent', { expirationTtl: 14 * 86400 })
     return c.json({ success: true, message: 'Weekly report sent', emailId: result.id, stats: { totalNewLeads, overallPct, companies: data.length } })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
@@ -3083,6 +3109,16 @@ app.post('/api/reports/monthly/send', async (c) => {
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
   }
+})
+
+// [07] GC Pipeline — Next Due Dates from Calendar (src/next-due.ts)
+registerNextDue(app, {
+  streakKey: () => streakApiKey,
+  sessionUser: async (c: any) => { const t = readCookie(c.req.header('Cookie'), SESSION_COOKIE); return t ? verifySessionToken(c.env, t) : null },
+  sendEmail,
+  encrypt: encryptApiKey,
+  decrypt: decryptApiKey,
+  cronAuthorized,
 })
 
 // JSON endpoint for report data (for debugging)
