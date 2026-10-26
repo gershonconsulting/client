@@ -1,0 +1,43 @@
+name: Deploy cron Worker (gershon-client-cron)
+
+# Deploys cron/ as the Cloudflare Worker that schedules the Monday reports
+# (#24 weekly client report, #07 GC Pipeline next due dates). Main only.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cron/**'
+      - '.github/workflows/deploy-cron.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Deploy Worker
+        working-directory: cron
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@3 deploy
+
+      - name: Push REPORT_CRON_KEY to the Worker (if the GitHub secret exists)
+        working-directory: cron
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          KEY: ${{ secrets.REPORT_CRON_KEY }}
+        run: |
+          if [ -n "$KEY" ]; then printf '%s' "$KEY" | npx --yes wrangler@3 secret put REPORT_CRON_KEY > /dev/null && echo "set REPORT_CRON_KEY";
+          else echo "WARNING: GitHub secret REPORT_CRON_KEY missing — #07 will answer 401 until it is set and this workflow re-runs"; fi
+
+      - name: Smoke test
+        run: |
+          curl -s -o /dev/null -w "next-due route reachable (401 expected without key): %{http_code}\n" https://client.gershoncrm.com/api/reports/next-due/send -X POST || true
