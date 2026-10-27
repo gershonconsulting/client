@@ -126,7 +126,7 @@ function readCookie(header: string | undefined, name: string): string | null {
 function inviteEmailHtml(name: string, url: string): string {
   return `<!doctype html><html><body style="margin:0;background:#fafafa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1d1d1f;">
 <div style="max-width:560px;margin:0 auto;padding:28px 16px;">
-  <div style="margin-bottom:18px;font-weight:800;font-size:18px;color:#FE1B04;">Gershon <span style="color:#6e6e73;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;">Client results</span></div>
+  <div style="margin-bottom:18px;font-weight:800;font-size:18px;color:#CC3333;">Gershon <span style="color:#6e6e73;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;">Client results</span></div>
   <div style="background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:24px;">
     <h1 style="margin:0 0 10px;font-size:20px;">Hi ${esc(name.split(' ')[0])}, your access is ready</h1>
     <p style="margin:0 0 18px;font-size:15px;line-height:1.5;color:#3a3a3c;">Olivier Attia gave you access to <strong>client.gershon.ai</strong>, the Gershon Consulting client results dashboard. Sign in once with your LinkedIn account through the button below — after that, the normal “Sign in with LinkedIn” button works.</p>
@@ -136,7 +136,7 @@ function inviteEmailHtml(name: string, url: string): string {
 </div></body></html>`
 }
 
-// ── Users page ───────────────────────────────────────────────────────────────
+// ── Users page ────────────────────────────────────────────────────────────────────────────
 export function usersPageBody(): string {
   return `
 <style>
@@ -181,7 +181,7 @@ export function usersPageBody(): string {
     <div><label>Role</label><select class="u-in" name="role"><option value="team">Team</option><option value="admin">Admin</option></select></div>
     <div class="full" style="display:flex;flex-wrap:wrap;align-items:center;gap:16px;margin-top:4px">
       <button class="btn primary" type="submit" id="createBtn"><i class="fas fa-user-plus"></i> Create user</button>
-      <label style="display:inline-flex;align-items:center;gap:8px;margin:0;font-size:13px;font-weight:500;color:var(--text)"><input type="checkbox" name="send" checked style="accent-color:#FE1B04"> E-mail the invite</label>
+      <label style="display:inline-flex;align-items:center;gap:8px;margin:0;font-size:13px;font-weight:500;color:var(--text)"><input type="checkbox" name="send" checked style="accent-color:#CC3333"> E-mail the invite</label>
     </div>
   </form>
 </div>
@@ -255,7 +255,7 @@ export function usersPageBody(): string {
 </script>`
 }
 
-// ── Routes ───────────────────────────────────────────────────────────────────
+// ── Routes ───────────────────────────────────────────────────────────────────────────────
 export function registerUsers(app: Hono<any>, deps: UsersDeps, shell: (body: string) => string) {
   const fail = (c: any, reason: string, detail?: string) => {
     const u = new URL('/login', siteUrl(c))
