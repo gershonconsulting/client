@@ -9,7 +9,7 @@
 import { MrPdf, strWidth as W, type RGB } from './pdf-writer'
 import { band, clientLabel, overallScore, pctOf, type ClientMonth, type Portfolio, type V3Settings } from './v3-data'
 
-export type ReportKind = 'straightin' | 'internal' | 'client'
+export type ReportKind = 'straightin' | 'internal' | 'client' | 'gaps'
 
 const RED = '#FE1B04', INK = '#1d1d1f', MUT = '#6e6e73', RULE = '#e5e7eb', TINT = '#fafafa', GOOD = '#057642', WARN = '#b76b00'
 const fmt = (n: number | null | undefined) => (n == null ? '—' : Math.round(n).toLocaleString('en-US'))
@@ -45,16 +45,18 @@ function improvementSources(p: Portfolio, s: V3Settings): string[] {
   const out: { w: number; t: string }[] = []
   for (const c of p.clients) {
     const L = clientLabel(c)
-    if (c.promoteInPlan === false) { /* Promote not part of this project */ }
+    const sv = c.services || { promote: c.promoteInPlan !== false, network: true, engage: true }
+    if (!sv.promote) { /* Promote not part of this project */ }
     else if (!c.promote) out.push({ w: 90, t: `${L} — Promote: no social account is collecting in social.gershon.ai. Connect LinkedIn/X so posts count.` })
     else if (c.promote.posts === 0) out.push({ w: 85, t: `${L} — Promote: 0 posts this month (target ${c.promote.target}). Restart the posting schedule.` })
     else if (c.promote.pct < 40) out.push({ w: 60 - c.promote.pct / 2, t: `${L} — Promote: ${c.promote.posts} of ${c.promote.target} posts (${c.promote.pct}%). Add ${Math.max(0, c.promote.target - c.promote.posts)} posts to reach target.` })
-    for (const m of (c.network?.missingCampaigns || [])) out.push({ w: 78, t: `${L} — Network: no Straight-in report linked for the ${m} campaign. Add its link on the Straight-in page.` })
+    if (sv.network) { for (const m of (c.network?.missingCampaigns || [])) out.push({ w: 78, t: `${L} — Network: no Straight-in report linked for the ${m} campaign. Add its link on the Straight-in page.` })
     for (const m of (c.network?.staleCampaigns || [])) out.push({ w: 76, t: `${L} — Network: the ${m} campaign report has no week in this month (stale link or campaign paused).` })
     if (!c.network && c.keys.length) out.push({ w: 70, t: `${L} — Network: no Straight-in campaign report linked. Paste this week's link on the Straight-in page.` })
     else if (c.network && c.network.sent === 0) out.push({ w: 75, t: `${L} — Network: no invitations sent this month. Check the Straight-in campaign is running.` })
-    else if (c.network && !c.network.pending && c.network.rate < s.acceptTarget) out.push({ w: 74 - c.network.rate, t: `${L} — Network: acceptance ${c.network.rate}% vs ${s.acceptTarget}% target. Review targeting and the connection note with Straight-in.` })
-    if (!c.engage && c.keys.length) out.push({ w: 65, t: `${L} — Engage: Streak pipeline could not be read.` })
+    else if (c.network && !c.network.pending && c.network.rate < s.acceptTarget) out.push({ w: 74 - c.network.rate, t: `${L} — Network: acceptance ${c.network.rate}% vs ${s.acceptTarget}% target. Review targeting and the connection note with Straight-in.` }) }
+    if (!sv.engage) { /* Engage not part of this project */ }
+    else if (!c.engage && c.keys.length) out.push({ w: 65, t: `${L} — Engage: Streak pipeline could not be read.` })
     else if (!c.keys.length) out.push({ w: 80, t: `${L} — Engage: no Streak pipeline configured in this platform yet.` })
     else if (c.engage && c.engage.newLeads === 0) out.push({ w: 72, t: `${L} — Engage: 0 new leads this month (goal ${c.engage.target}). Push accepted connections into the pipeline.` })
     else if (c.engage && c.engage.pct < 50) out.push({ w: 50, t: `${L} — Engage: ${c.engage.newLeads} new leads (${c.engage.pct}% of goal).` })
@@ -79,8 +81,8 @@ export function internalModel(p: Portfolio, s: V3Settings): ReportModel {
   const rows = [...p.clients].sort((a, b) => (overallScore(b) ?? -1) - (overallScore(a) ?? -1)).map(c => [
     `#${c.no}`, c.name,
     c.promote ? `${c.promote.posts}/${c.promote.target} · ${c.promote.pct}%` : c.promoteInPlan === false ? 'not in plan' : '—',
-    c.network ? (c.network.pending ? 'pending' : `${c.network.rate}%${c.network.rate >= s.acceptTarget ? '' : ' (low)'} · ${fmt(c.network.accepted)}/${fmt(c.network.sent)}`) : '—',
-    c.engage ? `${c.engage.newLeads} · ${c.engage.pct}%` : '—',
+    c.services && !c.services.network ? 'not in plan' : c.network ? (c.network.pending ? 'pending' : `${c.network.rate}%${c.network.rate >= s.acceptTarget ? '' : ' (low)'} · ${fmt(c.network.accepted)}/${fmt(c.network.sent)}`) : '—',
+    c.services && !c.services.engage ? 'not in plan' : c.engage ? `${c.engage.newLeads} · ${c.engage.pct}%` : '—',
     overallScore(c) == null ? '—' : `${overallScore(c)}%`,
   ])
   const sources = improvementSources(p, s)
@@ -262,6 +264,39 @@ export function clientModel(c: ClientMonth, monthLabel: string, monthKey: string
   }
 }
 
+// Data gaps — internal only, never inside a client report. One email to the internal
+// address (report@gershonconsulting.com) listing every number the month's reports could not fill.
+export function gapsModel(p: Portfolio, s: V3Settings): ReportModel {
+  const tag = (l: string) => (l === 'missing' ? 'MISSING' : l === 'partial' ? 'PARTIAL' : 'DECISION')
+  const all = p.clients.flatMap(c => (c.gaps || []).map(g => ({ c, g })))
+  const n = (l: string) => all.filter(x => x.g.level === l).length
+  const svc = (c: ClientMonth) => {
+    const v = c.services || { promote: true, network: true, engage: true }
+    return (['promote', 'network', 'engage'] as const).filter(k => v[k]).map(k => k[0].toUpperCase() + k.slice(1)).join(' + ') || 'no service'
+  }
+  const sections: Section[] = p.clients.filter(c => (c.gaps || []).length).map(c => ({
+    title: `#${c.no} ${c.name} · ${svc(c)}`,
+    lines: c.gaps.map(g => `[${tag(g.level)}] ${g.area} — ${g.what} ${g.effect} Owner: ${g.owner}.`),
+  }))
+  const clean = p.clients.filter(c => !(c.gaps || []).length).map(c => `#${c.no} ${c.name}`)
+  if (clean.length) sections.push({ title: 'Nothing missing', lines: [clean.join(' · ')] })
+  return {
+    kind: 'gaps', eyebrow: 'GC · Internal · not sent to clients', title: 'Data missing for the reports', month: p.month.label,
+    headline: all.length ? `${all.length} item${all.length === 1 ? '' : 's'} the ${p.month.label} reports cannot fill yet` : `Every ${p.month.label} report has all its data`,
+    subline: `${n('missing')} missing · ${n('partial')} partial · ${n('decision')} decision${n('decision') === 1 ? '' : 's'} · only services sold to each client are checked`,
+    tiles: [
+      { label: 'MISSING', value: fmt(n('missing')), sub: 'blocks a number', color: RED },
+      { label: 'PARTIAL', value: fmt(n('partial')), sub: 'shown, incomplete', color: WARN },
+      { label: 'DECISIONS', value: fmt(n('decision')), sub: 'need Olivier', color: INK },
+      { label: 'CLIENTS OK', value: fmt(clean.length), sub: `of ${p.clients.length}`, color: GOOD },
+    ],
+    sections,
+    footer: 'client.gershoncrm.com/gaps · live list, refreshed on demand',
+    subject: `GC Data gaps — ${p.month.label} — ${all.length} item${all.length === 1 ? '' : 's'} before the reports go out`,
+    filename: `GC-data-gaps-${p.month.key}.pdf`,
+  }
+}
+
 // ── Email HTML (inline styles) ───────────────────────────────────────────────
 export function reportHtml(m: ReportModel): string {
   const tile = (t: Tile) => `<td valign="top" style="width:25%;padding:0 5px 0 0;"><div style="border:1px solid ${RULE};border-top:3px solid ${t.color || INK};border-radius:10px;padding:12px 12px 10px;background:#fff;">
@@ -303,7 +338,7 @@ export function reportHtml(m: ReportModel): string {
   ${m.tiles.length ? `<table style="width:100%;border-collapse:collapse;"><tr>${m.tiles.map(tile).join('')}</tr></table>` : ''}
   ${bars}
   ${m.sections.map(sec).join('')}
-  <div style="margin-top:22px;padding-top:10px;border-top:1px solid ${RULE};font-size:10px;color:${MUT};">${esc(m.footer)}${m.kind === 'client' ? ' · The full one-page report is attached as a PDF.' : ' · PDF attached.'}</div>
+  <div style="margin-top:22px;padding-top:10px;border-top:1px solid ${RULE};font-size:10px;color:${MUT};">${esc(m.footer)}${m.kind === 'client' ? ' · The full one-page report is attached as a PDF.' : m.kind === 'gaps' ? '' : ' · PDF attached.'}</div>
  </div>
 </div></body></html>`
 }

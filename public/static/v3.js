@@ -213,12 +213,14 @@
   function settings() {
     $('settingsForm').onsubmit = function (ev) {
       ev.preventDefault();
-      var f = ev.target, body = { promoteTargets: {}, clientEmails: {} };
+      var f = ev.target, body = { promoteTargets: {}, clientEmails: {}, services: {} };
       ['promoteTarget', 'acceptTarget', 'leadsPerMonth'].forEach(function (k) { body[k] = Number(f[k].value); });
       body.promoteUnit = f.promoteUnit.value; body.internalEmail = f.internalEmail.value.trim(); body.straightinEmail = f.straightinEmail.value.trim(); body.autoSendClients = f.autoSendClients.checked;
       Array.prototype.forEach.call(f.elements, function (el) {
         if (/^pt_/.test(el.name) && el.value !== '') body.promoteTargets[el.name.slice(3)] = Number(el.value);
         if (/^ce_/.test(el.name) && el.value.trim()) body.clientEmails[el.name.slice(3)] = el.value.trim();
+        var m = /^sv_(\d+)_(promote|network|engage)$/.exec(el.name);
+        if (m) { (body.services[m[1]] = body.services[m[1]] || {})[m[2]] = el.checked; }
       });
       fetch('/api/v3/settings', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) { return r.json(); }).then(function (d) { toast(d.ok ? 'Saved' : 'Not saved'); });
     };

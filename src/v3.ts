@@ -6,10 +6,10 @@
 import type { Hono } from 'hono'
 import {
   CLIENT_REGISTRY, registryByNo, readSettings, saveSettings, monthWin, lastFullMonthKey, todayNY,
-  getClientMonth, portfolioOf, type Deps, type V3Settings, type ClientMonth,
+  getClientMonth, portfolioOf, servicesFor, type Deps, type V3Settings, type ClientMonth,
 } from './v3-data'
 import { registerHistory } from './v3-history'
-import { clientModel, internalModel, straightinModel, reportHtml, reportPdfBase64, pdfBytesFromBase64, type ReportKind, type ReportModel } from './v3-reports'
+import { clientModel, internalModel, straightinModel, gapsModel, reportHtml, reportPdfBase64, pdfBytesFromBase64, type ReportKind, type ReportModel } from './v3-reports'
 
 const esc = (s: any) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
@@ -97,6 +97,9 @@ ${card('client', 'fa-star', 'Client — one-pager', 'Always positive and encoura
 }
 
 function settingsPage(s: V3Settings, resendOk: boolean): string {
+  const sv = (r: any) => servicesFor(r, s)
+  const box = (r: any, k: 'promote' | 'network' | 'engage') => `<td style="text-align:center"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" name="sv_${r.no}_${k}"${sv(r)[k] ? ' checked' : ''}><span style="font-size:12px;color:var(--muted)">${sv(r)[k] ? 'On' : 'Off'}</span></label></td>`
+  const svcRows = CLIENT_REGISTRY.map(r => `<tr><td><span class="cno">#${r.no}</span> ${esc(r.name)}${(r.campaigns || []).length ? ` <span style="color:var(--muted);font-size:12px">(${esc((r.campaigns || []).join(', '))})</span>` : ''}</td>${box(r, 'promote')}${box(r, 'network')}${box(r, 'engage')}</tr>`).join('')
   const rows = CLIENT_REGISTRY.map(r => `<tr><td><span class="cno">#${r.no}</span> ${esc(r.name)}</td>
     <td><input name="pt_${r.no}" type="number" step="0.5" min="0" placeholder="${s.promoteTarget}" value="${s.promoteTargets[String(r.no)] ?? ''}" style="width:90px;border:1px solid var(--border);border-radius:8px;padding:7px"></td>
     <td><input name="ce_${r.no}" type="text" placeholder="client@company.com" value="${esc(s.clientEmails[String(r.no)] || '')}" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:7px"></td></tr>`).join('')
@@ -117,6 +120,7 @@ ${resendOk ? '' : `<div class="summary" style="border-left-color:var(--warn)"><d
   <div class="field"><label><input name="autoSendClients" type="checkbox"${s.autoSendClients ? ' checked' : ''}> Send client reports directly to clients on the 1st</label><div class="hint">Off = client reports come to the internal address first, ready to forward.</div></div>
  </div>
 </div>
+<div class="card" style="padding:0;overflow:auto;margin-bottom:16px"><div class="card-header" style="padding:14px 16px 0"><h3>Services we deliver</h3></div><div class="hint" style="padding:4px 16px 8px">Off = not collected, not in the client report, not in scores and not checked for data gaps.</div><table class="ctable"><thead><tr><th>Client</th><th style="text-align:center">Promote</th><th style="text-align:center">Network</th><th style="text-align:center">Engage</th></tr></thead><tbody>${svcRows}</tbody></table></div>
 <div class="card" style="padding:0;overflow:auto"><table class="ctable"><thead><tr><th>Client</th><th>Posts target (override)</th><th>Client report recipients</th></tr></thead><tbody>${rows}</tbody></table></div>
 <div style="margin-top:16px;display:flex;gap:10px"><button class="btn primary" type="submit"><i class="fas fa-check"></i> Save</button></div>
 </form>`,
@@ -127,11 +131,11 @@ ${resendOk ? '' : `<div class="summary" style="border-left-color:var(--warn)"><d
 async function sendReport(env: any, m: ReportModel, to: string[], bcc: string[] = []): Promise<{ ok: boolean; id?: string; error?: string }> {
   if (!env.RESEND_API_KEY) return { ok: false, error: 'RESEND_API_KEY not configured on the Cloudflare project' }
   const addr = ((env.REPORT_FROM_EMAIL || '').match(/<([^>]+)>/) || [])[1] || (env.REPORT_FROM_EMAIL && env.REPORT_FROM_EMAIL.includes('@') ? env.REPORT_FROM_EMAIL : 'reports@gershon.ai')
-  const from = m.kind === 'internal' ? `GC Client Reports <${addr}>` : `Gershon Consulting <${addr}>`
+  const from = m.kind === 'internal' ? `GC Client Reports <${addr}>` : m.kind === 'gaps' ? `GC Data Gaps <${addr}>` : `Gershon Consulting <${addr}>`
   const r = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from, to, bcc: bcc.length ? bcc : undefined, subject: m.subject, html: reportHtml(m), attachments: [{ filename: m.filename, content: reportPdfBase64(m) }] }),
+    body: JSON.stringify({ from, to, bcc: bcc.length ? bcc : undefined, subject: m.subject, html: reportHtml(m), attachments: m.kind === 'gaps' ? undefined : [{ filename: m.filename, content: reportPdfBase64(m) }] }),
   })
   const body = await r.text().catch(() => '')
   return r.ok ? { ok: true, id: (body.match(/"id"\s*:\s*"([^"]+)"/) || [])[1] } : { ok: false, error: body.slice(0, 300) }
@@ -231,7 +235,7 @@ export function registerV3(app: Hono<any>, deps: Deps) {
     const b = await c.req.json().catch(() => ({})) as any
     const s = await saveSettings(c.env.COMPANIES_KV, b)
     // targets changed → drop cached month records so percentages recompute
-    await Promise.all([monthWin().key, lastFullMonthKey()].flatMap(m => CLIENT_REGISTRY.map(r => c.env.COMPANIES_KV.delete(`v3:cm7:${m}:${r.no}`).catch(() => null))))
+    await Promise.all([monthWin().key, lastFullMonthKey()].flatMap(m => CLIENT_REGISTRY.map(r => c.env.COMPANIES_KV.delete(`v3:cm8:${m}:${r.no}`).catch(() => null))))
     return c.json({ ok: true, settings: s })
   })
   app.get('/api/v3/client/:no', async (c) => {
@@ -255,9 +259,9 @@ export function registerV3(app: Hono<any>, deps: Deps) {
     const all: ClientMonth[] = []
     for (const r of CLIENT_REGISTRY) all.push(await getClientMonth(c.env, deps, r, win.key, { settings: s }))
     const p = portfolioOf(win, all, s)
-    return kind === 'internal' ? internalModel(p, s) : straightinModel(p, s)
+    return kind === 'internal' ? internalModel(p, s) : kind === 'gaps' ? gapsModel(p, s) : straightinModel(p, s)
   }
-  const kindOf = (k: string): ReportKind | null => (['straightin', 'internal', 'client'].includes(k) ? k as ReportKind : null)
+  const kindOf = (k: string): ReportKind | null => (['straightin', 'internal', 'client', 'gaps'].includes(k) ? k as ReportKind : null)
 
   app.get('/api/v3/report/:kind', async (c) => {
     const kind = kindOf(c.req.param('kind'))
@@ -295,7 +299,7 @@ export function registerV3(app: Hono<any>, deps: Deps) {
     const s = await readSettings(c.env.COMPANIES_KV)
     const no = c.req.query('no'), part = c.req.query('part')
     const item = no ? `client-${no}` : part
-    if (!item || (part && !['internal', 'straightin'].includes(part))) return c.json({ error: 'pass ?no=<client> or ?part=internal|straightin' }, 400)
+    if (!item || (part && !['internal', 'straightin', 'gaps'].includes(part))) return c.json({ error: 'pass ?no=<client> or ?part=internal|straightin|gaps' }, 400)
     const sentKey = `v3:sent:${month.key}:${item}`
     const already = await c.env.COMPANIES_KV.get(sentKey)
     if (already && c.req.query('force') !== '1') return c.json({ ok: true, skipped: true, already })
