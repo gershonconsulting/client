@@ -63,6 +63,7 @@ export interface V3Settings {
   clientEmails: Record<string, string> // client number → comma-separated recipients
   autoSendClients: boolean         // monthly cron mails clients directly (else to internalEmail for review)
   services: Record<string, Partial<Services>> // client number → service on/off overrides (Settings page)
+  linalysis: Record<string, string>           // client number → Linalysis account email(s), comma-separated (overrides registry)
 }
 export const DEFAULT_SETTINGS: V3Settings = {
   promoteTarget: 5,
@@ -75,6 +76,11 @@ export const DEFAULT_SETTINGS: V3Settings = {
   clientEmails: {},
   autoSendClients: false,
   services: {},
+  linalysis: {},
+}
+export function linalysisFor(entry: RegistryEntry, s?: V3Settings): string[] {
+  const o = (s?.linalysis || {})[String(entry.no)]
+  return o ? o.split(/[,;\s]+/).map(x => x.trim().toLowerCase()).filter(x => x.includes('@')) : (entry.linalysis || [])
 }
 export function servicesFor(entry: RegistryEntry, s?: V3Settings): Services {
   return { ...entry.services, ...((s?.services || {})[String(entry.no)] || {}) }
@@ -93,6 +99,9 @@ export async function saveSettings(kv: KVNamespace, s: Partial<V3Settings>): Pro
   next.promoteUnit = next.promoteUnit === 'week' ? 'week' : 'day'
   next.acceptTarget = Math.max(1, Math.min(100, Number(next.acceptTarget) || 20))
   next.leadsPerMonth = Math.max(1, Math.min(500, Number(next.leadsPerMonth) || 10))
+  const linIn = (s as any).linalysis && typeof (s as any).linalysis === 'object' ? (s as any).linalysis : cur.linalysis || {}
+  next.linalysis = {}
+  for (const r of CLIENT_REGISTRY) { const v = String(linIn[String(r.no)] || '').trim(); if (v && v !== (r.linalysis || []).join(', ')) next.linalysis[String(r.no)] = v }
   // keep only known client numbers and boolean switches
   const svcIn = (s as any).services && typeof (s as any).services === 'object' ? (s as any).services : cur.services || {}
   next.services = {}
@@ -201,7 +210,9 @@ export interface Profile {
 
 // One thing the platform could not fill for a client-month report.
 //   missing = a number is blocked · partial = shown but incomplete · decision = needs Olivier
-export interface Gap { level: 'missing' | 'partial' | 'decision'; area: string; what: string; effect: string; owner: string; col?: GapCol }
+export interface Gap { level: 'missing' | 'partial' | 'decision'; area: string; what: string; effect: string; owner: string; col?: GapCol; fix?: Fix }
+// Where the missing data is added (one place per data source), and who adds it.
+export interface Fix { place: string; url: string; who: string }
 
 // One column per data source in the Data gaps table. Dot per client: green = we have it,
 // orange = some but not all, red = all of it is missing, off = the service is not sold to this client.
@@ -216,6 +227,19 @@ export const GAP_COLUMNS: { col: GapCol; label: string; service: keyof Services 
   { col: 'fields', label: 'Streak fields', service: 'engage' },
   { col: 'recipient', label: 'Report recipient', service: null },
 ]
+export const APP_URL = 'https://client.gershoncrm.com'
+export function fixFor(col: GapCol, ctx: { streakUrl?: string; no: number }): Fix {
+  switch (col) {
+    case 'social': return { place: 'socialtracking.gershon.ai → the client → the content we post', url: 'https://socialtracking.gershon.ai', who: 'Account team' }
+    case 'weeks': return { place: 'Straight-in links page → paste the week\'s report links', url: `${APP_URL}/straightin`, who: 'Nicolette (Straight-in)' }
+    case 'opps': return { place: 'Straight-in links page → paste every week\'s links (each week names its own opportunities)', url: `${APP_URL}/straightin`, who: 'Nicolette (Straight-in)' }
+    case 'profile': return { place: 'Linalysis → the campaign\'s LinkedIn user connects (extension). Company-page figures: a Page admin adds that user as Analyst on LinkedIn', url: 'https://linalysis.net/admin', who: 'Account team + client' }
+    case 'pipeline': return { place: 'Admin → the company → Engage (Streak) link', url: `${APP_URL}/admin`, who: 'Aina' }
+    case 'fields': return { place: 'Streak pipeline → fill Fit, Interest and Next Steps on every active account', url: ctx.streakUrl || 'https://www.streak.com', who: 'Aina, Juliana' }
+    case 'recipient': return { place: 'Settings → Client report recipients', url: `${APP_URL}/settings`, who: 'Olivier (send the emails) → set in Settings' }
+    case 'goal': return { place: 'Settings → targets (decision on what counts as a qualified lead)', url: `${APP_URL}/settings`, who: 'Olivier' }
+  }
+}
 export function dotsFor(cm: ClientMonth): Record<GapCol, Dot> {
   const sv = cm.services || { promote: true, network: true, engage: true }
   const out = {} as Record<GapCol, Dot>
@@ -323,7 +347,7 @@ async function collectPromote(deps: Deps, entry: RegistryEntry, win: MonthWin, p
   }
 }
 
-interface SiReport { reportId: string; label: string }
+interface SiReport { reportId: string; label: string; oppsOnly?: boolean }  // oppsOnly = an older week's link, read only for its named opportunities
 async function fetchTrajectory(reportId: string): Promise<{ traj: any[]; opps: any[]; period: string; account: string } | null> {
   try {
     const res = await fetch(`https://prospecthub.straight-in.com/api/retain/public/campaign-reports/${reportId}`)
@@ -342,7 +366,8 @@ async function fetchTrajectory(reportId: string): Promise<{ traj: any[]; opps: a
 // One client number can run several LinkedIn campaigns (Altavia: Anne + Alexandre,
 // Finance Montreal: Steve + Noza). Every campaign report is fetched and summed.
 async function collectNetwork(reports: SiReport[], win: MonthWin, prev: MonthWin, s: V3Settings, expected: string[] = []) {
-  const got = (await Promise.all(reports.map(async r => ({ r, d: await fetchTrajectory(r.reportId) })))).filter(x => x.d)
+  const all = (await Promise.all(reports.map(async r => ({ r, d: await fetchTrajectory(r.reportId) })))).filter(x => x.d)
+  const got = all.filter(x => !x.r.oppsOnly)
   if (!got.length) return null
   const inM = (w: MonthWin) => (t: any) => String(t.weekStart || '') >= w.start && String(t.weekStart || '') <= w.monthEnd
   const sum = (rows: any[], k: string) => rows.reduce((a, t) => a + (Number(t[k]) || 0), 0)
@@ -372,6 +397,15 @@ async function collectNetwork(reports: SiReport[], win: MonthWin, prev: MonthWin
     const lw = d!.traj.map(t => String(t.weekStart || '')).sort().pop() || ''
     if (lw > lastWeekSeen) { lastWeekSeen = lw; lastReport = d!.period }
   }
+  // Each weekly link names only that week's opportunities: read the older weeks' links too.
+  const seen = new Set(namedOpps.map(o => `${o.name}|${o.company}|${o.date}`))
+  for (const { d } of all.filter(x => x.r.oppsOnly)) {
+    for (const o of d!.opps) {
+      const dt = String(o.loggedAt || '').slice(0, 10)
+      const k = `${o.name || ''}|${o.company || ''}|${dt}`
+      if (dt >= win.start && dt <= win.end && !seen.has(k)) { seen.add(k); namedOpps.push({ name: o.name || '', company: o.company || '', title: String(o.jobTitle || '').trim(), type: String(o.opportunityType || '').replace(/_/g, ' '), date: dt }) }
+    }
+  }
   const rate = sent ? r1((accepted / sent) * 100) : 0
   const prevRate = prevSent ? r1((prevAccepted / prevSent) * 100) : 0
   // No weekly report covering this month yet (Straight-in reports land a few days after each week)
@@ -387,16 +421,24 @@ async function collectNetwork(reports: SiReport[], win: MonthWin, prev: MonthWin
 
 // Report ids for a client: each company's current id + every link of the latest
 // stored Straight-in week that resolved to one of its companies (a client with two
-// campaigns under one company key, e.g. Altavia, has two entries there).
+// campaigns under one company key, e.g. Altavia, has two entries there). The links of
+// the 8 weeks before are added as oppsOnly, for the opportunities they name.
 async function reportsFor(kv: KVNamespace, entry: RegistryEntry, companies: any[]): Promise<SiReport[]> {
   const out = new Map<string, SiReport>()
   try {
     const list = await kv.list({ prefix: 'straightin:week:' })
-    const latest = list.keys.map(k => k.name).sort().pop()
+    const names = list.keys.map(k => k.name).sort()
+    const latest = names.pop()
     if (latest) {
       const wk = JSON.parse((await kv.get(latest)) || '{}')
       for (const e of (wk.entries || [])) {
         if (e.reportId && e.companyKey && entry.keys.includes(e.companyKey)) out.set(e.reportId, { reportId: e.reportId, label: e.label || e.companyKey })
+      }
+    }
+    for (const name of names.slice(-8)) {
+      const wk = JSON.parse((await kv.get(name)) || '{}')
+      for (const e of (wk.entries || [])) {
+        if (e.reportId && e.companyKey && entry.keys.includes(e.companyKey) && !out.has(e.reportId)) out.set(e.reportId, { reportId: e.reportId, label: e.label || e.companyKey, oppsOnly: true })
       }
     }
   } catch { /* fall back to company ids */ }
@@ -461,9 +503,10 @@ async function collectEngage(deps: Deps, companies: any[], win: MonthWin, prev: 
   }
 }
 
-async function collectProfile(deps: Deps, entry: RegistryEntry, win: MonthWin): Promise<Profile | null> {
-  if (!deps.linalysisFetch || !(entry.linalysis || []).length) return null
-  const r = await deps.linalysisFetch({ emails: entry.linalysis!, start: win.start, end: win.end })
+async function collectProfile(deps: Deps, entry: RegistryEntry, win: MonthWin, s?: V3Settings): Promise<Profile | null> {
+  const emails = linalysisFor(entry, s)
+  if (!deps.linalysisFetch || !emails.length) return null
+  const r = await deps.linalysisFetch({ emails, start: win.start, end: win.end })
   const a = (r?.accounts || []).find((x: any) => x.ok && x.to)
   if (!a) return null
   return { email: a.email, days: a.days || 0, from: a.from || null, to: a.to, missing: a.missing || [] }
@@ -475,8 +518,9 @@ function mondaysIn(win: MonthWin): string[] {
   for (let d = win.start; d <= win.monthEnd; d = dPlus(d, 1)) if (new Date(d + 'T12:00:00Z').getUTCDay() === 1) out.push(d)
   return out
 }
-export function computeGaps(entry: RegistryEntry, cm: ClientMonth, win: MonthWin, s: V3Settings, hasReports: boolean, hasPipeline: boolean, linalysisWired: boolean): Gap[] {
+export function computeGaps(entry: RegistryEntry, cm: ClientMonth, win: MonthWin, s: V3Settings, hasReports: boolean, hasPipeline: boolean, linalysisWired: boolean, streakUrl?: string): Gap[] {
   const g: Gap[] = []
+  const lin = linalysisFor(entry, s)
   const N = cm.network, E = cm.engage, P = cm.promote, L = cm.profile
   const sv = cm.services || { promote: true, network: true, engage: true }
   // Network — Straight-in
@@ -516,14 +560,15 @@ export function computeGaps(entry: RegistryEntry, cm: ClientMonth, win: MonthWin
   else if (cm.promoteInPlan && !P) g.push({ col: 'social', level: 'missing', area: 'Promote', what: 'No social data for the month (no account collecting, or the Promote key was refused).', effect: 'No posts or engagement in the report.', owner: 'social.gershon.ai' })
   // LinkedIn profile — Linalysis (the campaign's LinkedIn account, so only with Network)
   if (!sv.network) { /* no LinkedIn campaign */ }
-  else if (!(entry.linalysis || []).length) g.push({ col: 'profile', level: 'missing', area: 'Profile', what: 'No Linalysis account mapped to this client.', effect: 'No LinkedIn profile or company-page block.', owner: 'Registry (linalysis email)' })
+  else if (!lin.length) g.push({ col: 'profile', level: 'missing', area: 'Profile', what: 'No Linalysis account mapped to this client.', effect: 'No LinkedIn profile or company-page block.', owner: 'Registry (linalysis email)' })
   else if (!linalysisWired) g.push({ col: 'profile', level: 'missing', area: 'Profile', what: 'LINALYSIS_REPORT_KEY is not set on this app.', effect: 'No LinkedIn profile or company-page block.', owner: 'Cloudflare Pages secret' })
-  else if (!L) g.push({ col: 'profile', level: 'missing', area: 'Profile', what: `Linalysis has no capture in ${win.label} for ${(entry.linalysis || []).join(', ')}.`, effect: 'No LinkedIn profile block.', owner: 'Linalysis extension' })
+  else if (!L) g.push({ col: 'profile', level: 'missing', area: 'Profile', what: `Linalysis has no capture in ${win.label} for ${lin.join(', ')}.`, effect: 'No LinkedIn profile block.', owner: 'Linalysis extension' })
   else if (L.missing.length) g.push({ col: 'profile', level: 'partial', area: 'Profile', what: `Linalysis opening values missing: ${L.missing.map(f => f.replace(/_/g, ' ')).join(', ')}.`, effect: 'Those figures show a value but no monthly change.', owner: 'Linalysis' })
   // Delivery
   if (!emailsOf(s.clientEmails?.[String(entry.no)] || '').length) g.push({ col: 'recipient', level: 'missing', area: 'Delivery', what: 'No client recipient email set.', effect: `The report goes to ${s.internalEmail} only.`, owner: 'Targets & recipients' })
   // Definition — two meanings of "lead"
   if (E && N && !N.pending && E.newLeads !== N.opportunities) g.push({ col: 'goal', level: 'decision', area: 'Goal', what: `"Qualified lead" has two counts: ${E.newLeads} new Streak accounts vs ${N.opportunities} Straight-in opportunities.`, effect: `The ${E.target}/month goal reads ${pctOf(E.newLeads, E.target)}% or ${pctOf(N.opportunities, E.target)}% depending on the source.`, owner: 'Olivier' })
+  for (const x of g) if (x.col && !x.fix) x.fix = fixFor(x.col, { streakUrl, no: entry.no })
   return g
 }
 const emailsOf = (s: string) => s.split(/[,;\s]+/).map(x => x.trim()).filter(x => x.includes('@'))
@@ -537,12 +582,13 @@ export async function collectClientMonth(env: { COMPANIES_KV: KVNamespace }, dep
   const errors: string[] = []
   const [promote, network, engage, profile] = await Promise.all([
     collectPromote(deps, entry, win, prev, settings).catch(e => { errors.push('promote: ' + e.message); return null }),
-    reports.length ? collectNetwork(reports, win, prev, settings, entry.campaigns || []).catch(e => { errors.push('network: ' + e.message); return null }) : Promise.resolve(null),
+    reports.some(r => !r.oppsOnly) ? collectNetwork(reports, win, prev, settings, entry.campaigns || []).catch(e => { errors.push('network: ' + e.message); return null }) : Promise.resolve(null),
     svc.engage ? collectEngage(deps, companies, win, prev, settings, (entry.campaigns || []).length || 1).catch(e => { errors.push('engage: ' + e.message); return null }) : Promise.resolve(null),
-    svc.network ? collectProfile(deps, entry, win).catch(e => { errors.push('profile: ' + e.message); return null }) : Promise.resolve(null),
+    svc.network ? collectProfile(deps, entry, win, settings).catch(e => { errors.push('profile: ' + e.message); return null }) : Promise.resolve(null),
   ])
   const cm: ClientMonth = { no: entry.no, name: entry.name, keys: entry.keys, promoteInPlan: svc.promote, services: svc, campaigns: entry.campaigns || [], month: win.key, generatedAt: new Date().toISOString(), promote, network, engage, profile, gaps: [], errors }
-  cm.gaps = computeGaps(entry, cm, win, settings, reports.length > 0, companies.some((co: any) => co?.pipelineKey), !!deps.linalysisFetch)
+  const pk = (companies.find((co: any) => co?.pipelineKey) as any)?.pipelineKey
+  cm.gaps = computeGaps(entry, cm, win, settings, reports.filter(r => !r.oppsOnly).length > 0, !!pk, !!deps.linalysisFetch, pk ? `https://www.streak.com/a/pipelines/${pk}` : undefined)
   return cm
 }
 

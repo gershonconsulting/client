@@ -9,7 +9,7 @@ import {
   getClientMonth, portfolioOf, servicesFor, type Deps, type V3Settings, type ClientMonth,
 } from './v3-data'
 import { registerHistory } from './v3-history'
-import { clientModel, internalModel, straightinModel, gapsModel, gapsMatrixHtml, reportHtml, reportPdfBase64, pdfBytesFromBase64, type ReportKind, type ReportModel } from './v3-reports'
+import { clientModel, internalModel, straightinModel, gapsModel, gapsMatrixHtml, whereHtml, reportHtml, reportPdfBase64, pdfBytesFromBase64, type ReportKind, type ReportModel } from './v3-reports'
 
 const esc = (s: any) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
@@ -152,7 +152,7 @@ function gapsPage(monthKey: string, label: string, rows: ClientMonth[]): string 
     const body = g.length
       ? `<table style="width:100%;border-collapse:collapse;font-size:13px">${g.map(x => `<tr style="border-top:1px solid #e5e7eb">
           <td style="padding:7px 8px;width:90px;color:#6e6e73;font-weight:600">${esc(x.area)}</td>
-          <td style="padding:7px 8px"><b>${esc(x.what)}</b><div style="color:#6e6e73;font-size:12px;margin-top:2px">${esc(x.effect)}</div></td>
+          <td style="padding:7px 8px"><b>${esc(x.what)}</b><div style="color:#6e6e73;font-size:12px;margin-top:2px">${esc(x.effect)}</div>${x.fix ? `<div style="font-size:12px;margin-top:3px"><a href="${esc(x.fix.url)}" target="_blank" style="color:#CC3333;font-weight:700;text-decoration:none">Add it →</a> <span style="color:#6e6e73">${esc(x.fix.place)}</span></div>` : ''}</td>
           <td style="padding:7px 8px;width:190px;color:#6e6e73">${esc(x.owner)}</td>
           <td style="padding:7px 8px;width:90px;text-align:right">${lvl(x.level)}</td></tr>`).join('')}</table>`
       : `<div style="padding:8px;color:#6e6e73">Nothing missing for ${esc(label)}.</div>`
@@ -162,7 +162,7 @@ function gapsPage(monthKey: string, label: string, rows: ClientMonth[]): string 
   }).join('')
   const right = `<form method="get" style="display:flex;gap:8px;align-items:center"><input type="month" name="month" value="${esc(monthKey)}" class="input" style="padding:6px 8px"><button class="btn" type="submit">Show</button><a class="btn" href="/gaps?month=${esc(monthKey)}&fresh=1">Refresh</a></form>`
   return shell({ title: 'Data gaps', active: 'gaps', h1: `Data gaps · ${esc(label)}`, right,
-    body: `<p style="color:#6e6e73;margin:0 0 14px">${total} item${total === 1 ? '' : 's'} the ${esc(label)} reports cannot fill yet.</p><div class="card" style="margin-bottom:14px;overflow:auto">${gapsMatrixHtml(rows)}</div>${blocks}` })
+    body: `<p style="color:#6e6e73;margin:0 0 14px">${total} item${total === 1 ? '' : 's'} the ${esc(label)} reports cannot fill yet.</p><div class="card" style="margin-bottom:14px;overflow:auto">${gapsMatrixHtml(rows)}</div><div class="card" style="margin-bottom:14px;overflow:auto"><h3 style="margin:0 0 8px">Where to add the missing data</h3>${whereHtml(rows)}</div>${blocks}` })
 }
 
 export function registerV3(app: Hono<any>, deps: Deps) {

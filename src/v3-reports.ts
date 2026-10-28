@@ -7,7 +7,7 @@
 // page each, drawn with the Linalysis/Social zero-dependency writer.
 // ─────────────────────────────────────────────────────────────────────────────
 import { MrPdf, strWidth as W, type RGB } from './pdf-writer'
-import { band, clientLabel, overallScore, pctOf, dotsFor, GAP_COLUMNS, type ClientMonth, type Portfolio, type V3Settings, type Dot } from './v3-data'
+import { band, clientLabel, overallScore, pctOf, dotsFor, GAP_COLUMNS, fixFor, type ClientMonth, type Portfolio, type V3Settings, type Dot } from './v3-data'
 
 export type ReportKind = 'straightin' | 'internal' | 'client' | 'gaps'
 
@@ -280,9 +280,10 @@ export function gapsModel(p: Portfolio, s: V3Settings): ReportModel {
     ...(decisions.length ? [{ title: 'Decisions for Olivier', lines: decisions }] : []),
     ...p.clients.filter(c => (c.gaps || []).some(g => g.level !== 'decision')).map(c => ({
       title: `#${c.no} ${c.name} · ${svc(c)}`,
-      lines: c.gaps.filter(g => g.level !== 'decision').map(g => `[${tag(g.level)}] ${g.area} — ${g.what} ${g.effect} Owner: ${g.owner}.`),
+      lines: c.gaps.filter(g => g.level !== 'decision').map(g => `[${tag(g.level)}] ${g.area} — ${g.what} ${g.effect}${g.fix ? ` → Add it: ${g.fix.place} (${g.fix.url})` : ''}`),
     })),
   ]
+  sections.splice(1, 0, { title: 'Where to add the missing data', html: whereHtml(p.clients) })
   const clean = p.clients.filter(c => !(c.gaps || []).length).map(c => `#${c.no} ${c.name}`)
   return {
     kind: 'gaps', eyebrow: 'GC · Internal · not sent to clients', title: 'Data missing for the reports', month: p.month.label,
@@ -317,6 +318,26 @@ export function gapsMatrixHtml(clients: ClientMonth[]): string {
   }).join('')
   const legend = `<div style="font-size:11px;color:${MUT};margin-top:8px;">${dotHtml('green')} we have it &nbsp;&nbsp; ${dotHtml('orange')} some but not all &nbsp;&nbsp; ${dotHtml('red')} all missing &nbsp;&nbsp; ${dotHtml('off')} service not sold${clients.some(c => (c.unchecked || []).length) ? ` &nbsp;&nbsp; ${dotHtml('unknown')} not checked` : ''}</div>`
   return `<table style="width:100%;border-collapse:collapse;"><tr>${th('Client', true)}${GAP_COLUMNS.map(k => th(k.label)).join('')}</tr>${rows}</table>${legend}`
+}
+
+// One row per data source that has at least one orange or red dot: where it is added, by whom, for which clients.
+export function whereHtml(clients: ClientMonth[]): string {
+  const rows = GAP_COLUMNS.map(k => {
+    const bad = clients.filter(c => { const d = dotsFor(c)[k.col]; return d === 'red' || d === 'orange' })
+    if (!bad.length) return ''
+    const streak = k.col === 'fields' ? bad.map(c => (c.gaps || []).find(g => g.col === 'fields' && g.fix)?.fix).filter(Boolean) as any[] : []
+    const f = fixFor(k.col, { no: 0 })
+    const link = (u: string, t: string) => `<a href="${esc(u)}" style="color:${RED};font-weight:700;text-decoration:none;">${esc(t)}</a>`
+    const where = k.col === 'fields' && streak.length
+      ? `${esc(f.place)}<div style="margin-top:3px;">${bad.map(c => { const fx = (c.gaps || []).find(g => g.col === 'fields' && g.fix)?.fix; return fx && fx.url.includes('/pipelines/') ? link(fx.url, `#${c.no} pipeline`) : '' }).filter(Boolean).join(' · ')}</div>`
+      : `${esc(f.place)}<div style="margin-top:3px;">${link(f.url, f.url.replace('https://', ''))}</div>`
+    return `<tr><td style="padding:8px 6px;border-bottom:1px solid ${RULE};font-weight:700;font-size:12px;white-space:nowrap;vertical-align:top;">${esc(k.label)}</td>
+      <td style="padding:8px 6px;border-bottom:1px solid ${RULE};font-size:12px;line-height:1.45;vertical-align:top;">${where}</td>
+      <td style="padding:8px 6px;border-bottom:1px solid ${RULE};font-size:12px;color:${MUT};vertical-align:top;">${esc(f.who)}</td>
+      <td style="padding:8px 6px;border-bottom:1px solid ${RULE};font-size:11px;color:${MUT};vertical-align:top;">${bad.map(c => `#${c.no}`).join(' ')}</td></tr>`
+  }).join('')
+  const th = (t: string) => `<th style="text-align:left;font-size:10px;color:${MUT};text-transform:uppercase;letter-spacing:.04em;padding:6px;border-bottom:1px solid ${RULE};">${t}</th>`
+  return rows ? `<table style="width:100%;border-collapse:collapse;"><tr>${th('Data')}${th('Where to add it')}${th('Who')}${th('Clients')}</tr>${rows}</table>` : `<div style="font-size:13px;color:${MUT};">Nothing to add.</div>`
 }
 
 // ── Email HTML (inline styles) ───────────────────────────────────────────────
