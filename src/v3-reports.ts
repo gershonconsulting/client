@@ -218,6 +218,30 @@ export function clientModel(c: ClientMonth, monthLabel: string, monthKey: string
   if (P?.topPost && P.topPost.engagement > 0) hl.push(`Top post (${P.topPost.engagement} engagements): "${P.topPost.snippet.slice(0, 110)}${P.topPost.snippet.length > 110 ? '…' : ''}"`)
   if (!hl.length) hl.push('Campaign set-up, targeting and content are in place — results build from here.')
 
+  // LinkedIn presence — Linalysis capture of the campaign profile and the company page
+  const L = c.profile
+  const presence: string[] = []
+  if (L) {
+    const num = (v: any) => (typeof v === 'number' ? v : null)
+    const line = (label: string, key: string, note = '') => {
+      const to = num(L.to[key]), from = L.from ? num(L.from[key]) : null
+      if (to == null) return
+      const d = from != null ? to - from : null
+      const pct = from ? Math.round(((to - from) / from) * 100) : null
+      const delta = d != null && d > 0 ? ` (+${fmt(d)}${pct ? `, +${pct}%` : ''} this month)` : ''
+      presence.push(`${label}: ${fmt(to)}${delta}${note}`)
+    }
+    line('Profile connections', 'connections')
+    line('Profile views, last 90 days', 'profile_views')
+    line('Company page followers', 'company_followers')
+    line('Company post impressions, last 30 days', 'company_post_impressions')
+    line('Company search appearances, last 30 days', 'company_search_appearances')
+    const rel = num(L.to.ssi_relationships)
+    if (rel != null && rel >= 20) presence.push(`Social Selling Index, Relationships pillar: ${rel} / 25.`)
+    const conn = num(L.to.connections), conn0 = L.from ? num(L.from.connections) : null
+    if (tiles.length < 4 && conn != null && conn0 != null && conn > conn0) tiles.push({ label: 'PROFILE GROWTH', value: `+${fmt(conn - conn0)}`, sub: `${fmt(conn)} LinkedIn connections`, color: RED })
+  }
+
   const next = [
     'Keep the publishing rhythm so your brand stays visible to US buyers.',
     'Turn new connections into conversations with personal follow-ups.',
@@ -229,6 +253,7 @@ export function clientModel(c: ClientMonth, monthLabel: string, monthKey: string
     daily: P && P.posts > 0 ? P.daily : undefined, dailyCaption: 'Posts published per day',
     sections: [
       { title: 'Highlights', lines: hl.slice(0, 7) },
+      ...(presence.length ? [{ title: 'Your LinkedIn presence', lines: presence.slice(0, 6) }] : []),
       { title: 'Next month', lines: next },
     ],
     footer: 'Gershon Consulting · US market entry · gershonconsulting.com',

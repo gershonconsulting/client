@@ -17,6 +17,7 @@ type Bindings = {
   AUTH_PASSWORD_HASH?: string
   SESSION_SECRET?: string
   SOCIAL_PROMOTE_KEY?: string
+  LINALYSIS_REPORT_KEY?: string   // shared secret of linalysis.net/api/client-month (same as the matrix secret)
   LINKEDIN_CLIENT_ID?: string
   LINKEDIN_CLIENT_SECRET?: string
 }
@@ -28,8 +29,10 @@ const app = new Hono<{ Bindings: Bindings }>()
 // Captured per request so the module-level Promote helpers can send it without
 // threading c.env through every call.
 let _socialPromoteKey = ''
+let _linalysisKey = ''
 app.use('*', async (c, next) => {
   _socialPromoteKey = c.env.SOCIAL_PROMOTE_KEY || ''
+  _linalysisKey = c.env.LINALYSIS_REPORT_KEY || ''
   await next()
 })
 
@@ -148,7 +151,17 @@ app.all('/api/auth/logout', (c) => {
 app.use('/static/*', serveStatic({ root: './public' }))
 
 // v3: simplified Dashboard / Client / Reports / Settings + Gershon theme on legacy pages
-registerV3(app, { callStreakAPI: (e: string) => callStreakAPI(e), socialFetch: (p: string) => socialFetch(p), getCompany: (kv: any, k: string) => getCompany(kv, k), classifyStage: (n: string) => classifyStage(n) })
+registerV3(app, {
+  callStreakAPI: (e: string) => callStreakAPI(e), socialFetch: (p: string) => socialFetch(p), getCompany: (kv: any, k: string) => getCompany(kv, k), classifyStage: (n: string) => classifyStage(n),
+  // LinkedIn profile + company page per client-month, read from Linalysis (only when the key is set)
+  get linalysisFetch() {
+    if (!_linalysisKey) return undefined
+    return async (body: { emails: string[]; start: string; end: string }) => {
+      const r = await fetch('https://linalysis.net/api/client-month', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: _linalysisKey, ...body }) })
+      return r.ok ? r.json() : null
+    }
+  },
+})
 
 // Streak API configuration
 let streakApiKey: string = ''

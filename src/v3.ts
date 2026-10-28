@@ -30,7 +30,7 @@ export function shell(opts: { title: string; active: string; h1: string; right?:
   <a class="brand" href="/dashboard"><span class="brand-mark">G</span><span>Gershon<span class="tag">Client results</span></span></a>
   <div class="nav-group">${nav('/dashboard', 'fa-gauge-high', 'Dashboard', 'dashboard')}${nav('/reports', 'fa-file-lines', 'Monthly reports', 'reports')}</div>
   <div class="nav-group"><div class="nav-group-label">Clients</div>${clients}</div>
-  <div class="nav-group"><div class="nav-group-label">Data</div>${nav('/straightin', 'fa-link', 'Straight-in links', 'straightin')}${nav('/settings', 'fa-sliders', 'Targets & recipients', 'settings')}${nav('/admin', 'fa-gear', 'Admin', 'admin')}${nav('/users', 'fa-user-shield', 'Users', 'users')}</div>
+  <div class="nav-group"><div class="nav-group-label">Data</div>${nav('/gaps', 'fa-triangle-exclamation', 'Data gaps', 'gaps')}${nav('/straightin', 'fa-link', 'Straight-in links', 'straightin')}${nav('/settings', 'fa-sliders', 'Targets & recipients', 'settings')}${nav('/admin', 'fa-gear', 'Admin', 'admin')}${nav('/users', 'fa-user-shield', 'Users', 'users')}</div>
   <div class="nav-spacer"></div>
   <a class="nav-item" href="/api/auth/logout"><i class="fas fa-right-from-bracket"></i><span>Sign out</span></a>
   <div class="sidebar-footer">Promote · social.gershon.ai<br>Network · Straight-in<br>Engage · Streak</div>
@@ -139,6 +139,28 @@ async function sendReport(env: any, m: ReportModel, to: string[], bcc: string[] 
 const emails = (s: string) => String(s || '').split(/[,;\s]+/).map(x => x.trim()).filter(x => /.+@.+\..+/.test(x))
 
 // ── Registration ─────────────────────────────────────────────────────────────
+// ── Data gaps page ───────────────────────────────────────────────────────────
+function gapsPage(monthKey: string, label: string, rows: ClientMonth[]): string {
+  const lvl = (l: string) => `<span style="display:inline-block;font-size:10px;font-weight:800;letter-spacing:.06em;padding:1px 6px;border:1.5px ${l === 'partial' ? 'dashed' : 'solid'} #111;white-space:nowrap">${l.toUpperCase()}</span>`
+  const total = rows.reduce((a, r) => a + (r.gaps || []).length, 0)
+  const blocks = rows.map(r => {
+    const g = r.gaps || []
+    const body = g.length
+      ? `<table style="width:100%;border-collapse:collapse;font-size:13px">${g.map(x => `<tr style="border-top:1px solid #e5e7eb">
+          <td style="padding:7px 8px;width:90px;color:#6e6e73;font-weight:600">${esc(x.area)}</td>
+          <td style="padding:7px 8px"><b>${esc(x.what)}</b><div style="color:#6e6e73;font-size:12px;margin-top:2px">${esc(x.effect)}</div></td>
+          <td style="padding:7px 8px;width:190px;color:#6e6e73">${esc(x.owner)}</td>
+          <td style="padding:7px 8px;width:90px;text-align:right">${lvl(x.level)}</td></tr>`).join('')}</table>`
+      : `<div style="padding:8px;color:#6e6e73">Nothing missing for ${esc(label)}.</div>`
+    return `<div class="card" style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+      <a href="/client/${r.no}" style="font-weight:800;font-size:15px;color:#111;text-decoration:none">#${r.no} ${esc(r.name)}</a>
+      <span style="color:#6e6e73;font-size:12px">${g.length} gap${g.length === 1 ? '' : 's'}</span></div>${body}</div>`
+  }).join('')
+  const right = `<form method="get" style="display:flex;gap:8px;align-items:center"><input type="month" name="month" value="${esc(monthKey)}" class="input" style="padding:6px 8px"><button class="btn" type="submit">Show</button><a class="btn" href="/gaps?month=${esc(monthKey)}&fresh=1">Refresh</a></form>`
+  return shell({ title: 'Data gaps', active: 'gaps', h1: `Data gaps · ${esc(label)}`, right,
+    body: `<p style="color:#6e6e73;margin:0 0 14px">${total} item${total === 1 ? '' : 's'} the ${esc(label)} reports cannot fill yet. MISSING blocks a number, PARTIAL shows it incomplete, DECISION needs a call from Olivier.</p>${blocks}` })
+}
+
 export function registerV3(app: Hono<any>, deps: Deps) {
   // Theme + top bar on every legacy HTML page (v3 pages are already styled).
   app.use('*', async (c, next) => {
@@ -159,7 +181,7 @@ export function registerV3(app: Hono<any>, deps: Deps) {
     html = html.includes('</head>') ? html.replace('</head>', theme + '</head>') : theme + html
     const showBar = path !== '/login' && !(path === '/' && !new URL(c.req.url).searchParams.get('company'))
     if (showBar) {
-      const bar = `<div id="gc-topnav"><span class="b">Gershon</span><a href="/dashboard">Dashboard</a><a href="/reports">Monthly reports</a><a href="/straightin">Straight-in links</a><a href="/settings">Settings</a><a href="/admin">Admin</a><a href="/users">Users</a></div>`
+      const bar = `<div id="gc-topnav"><span class="b">Gershon</span><a href="/dashboard">Dashboard</a><a href="/reports">Monthly reports</a><a href="/gaps">Data gaps</a><a href="/straightin">Straight-in links</a><a href="/settings">Settings</a><a href="/admin">Admin</a><a href="/users">Users</a></div>`
       html = html.replace(/<body([^>]*)>/i, (m0) => m0 + bar)
     }
     const headers = new Headers(c.res.headers); headers.delete('content-length')
@@ -178,6 +200,26 @@ export function registerV3(app: Hono<any>, deps: Deps) {
     return htmlV3(c, clientPage(r.no, r.name, r.keys))
   })
   app.get('/reports', async (c) => htmlV3(c, reportsPage(await readSettings(c.env.COMPANIES_KV))))
+
+  // Data gaps — every number the month's reports could not fill, per client, with an owner.
+  app.get('/gaps', async (c) => {
+    const win = monthWin(c.req.query('month') || todayNY().slice(0, 7))
+    const s = await readSettings(c.env.COMPANIES_KV)
+    const fresh = c.req.query('fresh') === '1'
+    const rows: ClientMonth[] = []
+    for (const r of CLIENT_REGISTRY) rows.push(await getClientMonth(c.env, deps, r, win.key, { fresh, settings: s }))
+    return htmlV3(c, gapsPage(win.key, win.label, rows))
+  })
+  app.get('/api/v3/gaps', async (c) => {
+    const win = monthWin(c.req.query('month') || todayNY().slice(0, 7))
+    const s = await readSettings(c.env.COMPANIES_KV)
+    const out = []
+    for (const r of CLIENT_REGISTRY) {
+      const cm = await getClientMonth(c.env, deps, r, win.key, { fresh: c.req.query('fresh') === '1', settings: s })
+      out.push({ no: cm.no, name: cm.name, gaps: cm.gaps })
+    }
+    return c.json({ month: win.key, clients: out })
+  })
   app.get('/settings', async (c) => htmlV3(c, settingsPage(await readSettings(c.env.COMPANIES_KV), !!c.env.RESEND_API_KEY)))
 
   // ── API ──
@@ -189,7 +231,7 @@ export function registerV3(app: Hono<any>, deps: Deps) {
     const b = await c.req.json().catch(() => ({})) as any
     const s = await saveSettings(c.env.COMPANIES_KV, b)
     // targets changed → drop cached month records so percentages recompute
-    await Promise.all([monthWin().key, lastFullMonthKey()].flatMap(m => CLIENT_REGISTRY.map(r => c.env.COMPANIES_KV.delete(`v3:cm6:${m}:${r.no}`).catch(() => null))))
+    await Promise.all([monthWin().key, lastFullMonthKey()].flatMap(m => CLIENT_REGISTRY.map(r => c.env.COMPANIES_KV.delete(`v3:cm7:${m}:${r.no}`).catch(() => null))))
     return c.json({ ok: true, settings: s })
   })
   app.get('/api/v3/client/:no', async (c) => {
