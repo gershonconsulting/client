@@ -13,6 +13,9 @@ DONE ✅ (2026-10-15)
 - ✅ client.gershon.ai attached to Pages project gershoncrm-client (.github/workflows/attach-domain.yml).
 
 PENDING ❌
+- ❌ 2026-10-28 (nightly): POST /api/matrix-stats (src/matrix-stats.ts, mounted by src/entry.ts) for the weekly
+  Client Platform Matrix, column "client". Branch nightly/2026-10-28-matrix-stats -> deploy on merge (Ariel),
+  then SQL block 5 in task repo supabase/sql/2026-10-27_matrix_live_endpoints.sql (Charles).
 - ❌ DNS CNAME client -> gershoncrm-client.pages.dev in gershon.ai zone (CF token lacks DNS edit;
   dashboard step for Charles — docs/HANDOFF-charles-client-gershon-ai.md)
 - ❌ LINKEDIN_CLIENT_SECRET Pages secret (Charles, same doc). Until then the LinkedIn button is greyed out.
