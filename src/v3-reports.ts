@@ -7,7 +7,7 @@
 // page each, drawn with the Linalysis/Social zero-dependency writer.
 // ─────────────────────────────────────────────────────────────────────────────
 import { MrPdf, strWidth as W, type RGB } from './pdf-writer'
-import { band, clientLabel, overallScore, pctOf, type ClientMonth, type Portfolio, type V3Settings } from './v3-data'
+import { band, clientLabel, overallScore, pctOf, dotsFor, GAP_COLUMNS, type ClientMonth, type Portfolio, type V3Settings, type Dot } from './v3-data'
 
 export type ReportKind = 'straightin' | 'internal' | 'client' | 'gaps'
 
@@ -23,7 +23,7 @@ const arrow = (cur: number, prev: number) => {
 }
 
 export interface Tile { label: string; value: string; sub: string; color?: string }
-export interface Section { title: string; bars?: { label: string; value: string; pct: number; color?: string }[]; lines?: string[]; table?: { head: string[]; rows: string[][]; align?: ('l' | 'r')[] } }
+export interface Section { title: string; html?: string; bars?: { label: string; value: string; pct: number; color?: string }[]; lines?: string[]; table?: { head: string[]; rows: string[][]; align?: ('l' | 'r')[] } }
 export interface ReportModel {
   kind: ReportKind
   title: string          // big heading
@@ -274,12 +274,16 @@ export function gapsModel(p: Portfolio, s: V3Settings): ReportModel {
     const v = c.services || { promote: true, network: true, engage: true }
     return (['promote', 'network', 'engage'] as const).filter(k => v[k]).map(k => k[0].toUpperCase() + k.slice(1)).join(' + ') || 'no service'
   }
-  const sections: Section[] = p.clients.filter(c => (c.gaps || []).length).map(c => ({
-    title: `#${c.no} ${c.name} · ${svc(c)}`,
-    lines: c.gaps.map(g => `[${tag(g.level)}] ${g.area} — ${g.what} ${g.effect} Owner: ${g.owner}.`),
-  }))
+  const decisions = all.filter(x => x.g.level === 'decision').map(x => `#${x.c.no} ${x.c.name}: ${x.g.what} ${x.g.effect}`)
+  const sections: Section[] = [
+    { title: 'Data status by client', html: gapsMatrixHtml(p.clients) },
+    ...(decisions.length ? [{ title: 'Decisions for Olivier', lines: decisions }] : []),
+    ...p.clients.filter(c => (c.gaps || []).some(g => g.level !== 'decision')).map(c => ({
+      title: `#${c.no} ${c.name} · ${svc(c)}`,
+      lines: c.gaps.filter(g => g.level !== 'decision').map(g => `[${tag(g.level)}] ${g.area} — ${g.what} ${g.effect} Owner: ${g.owner}.`),
+    })),
+  ]
   const clean = p.clients.filter(c => !(c.gaps || []).length).map(c => `#${c.no} ${c.name}`)
-  if (clean.length) sections.push({ title: 'Nothing missing', lines: [clean.join(' · ')] })
   return {
     kind: 'gaps', eyebrow: 'GC · Internal · not sent to clients', title: 'Data missing for the reports', month: p.month.label,
     headline: all.length ? `${all.length} item${all.length === 1 ? '' : 's'} the ${p.month.label} reports cannot fill yet` : `Every ${p.month.label} report has all its data`,
@@ -295,6 +299,24 @@ export function gapsModel(p: Portfolio, s: V3Settings): ReportModel {
     subject: `GC Data gaps — ${p.month.label} — ${all.length} item${all.length === 1 ? '' : 's'} before the reports go out`,
     filename: `GC-data-gaps-${p.month.key}.pdf`,
   }
+}
+
+// Dot table: rows = clients, columns = data sources (email-safe inline styles; also used on /gaps).
+const DOT: Record<Dot, string> = { green: GOOD, orange: '#E8890C', red: '#D92D20', off: '', unknown: '' }
+export function dotHtml(d: Dot): string {
+  if (d === 'unknown') return `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;border:2px solid #b0b0b5;vertical-align:middle;"></span>`
+  return d === 'off' ? `<span style="color:#b0b0b5;font-size:13px;">&mdash;</span>`
+    : `<span style="display:inline-block;width:13px;height:13px;border-radius:50%;background:${DOT[d]};vertical-align:middle;"></span>`
+}
+export function gapsMatrixHtml(clients: ClientMonth[]): string {
+  const th = (t: string, left = false) => `<th style="font-size:10px;color:${MUT};text-transform:uppercase;letter-spacing:.04em;font-weight:700;padding:6px 4px;border-bottom:1px solid ${RULE};text-align:${left ? 'left' : 'center'};vertical-align:bottom;">${esc(t)}</th>`
+  const rows = clients.map(c => {
+    const d = dotsFor(c)
+    const camp = (c.campaigns || []).length ? `<div style="font-size:10px;color:${MUT};font-weight:400;">${esc(c.campaigns.join(' + '))}</div>` : ''
+    return `<tr><td style="padding:7px 4px;border-bottom:1px solid ${RULE};font-size:12px;font-weight:700;white-space:nowrap;"><span style="color:${RED};">#${c.no}</span> ${esc(c.name)}${camp}</td>${GAP_COLUMNS.map(k => `<td style="padding:7px 4px;border-bottom:1px solid ${RULE};text-align:center;">${dotHtml(d[k.col])}</td>`).join('')}</tr>`
+  }).join('')
+  const legend = `<div style="font-size:11px;color:${MUT};margin-top:8px;">${dotHtml('green')} we have it &nbsp;&nbsp; ${dotHtml('orange')} some but not all &nbsp;&nbsp; ${dotHtml('red')} all missing &nbsp;&nbsp; ${dotHtml('off')} service not sold${clients.some(c => (c.unchecked || []).length) ? ` &nbsp;&nbsp; ${dotHtml('unknown')} not checked` : ''}</div>`
+  return `<table style="width:100%;border-collapse:collapse;"><tr>${th('Client', true)}${GAP_COLUMNS.map(k => th(k.label)).join('')}</tr>${rows}</table>${legend}`
 }
 
 // ── Email HTML (inline styles) ───────────────────────────────────────────────
@@ -315,6 +337,7 @@ export function reportHtml(m: ReportModel): string {
         ${s.table.rows.map(r => `<tr>${r.map((v, i) => `<td style="padding:8px;border-bottom:1px solid ${RULE};text-align:${s.table!.align?.[i] === 'r' ? 'right' : 'left'};${i === 0 ? `color:${RED};font-weight:800;` : ''}${i === 1 ? 'font-weight:600;' : ''}">${esc(v)}</td>`).join('')}</tr>`).join('')}
       </table>`
     }
+    if (s.html) body += s.html
     if (s.lines) body += `<ul style="margin:0;padding:0 0 0 18px;">${s.lines.map(l => `<li style="margin:0 0 6px;font-size:13px;line-height:1.5;color:${INK};">${esc(l)}</li>`).join('')}</ul>`
     return `<div style="margin:22px 0 0;"><div style="font-size:11px;font-weight:800;color:${MUT};text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid ${RULE};padding-bottom:6px;margin-bottom:10px;">${esc(s.title)}</div>${body}</div>`
   }

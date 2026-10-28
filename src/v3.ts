@@ -9,7 +9,7 @@ import {
   getClientMonth, portfolioOf, servicesFor, type Deps, type V3Settings, type ClientMonth,
 } from './v3-data'
 import { registerHistory } from './v3-history'
-import { clientModel, internalModel, straightinModel, gapsModel, reportHtml, reportPdfBase64, pdfBytesFromBase64, type ReportKind, type ReportModel } from './v3-reports'
+import { clientModel, internalModel, straightinModel, gapsModel, gapsMatrixHtml, reportHtml, reportPdfBase64, pdfBytesFromBase64, type ReportKind, type ReportModel } from './v3-reports'
 
 const esc = (s: any) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
@@ -162,7 +162,7 @@ function gapsPage(monthKey: string, label: string, rows: ClientMonth[]): string 
   }).join('')
   const right = `<form method="get" style="display:flex;gap:8px;align-items:center"><input type="month" name="month" value="${esc(monthKey)}" class="input" style="padding:6px 8px"><button class="btn" type="submit">Show</button><a class="btn" href="/gaps?month=${esc(monthKey)}&fresh=1">Refresh</a></form>`
   return shell({ title: 'Data gaps', active: 'gaps', h1: `Data gaps · ${esc(label)}`, right,
-    body: `<p style="color:#6e6e73;margin:0 0 14px">${total} item${total === 1 ? '' : 's'} the ${esc(label)} reports cannot fill yet. MISSING blocks a number, PARTIAL shows it incomplete, DECISION needs a call from Olivier.</p>${blocks}` })
+    body: `<p style="color:#6e6e73;margin:0 0 14px">${total} item${total === 1 ? '' : 's'} the ${esc(label)} reports cannot fill yet.</p><div class="card" style="margin-bottom:14px;overflow:auto">${gapsMatrixHtml(rows)}</div>${blocks}` })
 }
 
 export function registerV3(app: Hono<any>, deps: Deps) {

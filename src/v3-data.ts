@@ -187,6 +187,7 @@ export interface ClientMonth {
   }
   profile: null | Profile
   gaps: Gap[]
+  unchecked?: GapCol[]   // sources that could not be checked this run (shown as a hollow dot)
   errors: string[]
 }
 
@@ -200,7 +201,33 @@ export interface Profile {
 
 // One thing the platform could not fill for a client-month report.
 //   missing = a number is blocked · partial = shown but incomplete · decision = needs Olivier
-export interface Gap { level: 'missing' | 'partial' | 'decision'; area: string; what: string; effect: string; owner: string }
+export interface Gap { level: 'missing' | 'partial' | 'decision'; area: string; what: string; effect: string; owner: string; col?: GapCol }
+
+// One column per data source in the Data gaps table. Dot per client: green = we have it,
+// orange = some but not all, red = all of it is missing, off = the service is not sold to this client.
+export type GapCol = 'weeks' | 'opps' | 'pipeline' | 'fields' | 'social' | 'profile' | 'recipient' | 'goal'
+export type Dot = 'green' | 'orange' | 'red' | 'off' | 'unknown'
+export const GAP_COLUMNS: { col: GapCol; label: string; service: keyof Services | null }[] = [
+  { col: 'social', label: 'Social posts', service: 'promote' },
+  { col: 'weeks', label: 'Straight-in weeks', service: 'network' },
+  { col: 'opps', label: 'Named opportunities', service: 'network' },
+  { col: 'profile', label: 'LinkedIn profile (Linalysis)', service: 'network' },
+  { col: 'pipeline', label: 'Streak pipeline', service: 'engage' },
+  { col: 'fields', label: 'Streak fields', service: 'engage' },
+  { col: 'recipient', label: 'Report recipient', service: null },
+]
+export function dotsFor(cm: ClientMonth): Record<GapCol, Dot> {
+  const sv = cm.services || { promote: true, network: true, engage: true }
+  const out = {} as Record<GapCol, Dot>
+  for (const c of GAP_COLUMNS) {
+    if (c.service && !sv[c.service]) { out[c.col] = 'off'; continue }
+    if ((cm.unchecked || []).includes(c.col)) { out[c.col] = 'unknown'; continue }
+    // no pipeline at all → its fields are missing too
+    const g = (cm.gaps || []).filter(x => x.col === c.col || (c.col === 'fields' && x.col === 'pipeline' && x.level === 'missing'))
+    out[c.col] = g.some(x => x.level === 'missing') ? 'red' : g.some(x => x.level === 'partial') ? 'orange' : 'green'
+  }
+  return out
+}
 
 export interface Deps {
   callStreakAPI: (endpoint: string) => Promise<any>
@@ -454,8 +481,8 @@ export function computeGaps(entry: RegistryEntry, cm: ClientMonth, win: MonthWin
   const sv = cm.services || { promote: true, network: true, engage: true }
   // Network — Straight-in
   if (!sv.network) { /* not sold to this client */ }
-  else if (!hasReports) g.push({ level: 'missing', area: 'Network', what: 'No Straight-in report linked to this client.', effect: 'No invitations, acceptance or opportunities in the report.', owner: 'Straight-in links page' })
-  else if (!N) g.push({ level: 'missing', area: 'Network', what: 'The Straight-in report link did not answer.', effect: 'No network numbers.', owner: 'Straight-in links page' })
+  else if (!hasReports) g.push({ col: 'weeks', level: 'missing', area: 'Network', what: 'No Straight-in report linked to this client.', effect: 'No invitations, acceptance or opportunities in the report.', owner: 'Straight-in links page' })
+  else if (!N) g.push({ col: 'weeks', level: 'missing', area: 'Network', what: 'The Straight-in report link did not answer.', effect: 'No network numbers.', owner: 'Straight-in links page' })
   else {
     // A week's report lands a few days after the week ends: only expect weeks that ended 5+ days ago.
     const today = todayNY()
@@ -464,39 +491,39 @@ export function computeGaps(entry: RegistryEntry, cm: ClientMonth, win: MonthWin
     const lacking = mondaysIn(win).filter(m => m <= today && !have.has(m))
     const late = lacking.filter(m => due(m) <= today), coming = lacking.filter(m => due(m) > today)
     const md = (d: string) => d.slice(5).replace('-', '/')
-    if (N.pending) g.push({ level: 'missing', area: 'Network', what: `No Straight-in week of ${win.label} received yet.`, effect: 'No network numbers for the month.', owner: 'Straight-in (weekly links)' })
-    else if (lacking.length) g.push({ level: late.length ? 'missing' : 'partial', area: 'Network',
+    if (N.pending) g.push({ col: 'weeks', level: 'missing', area: 'Network', what: `No Straight-in week of ${win.label} received yet.`, effect: 'No network numbers for the month.', owner: 'Straight-in (weekly links)' })
+    else if (lacking.length) g.push({ col: 'weeks', level: 'partial', area: 'Network',
       what: [late.length ? `Straight-in weeks late: ${late.map(md).join(', ')}.` : '', coming.length ? `Not in yet: ${coming.map(m => `${md(m)} (due about ${md(due(m))})`).join(', ')}.` : ''].filter(Boolean).join(' '),
       effect: `Network covers ${N.weeks.length} of ${N.weeks.length + lacking.length} weeks; totals are understated until they arrive.`, owner: 'Straight-in (weekly links)' })
-    for (const c of N.missingCampaigns || []) g.push({ level: 'missing', area: 'Network', what: `No report for the ${c} campaign.`, effect: 'That campaign is not counted.', owner: 'Straight-in links page' })
-    for (const c of N.staleCampaigns || []) g.push({ level: 'partial', area: 'Network', what: `${c}: last Straight-in week is before ${win.label}.`, effect: 'Stale campaign numbers.', owner: 'Straight-in (weekly links)' })
-    if (N.opportunities > N.namedOpps.length) g.push({ level: 'partial', area: 'Network', what: `${N.opportunities - N.namedOpps.length} of ${N.opportunities} opportunities have no name or company.`, effect: 'Each Straight-in link lists only its own week; older weeks need their own link kept.', owner: 'Platform: keep every weekly link' })
+    for (const c of N.missingCampaigns || []) g.push({ col: 'weeks', level: 'partial', area: 'Network', what: `No report for the ${c} campaign.`, effect: 'That campaign is not counted.', owner: 'Straight-in links page' })
+    for (const c of N.staleCampaigns || []) g.push({ col: 'weeks', level: 'partial', area: 'Network', what: `${c}: last Straight-in week is before ${win.label}.`, effect: 'Stale campaign numbers.', owner: 'Straight-in (weekly links)' })
+    if (N.opportunities > N.namedOpps.length) g.push({ col: 'opps', level: N.namedOpps.length ? 'partial' : 'missing', area: 'Network', what: `${N.opportunities - N.namedOpps.length} of ${N.opportunities} opportunities have no name or company.`, effect: 'Each Straight-in link lists only its own week; older weeks need their own link kept.', owner: 'Platform: keep every weekly link' })
   }
   // Engage — Streak
   if (!sv.engage) { /* not sold to this client */ }
-  else if (!hasPipeline) g.push({ level: 'missing', area: 'Engage', what: 'No Streak pipeline linked.', effect: 'No leads or pipeline in the report.', owner: 'Admin (company pipeline key)' })
-  else if (!E) g.push({ level: 'missing', area: 'Engage', what: 'Streak did not answer for this pipeline.', effect: 'No leads or pipeline.', owner: 'Streak API key' })
+  else if (!hasPipeline) g.push({ col: 'pipeline', level: 'missing', area: 'Engage', what: 'No Streak pipeline linked.', effect: 'No leads or pipeline in the report.', owner: 'Admin (company pipeline key)' })
+  else if (!E) g.push({ col: 'pipeline', level: 'missing', area: 'Engage', what: 'Streak did not answer for this pipeline.', effect: 'No leads or pipeline.', owner: 'Streak API key' })
   else {
     for (const [field, boxes] of Object.entries(E.fieldGaps || {})) {
       if (!boxes.length) continue
       const list = boxes.length <= 6 ? `: ${boxes.join(', ')}` : ''
-      g.push({ level: 'missing', area: 'Engage', what: `Streak "${field}" empty on ${boxes.length} of ${E.activeLeads} active accounts${list}.`, effect: field.toLowerCase() === 'next steps' ? 'No per-account next action in the report.' : 'Incomplete hot list (high fit, high interest).', owner: 'Account team (Streak)' })
+      g.push({ col: 'fields', level: boxes.length >= E.activeLeads ? 'missing' : 'partial', area: 'Engage', what: `Streak "${field}" empty on ${boxes.length} of ${E.activeLeads} active accounts${list}.`, effect: field.toLowerCase() === 'next steps' ? 'No per-account next action in the report.' : 'Incomplete hot list (high fit, high interest).', owner: 'Account team (Streak)' })
     }
-    if (E.meetingsTotal === 0 && (E.funnel.meeting || 0) === 0) g.push({ level: 'partial', area: 'Engage', what: 'No account at a meeting stage, or the pipeline has no dated meeting field.', effect: 'Meetings held cannot be reported.', owner: 'Pipeline template' })
+    if (E.meetingsTotal === 0 && (E.funnel.meeting || 0) === 0) g.push({ col: 'fields', level: 'partial', area: 'Engage', what: 'No account at a meeting stage, or the pipeline has no dated meeting field.', effect: 'Meetings held cannot be reported.', owner: 'Pipeline template' })
   }
   // Promote — social
-  if (cm.promoteInPlan && !entry.socialId) g.push({ level: 'missing', area: 'Promote', what: 'No social.gershon.ai client linked.', effect: 'No posts or engagement.', owner: 'Registry' })
-  else if (cm.promoteInPlan && !P) g.push({ level: 'missing', area: 'Promote', what: 'No social data for the month (no account collecting, or the Promote key was refused).', effect: 'No posts or engagement in the report.', owner: 'social.gershon.ai' })
+  if (cm.promoteInPlan && !entry.socialId) g.push({ col: 'social', level: 'missing', area: 'Promote', what: 'No social.gershon.ai client linked.', effect: 'No posts or engagement.', owner: 'Registry' })
+  else if (cm.promoteInPlan && !P) g.push({ col: 'social', level: 'missing', area: 'Promote', what: 'No social data for the month (no account collecting, or the Promote key was refused).', effect: 'No posts or engagement in the report.', owner: 'social.gershon.ai' })
   // LinkedIn profile — Linalysis (the campaign's LinkedIn account, so only with Network)
   if (!sv.network) { /* no LinkedIn campaign */ }
-  else if (!(entry.linalysis || []).length) g.push({ level: 'missing', area: 'Profile', what: 'No Linalysis account mapped to this client.', effect: 'No LinkedIn profile or company-page block.', owner: 'Registry (linalysis email)' })
-  else if (!linalysisWired) g.push({ level: 'missing', area: 'Profile', what: 'LINALYSIS_REPORT_KEY is not set on this app.', effect: 'No LinkedIn profile or company-page block.', owner: 'Cloudflare Pages secret' })
-  else if (!L) g.push({ level: 'missing', area: 'Profile', what: `Linalysis has no capture in ${win.label} for ${(entry.linalysis || []).join(', ')}.`, effect: 'No LinkedIn profile block.', owner: 'Linalysis extension' })
-  else if (L.missing.length) g.push({ level: 'partial', area: 'Profile', what: `Linalysis opening values missing: ${L.missing.map(f => f.replace(/_/g, ' ')).join(', ')}.`, effect: 'Those figures show a value but no monthly change.', owner: 'Linalysis' })
+  else if (!(entry.linalysis || []).length) g.push({ col: 'profile', level: 'missing', area: 'Profile', what: 'No Linalysis account mapped to this client.', effect: 'No LinkedIn profile or company-page block.', owner: 'Registry (linalysis email)' })
+  else if (!linalysisWired) g.push({ col: 'profile', level: 'missing', area: 'Profile', what: 'LINALYSIS_REPORT_KEY is not set on this app.', effect: 'No LinkedIn profile or company-page block.', owner: 'Cloudflare Pages secret' })
+  else if (!L) g.push({ col: 'profile', level: 'missing', area: 'Profile', what: `Linalysis has no capture in ${win.label} for ${(entry.linalysis || []).join(', ')}.`, effect: 'No LinkedIn profile block.', owner: 'Linalysis extension' })
+  else if (L.missing.length) g.push({ col: 'profile', level: 'partial', area: 'Profile', what: `Linalysis opening values missing: ${L.missing.map(f => f.replace(/_/g, ' ')).join(', ')}.`, effect: 'Those figures show a value but no monthly change.', owner: 'Linalysis' })
   // Delivery
-  if (!emailsOf(s.clientEmails?.[String(entry.no)] || '').length) g.push({ level: 'missing', area: 'Delivery', what: 'No client recipient email set.', effect: `The report goes to ${s.internalEmail} only.`, owner: 'Targets & recipients' })
+  if (!emailsOf(s.clientEmails?.[String(entry.no)] || '').length) g.push({ col: 'recipient', level: 'missing', area: 'Delivery', what: 'No client recipient email set.', effect: `The report goes to ${s.internalEmail} only.`, owner: 'Targets & recipients' })
   // Definition — two meanings of "lead"
-  if (E && N && !N.pending && E.newLeads !== N.opportunities) g.push({ level: 'decision', area: 'Goal', what: `"Qualified lead" has two counts: ${E.newLeads} new Streak accounts vs ${N.opportunities} Straight-in opportunities.`, effect: `The ${E.target}/month goal reads ${pctOf(E.newLeads, E.target)}% or ${pctOf(N.opportunities, E.target)}% depending on the source.`, owner: 'Olivier' })
+  if (E && N && !N.pending && E.newLeads !== N.opportunities) g.push({ col: 'goal', level: 'decision', area: 'Goal', what: `"Qualified lead" has two counts: ${E.newLeads} new Streak accounts vs ${N.opportunities} Straight-in opportunities.`, effect: `The ${E.target}/month goal reads ${pctOf(E.newLeads, E.target)}% or ${pctOf(N.opportunities, E.target)}% depending on the source.`, owner: 'Olivier' })
   return g
 }
 const emailsOf = (s: string) => s.split(/[,;\s]+/).map(x => x.trim()).filter(x => x.includes('@'))
