@@ -112,6 +112,7 @@ function settingsPage(s: V3Settings, resendOk: boolean, shared: Record<string, s
   const profCards = multi.map(r => {
     const ps = profilesFor(r, s)
     const sharedUrl = shared[String(r.no)] || ''
+    const adminUrl = (name: string) => shared[`${r.no}:${name}`] || ''
     const blocks = ps.map((p, i) => {
       const pk = pipelineKeyOf(p.streakUrl), rid = reportIdOf(p.straightinUrl)
       const same = pk && ps.some((q, j) => j !== i && pipelineKeyOf(q.streakUrl) === pk)
@@ -120,7 +121,7 @@ function settingsPage(s: V3Settings, resendOk: boolean, shared: Record<string, s
       <div style="font-weight:800;font-size:14px;margin-bottom:8px"><i class="fab fa-linkedin" style="color:#0a66c2"></i> Profile ${i + 1} — ${esc(p.name)}</div>
       <div class="field"><label>Full name</label>${inp(r.no, i, 'fullName', p.fullName, p.name + ' …')}</div>
       <div class="field"><label>LinkedIn profile</label>${inp(r.no, i, 'linkedinUrl', p.linkedinUrl, 'https://www.linkedin.com/in/…')}</div>
-      <div class="field"><label>Streak pipeline link</label>${inp(r.no, i, 'streakUrl', p.streakUrl, 'https://www.streak.com/a/pipelines/…')}${p.streakUrl && !pk ? status(false, '', 'Not a Streak pipeline link') : same ? status(true, 'Same pipeline as the other profile — leads shown combined', '') : status(!!pk, 'Own pipeline — leads counted for ' + p.name, sharedUrl ? 'Empty — uses the shared Altavia pipeline (combined)'.replace('Altavia', r.name) : 'Empty — no pipeline for this account')}</div>
+      <div class="field"><label>Streak pipeline link</label>${inp(r.no, i, 'streakUrl', p.streakUrl, 'https://www.streak.com/a/pipelines/…')}${p.streakUrl && !pk ? status(false, '', 'Not a Streak pipeline link') : same ? status(true, 'Same pipeline as the other profile — leads shown combined', '') : status(!!pk || !!adminUrl(p.name), pk ? 'Own pipeline — leads counted for ' + p.name : 'Empty — uses the Admin entry ' + r.name + ' (' + p.name + ') pipeline', sharedUrl ? 'Empty — uses the shared ' + r.name + ' pipeline (combined)' : 'Empty — no pipeline yet (here or in Admin)')}</div>
       <div class="field"><label>Straight-in report link</label>${inp(r.no, i, 'straightinUrl', p.straightinUrl, 'https://prospecthub.straight-in.com/…crp_…')}${p.straightinUrl && !rid ? status(false, '', 'No crp_ report id in this link') : status(!!rid, 'Report linked to ' + p.name + ' (the newest week wins over /straightin)', 'Empty — taken from the weekly links on /straightin')}</div>
       <div class="field"><label>Linalysis account email</label>${inp(r.no, i, 'linalysis', p.linalysis, 'name@company.com')}</div>
       <div class="field" style="margin-bottom:0"><label>Notes</label>${inp(r.no, i, 'notes', p.notes, 'Optional')}</div>
@@ -257,6 +258,10 @@ export function registerV3(app: Hono<any>, deps: Deps) {
     for (const r of CLIENT_REGISTRY.filter(x => (x.campaigns || []).length >= 2)) {
       const co: any = await deps.getCompany(c.env.COMPANIES_KV, r.keys[0]).catch(() => null)
       if (co?.pipelineKey && r.keys.length === 1) shared[String(r.no)] = co.url || `https://www.streak.com/a/pipelines/${co.pipelineKey}`
+      for (const [k, name] of Object.entries(r.accountKeys || {})) {
+        const a: any = await deps.getCompany(c.env.COMPANIES_KV, k).catch(() => null)
+        if (a?.pipelineKey) shared[`${r.no}:${name}`] = `https://www.streak.com/a/pipelines/${a.pipelineKey}`
+      }
     }
     return htmlV3(c, settingsPage(await readSettings(c.env.COMPANIES_KV), !!c.env.RESEND_API_KEY, shared))
   })
