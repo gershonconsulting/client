@@ -71,6 +71,7 @@ function clientPage(no: number, name: string, keys: string[]): string {
     body: `
 <div class="summary" id="summary"><div class="summary-text" id="summaryText"><span class="skeleton">Loading…………………………………</span></div><div id="scoreBox"></div></div>
 <div class="grid cols-3" id="channels"></div>
+<div id="accounts"></div>
 <div class="grid cols-2" id="details"></div>
 <div id="history"></div>`,
   })
@@ -235,7 +236,7 @@ export function registerV3(app: Hono<any>, deps: Deps) {
     const b = await c.req.json().catch(() => ({})) as any
     const s = await saveSettings(c.env.COMPANIES_KV, b)
     // targets changed → drop cached month records so percentages recompute
-    await Promise.all([monthWin().key, lastFullMonthKey()].flatMap(m => CLIENT_REGISTRY.map(r => c.env.COMPANIES_KV.delete(`v3:cm8:${m}:${r.no}`).catch(() => null))))
+    await Promise.all([monthWin().key, lastFullMonthKey()].flatMap(m => CLIENT_REGISTRY.map(r => c.env.COMPANIES_KV.delete(`v3:cm9:${m}:${r.no}`).catch(() => null))))
     return c.json({ ok: true, settings: s })
   })
   app.get('/api/v3/client/:no', async (c) => {

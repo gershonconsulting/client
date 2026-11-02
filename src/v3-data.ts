@@ -16,6 +16,7 @@ export interface RegistryEntry {
   socialId: string | null // social.gershon.ai Client.id
   promote?: boolean       // false = social content creation is not part of the project
   campaigns?: string[]    // LinkedIn campaigns (Straight-in) run under this one client number
+  accountKeys?: Record<string, string> // company key → LinkedIn account name (when each account has its own Streak pipeline)
   linalysis?: string[]    // Linalysis account email(s) of the LinkedIn profile used for the campaign
   services: Services      // what Gershon delivers for this client (Olivier's table, 2026-10-28); Settings can override
 }
@@ -28,7 +29,7 @@ const P_ONLY: Services = { promote: true, network: false, engage: false }
 
 export const CLIENT_REGISTRY: RegistryEntry[] = [
   // 175 and 229: one client number, two LinkedIn campaigns each, no Promote (Olivier, 2026-10-13)
-  { no: 175, name: 'Finance Montreal',       keys: ['finance-montreal', 'finance-montreal-noza'], socialId: 'cmp0eqm9o000rbqj3ayeto7zp', services: NE, campaigns: ['Steve', 'Noza'] },
+  { no: 175, name: 'Finance Montreal',       keys: ['finance-montreal', 'finance-montreal-noza'], socialId: 'cmp0eqm9o000rbqj3ayeto7zp', services: NE, campaigns: ['Steve', 'Noza'], accountKeys: { 'finance-montreal': 'Steve', 'finance-montreal-noza': 'Noza' } },
   { no: 200, name: 'MAbSilico',              keys: ['mabsilico'],              socialId: 'cmnzg13dn0000j4oeke3nh3ko', services: NE, linalysis: ['vincent.puard@gmail.com'] },
   { no: 212, name: 'Wallix',                 keys: ['wallix'],                 socialId: 'cmp0eqlsx000dbqj3hmvwldbe', services: P_ONLY },
   { no: 229, name: 'Altavia',                keys: ['altavia'],                socialId: 'cmp0eqm3y000mbqj321j14ksw', services: NE, campaigns: ['Anne', 'Alexandre'], linalysis: ['abougel@altavia.co'] },
@@ -193,11 +194,23 @@ export interface ClientMonth {
     funnel: Record<string, number>; won: number
     fieldGaps?: Record<string, string[]>  // Streak field name → boxes where it is empty
     newNames?: string[]                   // accounts created this month
+    soFar?: number                        // leads expected by today (pro rata in the current month)
+    byCompany?: { key: string; newLeads: number; meetings: number; activeLeads: number }[]
   }
   profile: null | Profile
   gaps: Gap[]
+  promoteWhy?: string     // why Promote is empty when it is sold (shown on the client page)
+  accounts?: AccountRow[]  // one row per LinkedIn account when a client runs several (Finance Montreal: Steve + Noza, Altavia: Anne + Alexandre)
   unchecked?: GapCol[]   // sources that could not be checked this run (shown as a hollow dot)
   errors: string[]
+}
+
+// One LinkedIn account of a multi-account client. network null = no Straight-in report for it;
+// engage null = the accounts share one Streak pipeline (shown combined).
+export interface AccountRow {
+  name: string
+  network: null | { label: string; sent: number; accepted: number; rate: number; opportunities: number }
+  engage: null | { newLeads: number; target: number; pct: number; meetings: number; activeLeads: number }
 }
 
 // LinkedIn profile + company page for the month, from Linalysis (/api/client-month).
@@ -288,7 +301,7 @@ async function socialJson(deps: Deps, path: string): Promise<any> {
   } catch { return null }
 }
 
-async function collectPromote(deps: Deps, entry: RegistryEntry, win: MonthWin, prev: MonthWin, s: V3Settings) {
+async function collectPromote(deps: Deps, entry: RegistryEntry, win: MonthWin, prev: MonthWin, s: V3Settings, why: { v: string } = { v: '' }) {
   if (!entry.socialId || !servicesFor(entry, s).promote) return null
   const today = todayNY()
   const sinceStart = dDiff(win.start, today) + 1
@@ -301,10 +314,10 @@ async function collectPromote(deps: Deps, entry: RegistryEntry, win: MonthWin, p
     afterEnd > 0 ? socialJson(deps, `/api/analytics/summary?clientId=${id}&days=${Math.min(365, afterEnd)}`) : Promise.resolve(null),
     socialJson(deps, `/api/followers?clientId=${id}`),
   ])
-  if (!all && !fromStart) return null
+  if (!all && !fromStart) { why.v = 'social.gershon.ai did not answer for this client (Promote key refused or client id not found).'; return null }
   // Nothing on any platform across both months = no account collecting in social.
   const allPosts = ((all?.data?.postsByDay) || []).reduce((a: number, x: any) => a + (x.total || 0), 0)
-  if (!allPosts && !Object.keys(all?.data?.byPlatform || {}).length) return null
+  if (!allPosts && !Object.keys(all?.data?.byPlatform || {}).length) { why.v = `social.gershon.ai answers for this client but has no connected LinkedIn/X account and no post since ${prev.start}. Connect the client's accounts in socialtracking.gershon.ai.`; return null }
   const pbd: any[] = (all?.data?.postsByDay) || []
   const inWin = (d: string) => d >= win.start && d <= win.end
   const inPrev = (d: string) => d >= prev.start && d <= prev.end
@@ -459,21 +472,24 @@ async function collectEngage(deps: Deps, companies: any[], win: MonthWin, prev: 
   const fieldGaps: Record<string, string[]> = {}
   const newNames: string[] = []
   let any = false
+  const byCompany: { key: string; newLeads: number; meetings: number; activeLeads: number }[] = []
   for (const co of companies) {
     if (!co?.pipelineKey) continue
+    const one = { key: String(co.key || ''), newLeads: 0, meetings: 0, activeLeads: 0 }
     const [pipeline, boxes] = await Promise.all([
       deps.callStreakAPI(`/pipelines/${co.pipelineKey}`).catch(() => null),
       deps.callStreakAPI(`/pipelines/${co.pipelineKey}/boxes`).catch(() => null),
     ])
     if (!Array.isArray(boxes)) continue
     any = true
+    byCompany.push(one)
     const stageName = (k: string) => pipeline?.stages?.[k]?.name || ''
     // Fields a report needs on every active account (names as set in the client pipelines)
     const watched = ((pipeline?.fields || []) as any[]).filter(f => ['fit', 'interest', 'next steps'].includes(String(f.name || '').toLowerCase()))
     for (const b of boxes) {
       totalLeads++
       const ts = b.creationTimestamp || 0
-      if (ts >= startMs && ts <= endMs) { newLeads++; if (b.name) newNames.push(String(b.name)) }
+      if (ts >= startMs && ts <= endMs) { newLeads++; one.newLeads++; if (b.name) newNames.push(String(b.name)) }
       if (deps.classifyStage(stageName(b.stageKey)) !== 'recycled') {
         for (const f of watched) {
           const v = b.fields?.[f.key]
@@ -484,11 +500,12 @@ async function collectEngage(deps: Deps, companies: any[], win: MonthWin, prev: 
       const step = deps.classifyStage(stageName(b.stageKey))
       funnel[step] = (funnel[step] || 0) + 1
       if (step === 'recycled') recycled++
+      else one.activeLeads++
       if (step === 'won') won++
       if (MEETING_PLUS.includes(step)) {
         meetingsTotal++
         const ch = b.lastStageChangeTimestamp || 0
-        if (ch >= startMs && ch <= endMs) meetings++
+        if (ch >= startMs && ch <= endMs) { meetings++; one.meetings++ }
       }
     }
   }
@@ -499,7 +516,7 @@ async function collectEngage(deps: Deps, companies: any[], win: MonthWin, prev: 
   return {
     newLeads, prevNewLeads, target: goal, pct: pctOf(newLeads, soFar),
     meetings, meetingsTotal, activeLeads: totalLeads - recycled, totalLeads, funnel, won,
-    fieldGaps, newNames,
+    fieldGaps, newNames, byCompany, soFar,
   }
 }
 
@@ -573,6 +590,29 @@ export function computeGaps(entry: RegistryEntry, cm: ClientMonth, win: MonthWin
 }
 const emailsOf = (s: string) => s.split(/[,;\s]+/).map(x => x.trim()).filter(x => x.includes('@'))
 
+// Split a multi-account client into one row per LinkedIn account (always all of them, even with no data).
+function accountRows(entry: RegistryEntry, N: ClientMonth['network'], E: ClientMonth['engage'], s: V3Settings): AccountRow[] | undefined {
+  const names = entry.campaigns || []
+  if (names.length < 2) return undefined
+  const camps = N?.campaigns || []
+  const used = new Set<number>()
+  return names.map(name => {
+    const lc = name.toLowerCase()
+    const idx = camps.map((k, i) => (k.label.toLowerCase().includes(lc) && !used.has(i) ? i : -1)).filter(i => i >= 0)
+    idx.forEach(i => used.add(i))
+    const m = idx.map(i => camps[i])
+    const sent = m.reduce((a, k) => a + k.sent, 0), accepted = m.reduce((a, k) => a + k.accepted, 0)
+    const network = m.length ? { label: m.map(k => k.label).join(' + '), sent, accepted, rate: sent ? Math.round((accepted / sent) * 1000) / 10 : 0, opportunities: m.reduce((a, k) => a + k.opportunities, 0) } : null
+    const key = Object.keys(entry.accountKeys || {}).find(k => entry.accountKeys![k] === name)
+    const bc = key ? (E?.byCompany || []).find(x => x.key === key) : undefined
+    const goal = s.leadsPerMonth
+    // goal is per account; current month is compared pro rata, like the client total
+    const soFar = E?.soFar != null && E.target ? E.soFar * goal / E.target : goal
+    const engage = bc ? { newLeads: bc.newLeads, target: goal, pct: pctOf(bc.newLeads, soFar), meetings: bc.meetings, activeLeads: bc.activeLeads } : null
+    return { name, network, engage }
+  })
+}
+
 export async function collectClientMonth(env: { COMPANIES_KV: KVNamespace }, deps: Deps, entry: RegistryEntry, monthKey: string, s?: V3Settings): Promise<ClientMonth> {
   const settings = s || await readSettings(env.COMPANIES_KV)
   const win = monthWin(monthKey), prev = monthWin(win.prevKey)
@@ -580,13 +620,15 @@ export async function collectClientMonth(env: { COMPANIES_KV: KVNamespace }, dep
   const svc = servicesFor(entry, settings)
   const reports = svc.network ? await reportsFor(env.COMPANIES_KV, entry, companies) : []
   const errors: string[] = []
+  const why = { v: "" }
   const [promote, network, engage, profile] = await Promise.all([
-    collectPromote(deps, entry, win, prev, settings).catch(e => { errors.push('promote: ' + e.message); return null }),
+    collectPromote(deps, entry, win, prev, settings, why).catch(e => { errors.push('promote: ' + e.message); return null }),
     reports.some(r => !r.oppsOnly) ? collectNetwork(reports, win, prev, settings, entry.campaigns || []).catch(e => { errors.push('network: ' + e.message); return null }) : Promise.resolve(null),
     svc.engage ? collectEngage(deps, companies, win, prev, settings, (entry.campaigns || []).length || 1).catch(e => { errors.push('engage: ' + e.message); return null }) : Promise.resolve(null),
     svc.network ? collectProfile(deps, entry, win, settings).catch(e => { errors.push('profile: ' + e.message); return null }) : Promise.resolve(null),
   ])
-  const cm: ClientMonth = { no: entry.no, name: entry.name, keys: entry.keys, promoteInPlan: svc.promote, services: svc, campaigns: entry.campaigns || [], month: win.key, generatedAt: new Date().toISOString(), promote, network, engage, profile, gaps: [], errors }
+  const accounts = accountRows(entry, network, engage, settings)
+  const cm: ClientMonth = { promoteWhy: svc.promote && !promote ? why.v || undefined : undefined, accounts, no: entry.no, name: entry.name, keys: entry.keys, promoteInPlan: svc.promote, services: svc, campaigns: entry.campaigns || [], month: win.key, generatedAt: new Date().toISOString(), promote, network, engage, profile, gaps: [], errors }
   const pk = (companies.find((co: any) => co?.pipelineKey) as any)?.pipelineKey
   cm.gaps = computeGaps(entry, cm, win, settings, reports.filter(r => !r.oppsOnly).length > 0, !!pk, !!deps.linalysisFetch, pk ? `https://www.streak.com/a/pipelines/${pk}` : undefined)
   return cm
@@ -595,7 +637,7 @@ export async function collectClientMonth(env: { COMPANIES_KV: KVNamespace }, dep
 // KV cache: 30 min for the current month, 12 h for closed months.
 export async function getClientMonth(env: { COMPANIES_KV: KVNamespace }, deps: Deps, entry: RegistryEntry, monthKey: string, opts: { fresh?: boolean; settings?: V3Settings } = {}): Promise<ClientMonth> {
   const win = monthWin(monthKey)
-  const ck = `v3:cm8:${win.key}:${entry.no}`
+  const ck = `v3:cm9:${win.key}:${entry.no}`
   if (!opts.fresh) {
     try {
       const raw = await env.COMPANIES_KV.get(ck)

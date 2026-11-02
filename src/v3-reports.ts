@@ -129,17 +129,27 @@ export function straightinModel(p: Portfolio, s: V3Settings): ReportModel {
   const rate = sent ? Math.round((acc / sent) * 1000) / 10 : 0
   const sorted = [...C].sort((a, b) => b.engage!.newLeads - a.engage!.newLeads)
   const users = (c: ClientMonth) => (c.campaigns || []).length > 1 ? ` (${c.campaigns.length} users)` : ''
-  const bars = sorted.map(c => ({
+  const bars = sorted.flatMap(c => [{
     label: `#${c.no} ${c.name}${users(c)}`,
     value: `${c.engage!.newLeads} / ${g(c)} · ${pctOf(c.engage!.newLeads, g(c))}%`,
     pct: pctOf(c.engage!.newLeads, g(c)),
-  }))
-  const accBars = [...C].sort((a, b) => (hasRate(b) ? b.network!.rate : -1) - (hasRate(a) ? a.network!.rate : -1)).map(c => ({
+  }, ...(c.accounts || []).filter(a => a.engage).map(a => ({
+    label: `   · ${a.name}`,
+    value: `${a.engage!.newLeads} / ${a.engage!.target} · ${pctOf(a.engage!.newLeads, a.engage!.target)}%`,
+    pct: pctOf(a.engage!.newLeads, a.engage!.target),
+  }))])
+  const accBars = [...C].sort((a, b) => (hasRate(b) ? b.network!.rate : -1) - (hasRate(a) ? a.network!.rate : -1)).flatMap(c => [{
     label: `#${c.no} ${c.name}${users(c)}`,
     value: hasRate(c) ? `${c.network!.rate}% / ${aT}%${accOk(c) ? ' OK' : ''}` : 'no data',
     pct: hasRate(c) ? pctOf(c.network!.rate, aT) : 0,
     color: !hasRate(c) ? MUT : accOk(c) ? GOOD : c.network!.rate >= aT * 0.75 ? WARN : RED,
-  }))
+  }, ...(c.accounts || []).map(a => ({
+    // one sub-bar per LinkedIn account (Steve / Noza, Anne / Alexandre)
+    label: `   · ${a.name}`,
+    value: a.network && a.network.sent ? `${a.network.rate}% · ${fmt(a.network.accepted)}/${fmt(a.network.sent)}` : 'no report',
+    pct: a.network && a.network.sent ? pctOf(a.network.rate, aT) : 0,
+    color: !(a.network && a.network.sent) ? MUT : a.network.rate >= aT ? GOOD : a.network.rate >= aT * 0.75 ? WARN : RED,
+  }))])
   const rows = sorted.map(c => {
     const n = c.network!, e = c.engage!
     return [`#${c.no}`, c.name, `${fmt(e.newLeads)}/${g(c)}`, `${pctOf(e.newLeads, g(c))}%`,
@@ -244,10 +254,20 @@ export function clientModel(c: ClientMonth, monthLabel: string, monthKey: string
     if (tiles.length < 4 && conn != null && conn0 != null && conn > conn0) tiles.push({ label: 'PROFILE GROWTH', value: `+${fmt(conn - conn0)}`, sub: `${fmt(conn)} LinkedIn connections`, color: RED })
   }
 
+  // One line per LinkedIn account when the campaign runs on several (Steve + Noza, Anne + Alexandre)
+  const accLines = (c.accounts || []).map(a => {
+    const bits: string[] = []
+    if (a.network && a.network.accepted > 0) bits.push(`${plural(a.network.accepted, 'new connection')} from ${fmt(a.network.sent)} invitations`)
+    if (a.network && a.network.opportunities > 0) bits.push(`${fmt(a.network.opportunities)} opportunit${a.network.opportunities === 1 ? 'y' : 'ies'}`)
+    if (a.engage && a.engage.newLeads > 0) bits.push(plural(a.engage.newLeads, 'new lead'))
+    return `${a.name}: ${bits.length ? bits.join(' · ') : 'campaign running, results building'}.`
+  })
+
+  const sv = c.services || { promote: c.promoteInPlan !== false, network: true, engage: true }
   const next = [
-    'Keep the publishing rhythm so your brand stays visible to US buyers.',
-    'Turn new connections into conversations with personal follow-ups.',
-    'Book qualified prospects into calls — we will keep you posted as they move.',
+    ...(sv.promote ? ['Keep the publishing rhythm so your brand stays visible to US buyers.'] : []),
+    ...(sv.network ? ['Turn new connections into conversations with personal follow-ups.'] : []),
+    ...(sv.engage ? ['Book qualified prospects into calls — we will keep you posted as they move.'] : []),
   ]
   return {
     kind: 'client', eyebrow: `Gershon Consulting · Monthly report · Client #${c.no}`, title: c.name, month: monthLabel,
@@ -255,6 +275,7 @@ export function clientModel(c: ClientMonth, monthLabel: string, monthKey: string
     daily: P && P.posts > 0 ? P.daily : undefined, dailyCaption: 'Posts published per day',
     sections: [
       { title: 'Highlights', lines: hl.slice(0, 7) },
+      ...(accLines.length ? [{ title: 'By LinkedIn account', lines: accLines }] : []),
       ...(presence.length ? [{ title: 'Your LinkedIn presence', lines: presence.slice(0, 6) }] : []),
       { title: 'Next month', lines: next },
     ],
