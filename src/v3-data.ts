@@ -65,6 +65,36 @@ export interface V3Settings {
   autoSendClients: boolean         // monthly cron mails clients directly (else to internalEmail for review)
   services: Record<string, Partial<Services>> // client number → service on/off overrides (Settings page)
   linalysis: Record<string, string>           // client number → Linalysis account email(s), comma-separated (overrides registry)
+  accounts: Record<string, AccountProfile[]>  // client number → one profile per LinkedIn account (multi-account clients: Altavia, Finance Montreal)
+}
+
+// One LinkedIn account of a multi-account client, filled in Settings (Olivier, 2026-11-02):
+// each account can carry its own Streak pipeline link, Straight-in report link and Linalysis email.
+// Empty field = the client-level source is used (shared pipeline / links from /straightin / registry email).
+export interface AccountProfile {
+  name: string          // campaign name as in the registry (Anne, Alexandre…)
+  fullName: string      // person's full name
+  linkedinUrl: string   // LinkedIn profile URL
+  streakUrl: string     // Streak pipeline link for this account's leads
+  straightinUrl: string // current Straight-in campaign report link for this account
+  linalysis: string     // Linalysis account email of this profile
+  notes: string
+}
+export const PROFILE_FIELDS = ['fullName', 'linkedinUrl', 'streakUrl', 'straightinUrl', 'linalysis', 'notes'] as const
+export const pipelineKeyOf = (u: string): string => {
+  const t = String(u || '').trim()
+  const m = t.match(/\/pipelines\/([A-Za-z0-9_-]{20,})/)
+  return m ? m[1] : (/^[A-Za-z0-9_-]{40,}$/.test(t) ? t : '')
+}
+export const reportIdOf = (u: string): string => (String(u || '').match(/crp_[A-Za-z0-9_-]+/) || [''])[0]
+export function profilesFor(entry: RegistryEntry, s?: V3Settings): AccountProfile[] {
+  const saved = (s?.accounts || {})[String(entry.no)] || []
+  return (entry.campaigns || []).map(name => {
+    const p: any = saved.find(x => x && x.name === name) || {}
+    const o: any = { name }
+    for (const k of PROFILE_FIELDS) o[k] = String(p[k] || '').trim()
+    return o as AccountProfile
+  })
 }
 export const DEFAULT_SETTINGS: V3Settings = {
   promoteTarget: 5,
@@ -78,10 +108,13 @@ export const DEFAULT_SETTINGS: V3Settings = {
   autoSendClients: false,
   services: {},
   linalysis: {},
+  accounts: {},
 }
 export function linalysisFor(entry: RegistryEntry, s?: V3Settings): string[] {
   const o = (s?.linalysis || {})[String(entry.no)]
-  return o ? o.split(/[,;\s]+/).map(x => x.trim().toLowerCase()).filter(x => x.includes('@')) : (entry.linalysis || [])
+  const base = o ? o.split(/[,;\s]+/).map(x => x.trim().toLowerCase()).filter(x => x.includes('@')) : (entry.linalysis || [])
+  const extra = profilesFor(entry, s).map(p => p.linalysis.toLowerCase()).filter(x => x.includes('@'))
+  return [...new Set([...base, ...extra])]
 }
 export function servicesFor(entry: RegistryEntry, s?: V3Settings): Services {
   return { ...entry.services, ...((s?.services || {})[String(entry.no)] || {}) }
@@ -103,6 +136,19 @@ export async function saveSettings(kv: KVNamespace, s: Partial<V3Settings>): Pro
   const linIn = (s as any).linalysis && typeof (s as any).linalysis === 'object' ? (s as any).linalysis : cur.linalysis || {}
   next.linalysis = {}
   for (const r of CLIENT_REGISTRY) { const v = String(linIn[String(r.no)] || '').trim(); if (v && v !== (r.linalysis || []).join(', ')) next.linalysis[String(r.no)] = v }
+  // account profiles: only registry campaigns, only known text fields
+  const accIn = (s as any).accounts && typeof (s as any).accounts === 'object' ? (s as any).accounts : cur.accounts || {}
+  next.accounts = {}
+  for (const r of CLIENT_REGISTRY) {
+    const list = Array.isArray(accIn[String(r.no)]) ? accIn[String(r.no)] : []
+    const clean = (r.campaigns || []).map(name => {
+      const p = list.find((x: any) => x && x.name === name) || {}
+      const o: any = { name }
+      for (const k of PROFILE_FIELDS) o[k] = String(p[k] || '').trim().slice(0, 500)
+      return o as AccountProfile
+    }).filter(p => PROFILE_FIELDS.some(k => (p as any)[k]))
+    if (clean.length) next.accounts[String(r.no)] = clean
+  }
   // keep only known client numbers and boolean switches
   const svcIn = (s as any).services && typeof (s as any).services === 'object' ? (s as any).services : cur.services || {}
   next.services = {}
@@ -184,7 +230,7 @@ export interface ClientMonth {
     sent: number; accepted: number; rate: number; messages: number; opportunities: number
     prevSent: number; prevAccepted: number; prevRate: number; pct: number
     weeks: { weekStart: string; sent: number; accepted: number; messages: number; opportunities: number }[]
-    campaigns: { label: string; sent: number; accepted: number; rate: number; opportunities: number }[]
+    campaigns: { label: string; account?: string; sent: number; accepted: number; rate: number; opportunities: number }[]
     namedOpps: { name: string; company: string; title: string; type: string; date: string }[]
     lastReport: string
   }
@@ -360,7 +406,7 @@ async function collectPromote(deps: Deps, entry: RegistryEntry, win: MonthWin, p
   }
 }
 
-interface SiReport { reportId: string; label: string; oppsOnly?: boolean }  // oppsOnly = an older week's link, read only for its named opportunities
+interface SiReport { reportId: string; label: string; oppsOnly?: boolean; account?: string }  // account = profile name when the link was set on an account in Settings  // oppsOnly = an older week's link, read only for its named opportunities
 async function fetchTrajectory(reportId: string): Promise<{ traj: any[]; opps: any[]; period: string; account: string } | null> {
   try {
     const res = await fetch(`https://prospecthub.straight-in.com/api/retain/public/campaign-reports/${reportId}`)
@@ -380,13 +426,21 @@ async function fetchTrajectory(reportId: string): Promise<{ traj: any[]; opps: a
 // Finance Montreal: Steve + Noza). Every campaign report is fetched and summed.
 async function collectNetwork(reports: SiReport[], win: MonthWin, prev: MonthWin, s: V3Settings, expected: string[] = []) {
   const all = (await Promise.all(reports.map(async r => ({ r, d: await fetchTrajectory(r.reportId) })))).filter(x => x.d)
+  // One current report per LinkedIn account: when an account has several (its own link from
+  // Settings + the weekly /straightin link), keep the one with the latest week, read the rest for opportunities only.
+  const acctOf = (x: typeof all[number]) => x.r.account || expected.find(e => String(x.d!.account || x.r.label).toLowerCase().includes(e.toLowerCase())) || ''
+  const lastOf = (x: typeof all[number]) => x.d!.traj.map(t => String(t.weekStart || '')).sort().pop() || ''
+  const best: Record<string, typeof all[number]> = {}
+  for (const x of all) { if (x.r.oppsOnly) continue; const a = acctOf(x); if (!a) continue; if (!best[a] || lastOf(x) > lastOf(best[a]) || (lastOf(x) === lastOf(best[a]) && x.r.account && !best[a].r.account)) best[a] = x }
+  for (const x of all) { const a = acctOf(x); if (!x.r.oppsOnly && a && best[a] !== x) x.r = { ...x.r, oppsOnly: true } }
+  for (const a of Object.keys(best)) best[a].r = { ...best[a].r, account: a }
   const got = all.filter(x => !x.r.oppsOnly)
   if (!got.length) return null
   const inM = (w: MonthWin) => (t: any) => String(t.weekStart || '') >= w.start && String(t.weekStart || '') <= w.monthEnd
   const sum = (rows: any[], k: string) => rows.reduce((a, t) => a + (Number(t[k]) || 0), 0)
   const weekMap: Record<string, { weekStart: string; sent: number; accepted: number; messages: number; opportunities: number }> = {}
   let sent = 0, accepted = 0, messages = 0, opportunities = 0, prevSent = 0, prevAccepted = 0
-  const campaigns: { label: string; sent: number; accepted: number; rate: number; opportunities: number }[] = []
+  const campaigns: { label: string; account?: string; sent: number; accepted: number; rate: number; opportunities: number }[] = []
   const namedOpps: { name: string; company: string; title: string; type: string; date: string }[] = []
   let lastReport = ''
   const stale: string[] = []
@@ -398,7 +452,7 @@ async function collectNetwork(reports: SiReport[], win: MonthWin, prev: MonthWin
     prevSent += sum(pr, 'connectionsSent'); prevAccepted += sum(pr, 'accepted')
     const lastWeek = d!.traj.map(t => String(t.weekStart || '')).sort().pop() || ''
     if (lastWeek && lastWeek < win.start) stale.push(d!.account || r.label)
-    campaigns.push({ label: d!.account || r.label, sent: cs, accepted: ca, rate: cs ? r1((ca / cs) * 100) : 0, opportunities: co })
+    campaigns.push({ label: d!.account || r.label, account: r.account, sent: cs, accepted: ca, rate: cs ? r1((ca / cs) * 100) : 0, opportunities: co })
     for (const t of cur) {
       const w = weekMap[t.weekStart] || (weekMap[t.weekStart] = { weekStart: t.weekStart, sent: 0, accepted: 0, messages: 0, opportunities: 0 })
       w.sent += t.connectionsSent || 0; w.accepted += t.accepted || 0; w.messages += t.messages || 0; w.opportunities += t.opportunities || 0
@@ -424,7 +478,7 @@ async function collectNetwork(reports: SiReport[], win: MonthWin, prev: MonthWin
   // No weekly report covering this month yet (Straight-in reports land a few days after each week)
   const pending = Object.keys(weekMap).length === 0
   const firsts = campaigns.map(k => k.label.toLowerCase())
-  const missingCampaigns = expected.filter(e => !firsts.some(f => f.includes(e.toLowerCase())))
+  const missingCampaigns = expected.filter(e => !campaigns.some(k => k.account === e) && !firsts.some(f => f.includes(e.toLowerCase())))
   return {
     pending, missingCampaigns, staleCampaigns: stale, sent, accepted, rate, messages, opportunities, prevSent, prevAccepted, prevRate, pct: (pending ? null : pctOf(rate, s.acceptTarget)) as any,
     weeks: Object.values(weekMap).sort((a, b) => a.weekStart.localeCompare(b.weekStart)),
@@ -591,19 +645,20 @@ export function computeGaps(entry: RegistryEntry, cm: ClientMonth, win: MonthWin
 const emailsOf = (s: string) => s.split(/[,;\s]+/).map(x => x.trim()).filter(x => x.includes('@'))
 
 // Split a multi-account client into one row per LinkedIn account (always all of them, even with no data).
-function accountRows(entry: RegistryEntry, N: ClientMonth['network'], E: ClientMonth['engage'], s: V3Settings): AccountRow[] | undefined {
+function accountRows(entry: RegistryEntry, N: ClientMonth['network'], E: ClientMonth['engage'], s: V3Settings, profileKeys: Record<string, string> = {}): AccountRow[] | undefined {
   const names = entry.campaigns || []
   if (names.length < 2) return undefined
   const camps = N?.campaigns || []
   const used = new Set<number>()
   return names.map(name => {
     const lc = name.toLowerCase()
-    const idx = camps.map((k, i) => (k.label.toLowerCase().includes(lc) && !used.has(i) ? i : -1)).filter(i => i >= 0)
+    const tagged = camps.map((k, i) => (k.account === name && !used.has(i) ? i : -1)).filter(i => i >= 0)
+    const idx = tagged.length ? tagged : camps.map((k, i) => (!k.account && k.label.toLowerCase().includes(lc) && !used.has(i) ? i : -1)).filter(i => i >= 0)
     idx.forEach(i => used.add(i))
     const m = idx.map(i => camps[i])
     const sent = m.reduce((a, k) => a + k.sent, 0), accepted = m.reduce((a, k) => a + k.accepted, 0)
     const network = m.length ? { label: m.map(k => k.label).join(' + '), sent, accepted, rate: sent ? Math.round((accepted / sent) * 1000) / 10 : 0, opportunities: m.reduce((a, k) => a + k.opportunities, 0) } : null
-    const key = Object.keys(entry.accountKeys || {}).find(k => entry.accountKeys![k] === name)
+    const key = Object.keys(profileKeys).find(k => profileKeys[k] === name) || Object.keys(entry.accountKeys || {}).find(k => entry.accountKeys![k] === name)
     const bc = key ? (E?.byCompany || []).find(x => x.key === key) : undefined
     const goal = s.leadsPerMonth
     // goal is per account; current month is compared pro rata, like the client total
@@ -616,9 +671,28 @@ function accountRows(entry: RegistryEntry, N: ClientMonth['network'], E: ClientM
 export async function collectClientMonth(env: { COMPANIES_KV: KVNamespace }, deps: Deps, entry: RegistryEntry, monthKey: string, s?: V3Settings): Promise<ClientMonth> {
   const settings = s || await readSettings(env.COMPANIES_KV)
   const win = monthWin(monthKey), prev = monthWin(win.prevKey)
-  const companies = (await Promise.all(entry.keys.map(k => deps.getCompany(env.COMPANIES_KV, k).catch(() => null)))).filter(Boolean)
+  const regCompanies = (await Promise.all(entry.keys.map(k => deps.getCompany(env.COMPANIES_KV, k).catch(() => null)))).filter(Boolean)
   const svc = servicesFor(entry, settings)
-  const reports = svc.network ? await reportsFor(env.COMPANIES_KV, entry, companies) : []
+  // Account profiles from Settings: a Streak link on an account gives it its own pipeline
+  // (leads split per account); the same link on two accounts = shared, shown combined.
+  const profiles = profilesFor(entry, settings)
+  const pkCount: Record<string, number> = {}
+  for (const p of profiles) { const k = pipelineKeyOf(p.streakUrl); if (k) pkCount[k] = (pkCount[k] || 0) + 1 }
+  const profileKeys: Record<string, string> = {}
+  const profileCos: any[] = []
+  for (const k of Object.keys(pkCount)) {
+    const owners = profiles.filter(p => pipelineKeyOf(p.streakUrl) === k)
+    const key = `acct-${entry.no}-${owners.map(o => o.name.toLowerCase()).join('-')}`
+    if (owners.length === 1) profileKeys[key] = owners[0].name
+    profileCos.push({ key, name: `${entry.name} — ${owners.map(o => o.name).join(' + ')}`, pipelineKey: k, url: `https://www.streak.com/a/pipelines/${k}` })
+  }
+  const companies = [...profileCos, ...regCompanies.filter((co: any) => !co?.pipelineKey || !pkCount[co.pipelineKey])]
+  let reports = svc.network ? await reportsFor(env.COMPANIES_KV, entry, regCompanies) : []
+  if (svc.network) {
+    const own = profiles.filter(p => reportIdOf(p.straightinUrl))
+    const ownIds = new Set(own.map(p => reportIdOf(p.straightinUrl)))
+    reports = [...own.map(p => ({ reportId: reportIdOf(p.straightinUrl), label: p.fullName || p.name, account: p.name })), ...reports.filter(r => !ownIds.has(r.reportId))]
+  }
   const errors: string[] = []
   const why = { v: "" }
   const [promote, network, engage, profile] = await Promise.all([
@@ -627,7 +701,7 @@ export async function collectClientMonth(env: { COMPANIES_KV: KVNamespace }, dep
     svc.engage ? collectEngage(deps, companies, win, prev, settings, (entry.campaigns || []).length || 1).catch(e => { errors.push('engage: ' + e.message); return null }) : Promise.resolve(null),
     svc.network ? collectProfile(deps, entry, win, settings).catch(e => { errors.push('profile: ' + e.message); return null }) : Promise.resolve(null),
   ])
-  const accounts = accountRows(entry, network, engage, settings)
+  const accounts = accountRows(entry, network, engage, settings, profileKeys)
   const cm: ClientMonth = { promoteWhy: svc.promote && !promote ? why.v || undefined : undefined, accounts, no: entry.no, name: entry.name, keys: entry.keys, promoteInPlan: svc.promote, services: svc, campaigns: entry.campaigns || [], month: win.key, generatedAt: new Date().toISOString(), promote, network, engage, profile, gaps: [], errors }
   const pk = (companies.find((co: any) => co?.pipelineKey) as any)?.pipelineKey
   cm.gaps = computeGaps(entry, cm, win, settings, reports.filter(r => !r.oppsOnly).length > 0, !!pk, !!deps.linalysisFetch, pk ? `https://www.streak.com/a/pipelines/${pk}` : undefined)

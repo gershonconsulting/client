@@ -6,7 +6,7 @@
 import type { Hono } from 'hono'
 import {
   CLIENT_REGISTRY, registryByNo, readSettings, saveSettings, monthWin, lastFullMonthKey, todayNY,
-  getClientMonth, portfolioOf, servicesFor, type Deps, type V3Settings, type ClientMonth,
+  getClientMonth, portfolioOf, servicesFor, profilesFor, pipelineKeyOf, reportIdOf, type Deps, type V3Settings, type ClientMonth,
 } from './v3-data'
 import { registerHistory } from './v3-history'
 import { clientModel, internalModel, straightinModel, gapsModel, gapsMatrixHtml, whereHtml, reportHtml, reportPdfBase64, pdfBytesFromBase64, type ReportKind, type ReportModel } from './v3-reports'
@@ -97,13 +97,38 @@ ${card('client', 'fa-star', 'Client — one-pager', 'Always positive and encoura
   })
 }
 
-function settingsPage(s: V3Settings, resendOk: boolean): string {
+function settingsPage(s: V3Settings, resendOk: boolean, shared: Record<string, string> = {}): string {
   const sv = (r: any) => servicesFor(r, s)
   const box = (r: any, k: 'promote' | 'network' | 'engage') => `<td style="text-align:center"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" name="sv_${r.no}_${k}"${sv(r)[k] ? ' checked' : ''}><span style="font-size:12px;color:var(--muted)">${sv(r)[k] ? 'On' : 'Off'}</span></label></td>`
   const svcRows = CLIENT_REGISTRY.map(r => `<tr><td><span class="cno">#${r.no}</span> ${esc(r.name)}${(r.campaigns || []).length ? ` <span style="color:var(--muted);font-size:12px">(${esc((r.campaigns || []).join(', '))})</span>` : ''}</td>${box(r, 'promote')}${box(r, 'network')}${box(r, 'engage')}</tr>`).join('')
   const rows = CLIENT_REGISTRY.map(r => `<tr><td><span class="cno">#${r.no}</span> ${esc(r.name)}</td>
     <td><input name="pt_${r.no}" type="number" step="0.5" min="0" placeholder="${s.promoteTarget}" value="${s.promoteTargets[String(r.no)] ?? ''}" style="width:90px;border:1px solid var(--border);border-radius:8px;padding:7px"></td>
     <td><input name="ce_${r.no}" type="text" placeholder="client@company.com" value="${esc(s.clientEmails[String(r.no)] || '')}" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:7px"></td></tr>`).join('')
+  // LinkedIn account profiles — one block per account for multi-account clients (Altavia: Anne + Alexandre)
+  const inp = (no: number, i: number, k: string, v: string, ph: string) => `<input name="ap_${no}_${i}_${k}" type="text" placeholder="${esc(ph)}" value="${esc(v)}" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:7px">`
+  const status = (ok: boolean, yes: string, no: string) => `<div class="hint" style="color:${ok ? '#057642' : 'var(--muted)'}">${ok ? '● ' + yes : '○ ' + no}</div>`
+  const multi = CLIENT_REGISTRY.filter(r => (r.campaigns || []).length >= 2).sort((a, b) => (a.no === 229 ? -1 : b.no === 229 ? 1 : a.no - b.no))
+  const profCards = multi.map(r => {
+    const ps = profilesFor(r, s)
+    const sharedUrl = shared[String(r.no)] || ''
+    const blocks = ps.map((p, i) => {
+      const pk = pipelineKeyOf(p.streakUrl), rid = reportIdOf(p.straightinUrl)
+      const same = pk && ps.some((q, j) => j !== i && pipelineKeyOf(q.streakUrl) === pk)
+      return `<div style="border:1px solid var(--border);border-radius:10px;padding:12px 14px">
+      <input type="hidden" name="ap_${r.no}_${i}_name" value="${esc(p.name)}">
+      <div style="font-weight:800;font-size:14px;margin-bottom:8px"><i class="fab fa-linkedin" style="color:#0a66c2"></i> Profile ${i + 1} — ${esc(p.name)}</div>
+      <div class="field"><label>Full name</label>${inp(r.no, i, 'fullName', p.fullName, p.name + ' …')}</div>
+      <div class="field"><label>LinkedIn profile</label>${inp(r.no, i, 'linkedinUrl', p.linkedinUrl, 'https://www.linkedin.com/in/…')}</div>
+      <div class="field"><label>Streak pipeline link</label>${inp(r.no, i, 'streakUrl', p.streakUrl, 'https://www.streak.com/a/pipelines/…')}${p.streakUrl && !pk ? status(false, '', 'Not a Streak pipeline link') : same ? status(true, 'Same pipeline as the other profile — leads shown combined', '') : status(!!pk, 'Own pipeline — leads counted for ' + p.name, sharedUrl ? 'Empty — uses the shared Altavia pipeline (combined)'.replace('Altavia', r.name) : 'Empty — no pipeline for this account')}</div>
+      <div class="field"><label>Straight-in report link</label>${inp(r.no, i, 'straightinUrl', p.straightinUrl, 'https://prospecthub.straight-in.com/…crp_…')}${p.straightinUrl && !rid ? status(false, '', 'No crp_ report id in this link') : status(!!rid, 'Report linked to ' + p.name + ' (the newest week wins over /straightin)', 'Empty — taken from the weekly links on /straightin')}</div>
+      <div class="field"><label>Linalysis account email</label>${inp(r.no, i, 'linalysis', p.linalysis, 'name@company.com')}</div>
+      <div class="field" style="margin-bottom:0"><label>Notes</label>${inp(r.no, i, 'notes', p.notes, 'Optional')}</div>
+    </div>`
+    }).join('')
+    return `<div class="card" style="margin-bottom:16px"><div class="card-header"><h3><span class="cno">#${r.no}</span> ${esc(r.name)} — LinkedIn account profiles</h3></div>
+    <div class="hint" style="margin:-4px 0 10px">${ps.length} profiles, goal ${s.leadsPerMonth} leads each. ${sharedUrl ? `Shared client pipeline: <a href="${esc(sharedUrl)}" target="_blank" style="color:#CC3333">open in Streak</a>. ` : ''}Give each profile its own Streak link to split leads per person.</div>
+    <div class="grid cols-2">${blocks}</div></div>`
+  }).join('')
   return shell({
     title: 'Targets & recipients', active: 'settings', h1: 'Targets & recipients', data: { page: 'settings' },
     body: `
@@ -121,6 +146,7 @@ ${resendOk ? '' : `<div class="summary" style="border-left-color:var(--warn)"><d
   <div class="field"><label><input name="autoSendClients" type="checkbox"${s.autoSendClients ? ' checked' : ''}> Send client reports directly to clients on the 1st</label><div class="hint">Off = client reports come to the internal address first, ready to forward.</div></div>
  </div>
 </div>
+${profCards}
 <div class="card" style="padding:0;overflow:auto;margin-bottom:16px"><div class="card-header" style="padding:14px 16px 0"><h3>Services we deliver</h3></div><div class="hint" style="padding:4px 16px 8px">Off = not collected, not in the client report, not in scores and not checked for data gaps.</div><table class="ctable"><thead><tr><th>Client</th><th style="text-align:center">Promote</th><th style="text-align:center">Network</th><th style="text-align:center">Engage</th></tr></thead><tbody>${svcRows}</tbody></table></div>
 <div class="card" style="padding:0;overflow:auto"><table class="ctable"><thead><tr><th>Client</th><th>Posts target (override)</th><th>Client report recipients</th></tr></thead><tbody>${rows}</tbody></table></div>
 <div style="margin-top:16px;display:flex;gap:10px"><button class="btn primary" type="submit"><i class="fas fa-check"></i> Save</button></div>
@@ -225,7 +251,14 @@ export function registerV3(app: Hono<any>, deps: Deps) {
     }
     return c.json({ month: win.key, clients: out })
   })
-  app.get('/settings', async (c) => htmlV3(c, settingsPage(await readSettings(c.env.COMPANIES_KV), !!c.env.RESEND_API_KEY)))
+  app.get('/settings', async (c) => {
+    const shared: Record<string, string> = {}
+    for (const r of CLIENT_REGISTRY.filter(x => (x.campaigns || []).length >= 2)) {
+      const co: any = await deps.getCompany(c.env.COMPANIES_KV, r.keys[0]).catch(() => null)
+      if (co?.pipelineKey && r.keys.length === 1) shared[String(r.no)] = co.url || `https://www.streak.com/a/pipelines/${co.pipelineKey}`
+    }
+    return htmlV3(c, settingsPage(await readSettings(c.env.COMPANIES_KV), !!c.env.RESEND_API_KEY, shared))
+  })
 
   // ── API ──
   app.get('/api/v3/registry', async (c) => {
@@ -235,6 +268,8 @@ export function registerV3(app: Hono<any>, deps: Deps) {
   app.post('/api/v3/settings', async (c) => {
     const b = await c.req.json().catch(() => ({})) as any
     const s = await saveSettings(c.env.COMPANIES_KV, b)
+    // account links changed → drop this month's and last month's cached client records
+    if (b && b.accounts) { for (const r of CLIENT_REGISTRY) for (const m of [monthWin(todayNY().slice(0, 7)).key, lastFullMonthKey()]) await c.env.COMPANIES_KV.delete(`v3:cm9:${m}:${r.no}`).catch(() => {}) }
     // targets changed → drop cached month records so percentages recompute
     await Promise.all([monthWin().key, lastFullMonthKey()].flatMap(m => CLIENT_REGISTRY.map(r => c.env.COMPANIES_KV.delete(`v3:cm9:${m}:${r.no}`).catch(() => null))))
     return c.json({ ok: true, settings: s })

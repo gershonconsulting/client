@@ -233,16 +233,18 @@
   function settings() {
     $('settingsForm').onsubmit = function (ev) {
       ev.preventDefault();
-      var f = ev.target, body = { promoteTargets: {}, clientEmails: {}, services: {} };
+      var f = ev.target, body = { promoteTargets: {}, clientEmails: {}, services: {}, accounts: {} };
       ['promoteTarget', 'acceptTarget', 'leadsPerMonth'].forEach(function (k) { body[k] = Number(f[k].value); });
       body.promoteUnit = f.promoteUnit.value; body.internalEmail = f.internalEmail.value.trim(); body.straightinEmail = f.straightinEmail.value.trim(); body.autoSendClients = f.autoSendClients.checked;
       Array.prototype.forEach.call(f.elements, function (el) {
         if (/^pt_/.test(el.name) && el.value !== '') body.promoteTargets[el.name.slice(3)] = Number(el.value);
         if (/^ce_/.test(el.name) && el.value.trim()) body.clientEmails[el.name.slice(3)] = el.value.trim();
+        var ap = /^ap_(\d+)_(\d+)_(\w+)$/.exec(el.name);
+        if (ap) { var L = body.accounts[ap[1]] = body.accounts[ap[1]] || []; (L[+ap[2]] = L[+ap[2]] || {})[ap[3]] = el.value.trim(); }
         var m = /^sv_(\d+)_(promote|network|engage)$/.exec(el.name);
         if (m) { (body.services[m[1]] = body.services[m[1]] || {})[m[2]] = el.checked; }
       });
-      fetch('/api/v3/settings', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) { return r.json(); }).then(function (d) { toast(d.ok ? 'Saved' : 'Not saved'); });
+      fetch('/api/v3/settings', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) { return r.json(); }).then(function (d) { toast(d.ok ? 'Saved' : 'Not saved'); if (d.ok && Object.keys(body.accounts).length) setTimeout(function () { location.reload(); }, 700); });
     };
   }
 
