@@ -217,6 +217,7 @@ const PUBLIC_PATH_PREFIXES = [
   '/static/',
   '/favicon',
   '/api/chat/',
+  '/r/', // signed interactive client reports (HMAC link, see v3-story.ts)
 ]
 const PUBLIC_EXACT_PATHS = [
   '/', // landing page when signed out; the handler redirects to the dashboard when signed in

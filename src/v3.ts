@@ -8,7 +8,8 @@ import {
   CLIENT_REGISTRY, registryByNo, readSettings, saveSettings, monthWin, lastFullMonthKey, todayNY,
   getClientMonth, portfolioOf, servicesFor, profilesFor, pipelineKeyOf, reportIdOf, type Deps, type V3Settings, type ClientMonth,
 } from './v3-data'
-import { registerHistory } from './v3-history'
+import { registerHistory, clientProjection } from './v3-history'
+import { storyPage, insightsOf, reportLink, verifyReportSig, type StoryHistory } from './v3-story'
 import { clientModel, internalModel, straightinModel, gapsModel, gapsMatrixHtml, whereHtml, reportHtml, reportPdfBase64, pdfBytesFromBase64, type ReportKind, type ReportModel } from './v3-reports'
 
 const esc = (s: any) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -40,7 +41,7 @@ export function shell(opts: { title: string; active: string; h1: string; right?:
   <div class="content">${opts.body}</div>
 </main></div>
 <div id="toast"></div>
-<script src="/static/v3.js?v=8"></script></body></html>`
+<script src="/static/v3.js?v=9"></script></body></html>`
 }
 
 function monthSeg(): string {
@@ -67,7 +68,7 @@ function clientPage(no: number, name: string, keys: string[]): string {
   const legacy = keys[0] ? `<a class="btn" href="/?company=${encodeURIComponent(keys[0])}"><i class="fas fa-table-list"></i> Detailed view</a>` : ''
   return shell({
     title: `#${no} ${name}`, active: 'c' + no, h1: `<span class="cno">#${no}</span> ${esc(name)}`, data: { page: 'client', no: String(no) },
-    right: `${monthSeg()}<a class="btn" id="pdfBtn" href="#" target="_blank"><i class="fas fa-file-pdf"></i> Client report</a>${legacy}`,
+    right: `${monthSeg()}<a class="btn primary" id="storyBtn" href="/client/${no}/story" target="_blank"><i class="fas fa-chart-line"></i> Interactive report</a><a class="btn" id="pdfBtn" href="#" target="_blank"><i class="fas fa-file-pdf"></i> PDF</a>${legacy}`,
     body: `
 <div class="summary" id="summary"><div class="summary-text" id="summaryText"><span class="skeleton">Loading…………………………………</span></div><div id="scoreBox"></div></div>
 <div class="grid cols-3" id="channels"></div>
@@ -82,7 +83,7 @@ function reportsPage(s: V3Settings): string {
   const card = (kind: ReportKind, icon: string, title: string, desc: string, to: string, extra = '') => `
 <div class="card report-card"><div class="card-header" style="margin:0"><h3><i class="fas ${icon}" style="color:var(--brand)"></i> ${title}</h3></div>
 <p>${desc}</p><p style="font-size:12px"><b>Sent to:</b> ${to}</p>${extra}
-<div class="actions"><button class="btn" data-preview="${kind}"><i class="fas fa-eye"></i> Preview</button><button class="btn" data-pdf="${kind}"><i class="fas fa-file-pdf"></i> PDF</button><button class="btn primary" data-send="${kind}"><i class="fas fa-paper-plane"></i> Send now</button></div></div>`
+<div class="actions">${kind === 'client' ? `<button class="btn" data-story="1"><i class="fas fa-chart-line"></i> Interactive</button>` : ''}<button class="btn" data-preview="${kind}"><i class="fas fa-eye"></i> Preview</button><button class="btn" data-pdf="${kind}"><i class="fas fa-file-pdf"></i> PDF</button><button class="btn primary" data-send="${kind}"><i class="fas fa-paper-plane"></i> Send now</button></div></div>`
   return shell({
     title: 'Monthly reports', active: 'reports', h1: 'Monthly reports', data: { page: 'reports', lastmonth: lastFullMonthKey() },
     right: `<div class="field" style="margin:0"><input type="month" id="month" value="${lastFullMonthKey()}" max="${todayNY().slice(0, 7)}"></div>`,
@@ -91,7 +92,7 @@ function reportsPage(s: V3Settings): string {
 <div class="grid cols-3">
 ${card('straightin', 'fa-handshake', 'Straight-in — leads goal & acceptance goal', 'For our LinkedIn provider: two equally important goals per client — ' + s.leadsPerMonth + ' qualified leads per LinkedIn user per month (Finance Montreal and Altavia run 2 users) and an acceptance rate above ' + s.acceptTarget + '%. Shows how far each client is from each goal, in %, and ends with concrete requests for next month.', esc(s.straightinEmail || s.internalEmail + ' (to forward — add Straight-in\'s email in Settings)'))}
 ${card('internal', 'fa-chart-line', 'Gershon — our results', 'Portfolio score, every client against target on Promote, Network and Engage, and the sources of improvement ranked by impact.', esc(s.internalEmail))}
-${card('client', 'fa-star', 'Client — one-pager', 'Always positive and encouraging: wins, highlights and what comes next. One-page summary in the email, PDF attached.', s.autoSendClients ? 'each client\'s address (Settings), copy to ' + esc(s.internalEmail) : esc(s.internalEmail) + ' for review before forwarding', `<div class="field" style="margin:0"><select id="clientSel">${opts}</select></div>`)}
+${card('client', 'fa-star', 'Client — one-pager', 'Always positive on the campaign\'s actions: what we did, insights, and an interactive web report with charts since launch (link in the email). One-page summary in the email, PDF attached.', s.autoSendClients ? 'each client\'s address (Settings), copy to ' + esc(s.internalEmail) : esc(s.internalEmail) + ' for review before forwarding', `<div class="field" style="margin:0"><select id="clientSel">${opts}</select></div>`)}
 </div>
 <div class="card" id="previewCard" style="display:none"><div class="card-header"><h3 id="previewTitle">Preview</h3><button class="btn" onclick="document.getElementById('previewCard').style.display='none'">Close</button></div><iframe class="preview" id="previewFrame"></iframe></div>`,
   })
@@ -283,6 +284,40 @@ export function registerV3(app: Hono<any>, deps: Deps) {
     return c.json({ client: cm, month: monthWin(month), settings: s })
   })
 
+  const originOf = (c: any) => { const u = new URL(c.req.url); return /localhost|127\.0\.0\.1/.test(u.host) ? u.origin : (c.env.PUBLIC_APP_URL || u.origin) }
+  async function storyHistory(env: any, r: any, s: V3Settings): Promise<StoryHistory | null> {
+    try { const p = await clientProjection(env, deps, r, s); return { start: p.start, series: p.series, next3RunRate: p.next3RunRate, basis: p.basis } } catch { return null }
+  }
+  async function renderStory(c: any, r: any, monthKey: string, withPdf: string | null) {
+    const s = await readSettings(c.env.COMPANIES_KV)
+    const win = monthWin(monthKey)
+    const cm = await getClientMonth(c.env, deps, r, win.key, { settings: s })
+    const h = await storyHistory(c.env, r, s)
+    const m = clientModel(cm, win.label, win.key)
+    const next = m.sections.find(x => x.title === 'Next month')?.lines || []
+    c.header('x-gc-v3', '1')
+    return c.html(storyPage(cm, win.key, win.label, m.headline, m.subline, h, withPdf, next))
+  }
+  // Interactive client report — public signed link (sent in the client email)
+  app.get('/r/:no/:month/:sig', async (c) => {
+    const { no, month, sig } = c.req.param()
+    const r = registryByNo(no)
+    if (!r || !/^\d{4}-\d{2}$/.test(month) || !(await verifyReportSig(c.env, no, month, sig))) return c.text('This report link is not valid.', 404)
+    if (c.req.query('format') === 'pdf') {
+      const m = await buildModel(c, 'client', month, no)
+      if ('error' in m) return c.text(m.error, 400)
+      return new Response(pdfBytesFromBase64(reportPdfBase64(m)), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${m.filename}"` } })
+    }
+    return renderStory(c, r, month, `/r/${no}/${month}/${sig}?format=pdf`)
+  })
+  // Signed-in shortcut: /client/:no/story?month=YYYY-MM → the client's signed link
+  app.get('/client/:no/story', async (c) => {
+    const r = registryByNo(c.req.param('no'))
+    if (!r) return c.redirect('/dashboard', 302)
+    const month = monthWin(c.req.query('month') || lastFullMonthKey()).key
+    return c.redirect(await reportLink(c.env, new URL(c.req.url).origin, r.no, month), 302)
+  })
+
   async function buildModel(c: any, kind: ReportKind, monthKey: string, no?: string | null): Promise<ReportModel | { error: string }> {
     const s = await readSettings(c.env.COMPANIES_KV)
     const win = monthWin(monthKey)
@@ -290,7 +325,9 @@ export function registerV3(app: Hono<any>, deps: Deps) {
       const r = registryByNo(no || '')
       if (!r) return { error: 'client number required' }
       const cm = await getClientMonth(c.env, deps, r, win.key, { settings: s })
-      return clientModel(cm, win.label, win.key)
+      const h = await storyHistory(c.env, r, s)
+      const link = await reportLink(c.env, originOf(c), r.no, win.key)
+      return clientModel(cm, win.label, win.key, { link, insights: insightsOf(cm, h, win.key) })
     }
     const all: ClientMonth[] = []
     for (const r of CLIENT_REGISTRY) all.push(await getClientMonth(c.env, deps, r, win.key, { settings: s }))

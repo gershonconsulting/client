@@ -166,6 +166,7 @@
     function load() {
       var m = monthKey(current);
       $('pdfBtn').href = '/api/v3/report/client?client=' + no + '&month=' + m + '&format=pdf';
+      if ($('storyBtn')) $('storyBtn').href = '/client/' + no + '/story?month=' + m;
       $('channels').innerHTML = '<div class="card"><span class="skeleton">loading…………</span></div><div class="card"><span class="skeleton">loading…………</span></div><div class="card"><span class="skeleton">loading…………</span></div>';
       $('details').innerHTML = '';
       getJSON('/api/v3/client/' + no + '?month=' + m).then(function (d) {
@@ -219,6 +220,7 @@
     var monthEl = $('month');
     var url = function (kind, fmtq) { var u = '/api/v3/report/' + kind + '?month=' + monthEl.value; if (kind === 'client') u += '&client=' + $('clientSel').value; return u + (fmtq ? '&format=' + fmtq : ''); };
     document.querySelectorAll('[data-preview]').forEach(function (b) { b.onclick = function () { var k = b.getAttribute('data-preview'); $('previewCard').style.display = ''; $('previewTitle').textContent = 'Preview · ' + b.closest('.card').querySelector('h3').textContent.trim(); $('previewFrame').src = url(k); $('previewCard').scrollIntoView({ behavior: 'smooth' }); }; });
+    document.querySelectorAll('[data-story]').forEach(function (b) { b.onclick = function () { window.open('/client/' + $('clientSel').value + '/story?month=' + monthEl.value, '_blank'); }; });
     document.querySelectorAll('[data-pdf]').forEach(function (b) { b.onclick = function () { window.open(url(b.getAttribute('data-pdf'), 'pdf'), '_blank'); }; });
     document.querySelectorAll('[data-send]').forEach(function (b) {
       b.onclick = function () {

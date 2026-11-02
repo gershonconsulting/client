@@ -38,6 +38,8 @@ export interface ReportModel {
   footer: string
   subject: string
   filename: string
+  link?: string          // interactive web report (client reports)
+  linkLabel?: string
 }
 
 // ── Improvement sources (internal) / requests (Straight-in) ──────────────────
@@ -192,7 +194,7 @@ export function straightinModel(p: Portfolio, s: V3Settings): ReportModel {
   }
 }
 
-export function clientModel(c: ClientMonth, monthLabel: string, monthKey: string): ReportModel {
+export function clientModel(c: ClientMonth, monthLabel: string, monthKey: string, extra: { link?: string; insights?: { title: string; text: string }[] } = {}): ReportModel {
   const tiles: Tile[] = []
   const P = c.promote, N = c.network, E = c.engage
   if (P && P.posts > 0) tiles.push({ label: 'POSTS PUBLISHED', value: fmt(P.posts), sub: P.platforms.join(' + ') || 'social', color: RED })
@@ -274,6 +276,7 @@ export function clientModel(c: ClientMonth, monthLabel: string, monthKey: string
     headline, subline, tiles: tiles.slice(0, 4),
     daily: P && P.posts > 0 ? P.daily : undefined, dailyCaption: 'Posts published per day',
     sections: [
+      ...(extra.insights && extra.insights.length ? [{ title: 'Key insights', lines: extra.insights.slice(0, 4).map(i => `${i.title}: ${i.text}`) }] : []),
       { title: 'Highlights', lines: hl.slice(0, 7) },
       ...(accLines.length ? [{ title: 'By LinkedIn account', lines: accLines }] : []),
       ...(presence.length ? [{ title: 'Your LinkedIn presence', lines: presence.slice(0, 6) }] : []),
@@ -282,6 +285,7 @@ export function clientModel(c: ClientMonth, monthLabel: string, monthKey: string
     footer: 'Gershon Consulting · US market entry · gershonconsulting.com',
     subject: `${c.name} — your ${monthLabel} results with Gershon`,
     filename: `Gershon-${c.name.replace(/[^A-Za-z0-9]+/g, '-')}-${monthKey}.pdf`,
+    link: extra.link, linkLabel: 'Open your interactive report',
   }
 }
 
@@ -401,6 +405,7 @@ export function reportHtml(m: ReportModel): string {
   <div style="margin:18px 0 16px;padding:14px 16px;background:#fff5f5;border-left:4px solid ${RED};border-radius:8px;">
    <div style="font-size:16px;font-weight:800;">${esc(m.headline)}</div><div style="font-size:13px;color:${INK};margin-top:4px;">${esc(m.subline)}</div></div>
   ${m.tiles.length ? `<table style="width:100%;border-collapse:collapse;"><tr>${m.tiles.map(tile).join('')}</tr></table>` : ''}
+  ${m.link ? `<div style="margin:18px 0 4px;text-align:center;"><a href="${esc(m.link)}" style="display:inline-block;background:${RED};color:#fff;font-weight:800;font-size:14px;text-decoration:none;padding:12px 22px;border-radius:10px;">${esc(m.linkLabel || 'Open the interactive report')} &rarr;</a><div style="font-size:11px;color:${MUT};margin-top:6px;">Charts of your campaign since launch, week by week, pipeline and insights</div></div>` : ''}
   ${bars}
   ${m.sections.map(sec).join('')}
   <div style="margin-top:22px;padding-top:10px;border-top:1px solid ${RULE};font-size:10px;color:${MUT};">${esc(m.footer)}${m.kind === 'client' ? ' · The full one-page report is attached as a PDF.' : m.kind === 'gaps' ? '' : ' · PDF attached.'}</div>
@@ -518,7 +523,7 @@ export function reportPdfBase64(m: ReportModel): string {
     if (s.lines) {
       for (const l of s.lines) {
         const ls = wrap(l, 8.4, false, CW - 14, 2)
-        if (y - ls.length * 11 < M + 24) break
+        if (y - ls.length * 11 < M + 30) break
         y -= 13
         p.rect(M + 2, y + 2.2, 3.2, 3.2, C.RED)
         ls.forEach((t, i) => { if (i) y -= 11; p.text(M + 12, y, t, 8.4, false, C.INK) })
@@ -526,6 +531,7 @@ export function reportPdfBase64(m: ReportModel): string {
     }
   }
   // footer
+  if (m.link) p.text(M, M + 12, clip(`Interactive report with charts: ${m.link}`, 7.2, true, CW), 7.2, true, C.RED)
   p.line(M, M + 6, PW - M, C.RULE, 0.5)
   p.text(M, M - 4, clip(m.footer, 6.6, false, 420), 6.6, false, C.MUT)
   p.rtext(PW - M, M - 4, `Generated ${new Date().toISOString().slice(0, 10)}`, 6.6, false, C.MUT)
