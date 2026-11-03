@@ -7,9 +7,9 @@
 // page each, drawn with the Linalysis/Social zero-dependency writer.
 // ─────────────────────────────────────────────────────────────────────────────
 import { MrPdf, strWidth as W, type RGB } from './pdf-writer'
-import { band, clientLabel, overallScore, pctOf, type ClientMonth, type Portfolio, type V3Settings } from './v3-data'
+import { band, clientLabel, overallScore, pctOf, dotsFor, GAP_COLUMNS, fixFor, type ClientMonth, type Portfolio, type V3Settings, type Dot } from './v3-data'
 
-export type ReportKind = 'straightin' | 'internal' | 'client'
+export type ReportKind = 'straightin' | 'internal' | 'client' | 'gaps'
 
 const RED = '#CC3333', INK = '#1d1d1f', MUT = '#6e6e73', RULE = '#e5e7eb', TINT = '#fafafa', GOOD = '#057642', WARN = '#b76b00'
 const fmt = (n: number | null | undefined) => (n == null ? '—' : Math.round(n).toLocaleString('en-US'))
@@ -23,7 +23,7 @@ const arrow = (cur: number, prev: number) => {
 }
 
 export interface Tile { label: string; value: string; sub: string; color?: string }
-export interface Section { title: string; bars?: { label: string; value: string; pct: number; color?: string }[]; lines?: string[]; table?: { head: string[]; rows: string[][]; align?: ('l' | 'r')[] } }
+export interface Section { title: string; html?: string; bars?: { label: string; value: string; pct: number; color?: string }[]; lines?: string[]; table?: { head: string[]; rows: string[][]; align?: ('l' | 'r')[] } }
 export interface ReportModel {
   kind: ReportKind
   title: string          // big heading
@@ -38,6 +38,8 @@ export interface ReportModel {
   footer: string
   subject: string
   filename: string
+  link?: string          // interactive web report (client reports)
+  linkLabel?: string
 }
 
 // ── Improvement sources (internal) / requests (Straight-in) ──────────────────
@@ -45,16 +47,18 @@ function improvementSources(p: Portfolio, s: V3Settings): string[] {
   const out: { w: number; t: string }[] = []
   for (const c of p.clients) {
     const L = clientLabel(c)
-    if (c.promoteInPlan === false) { /* Promote not part of this project */ }
+    const sv = c.services || { promote: c.promoteInPlan !== false, network: true, engage: true }
+    if (!sv.promote) { /* Promote not part of this project */ }
     else if (!c.promote) out.push({ w: 90, t: `${L} — Promote: no social account is collecting in social.gershon.ai. Connect LinkedIn/X so posts count.` })
     else if (c.promote.posts === 0) out.push({ w: 85, t: `${L} — Promote: 0 posts this month (target ${c.promote.target}). Restart the posting schedule.` })
     else if (c.promote.pct < 40) out.push({ w: 60 - c.promote.pct / 2, t: `${L} — Promote: ${c.promote.posts} of ${c.promote.target} posts (${c.promote.pct}%). Add ${Math.max(0, c.promote.target - c.promote.posts)} posts to reach target.` })
-    for (const m of (c.network?.missingCampaigns || [])) out.push({ w: 78, t: `${L} — Network: no Straight-in report linked for the ${m} campaign. Add its link on the Straight-in page.` })
+    if (sv.network) { for (const m of (c.network?.missingCampaigns || [])) out.push({ w: 78, t: `${L} — Network: no Straight-in report linked for the ${m} campaign. Add its link on the Straight-in page.` })
     for (const m of (c.network?.staleCampaigns || [])) out.push({ w: 76, t: `${L} — Network: the ${m} campaign report has no week in this month (stale link or campaign paused).` })
     if (!c.network && c.keys.length) out.push({ w: 70, t: `${L} — Network: no Straight-in campaign report linked. Paste this week's link on the Straight-in page.` })
     else if (c.network && c.network.sent === 0) out.push({ w: 75, t: `${L} — Network: no invitations sent this month. Check the Straight-in campaign is running.` })
-    else if (c.network && !c.network.pending && c.network.rate < s.acceptTarget) out.push({ w: 74 - c.network.rate, t: `${L} — Network: acceptance ${c.network.rate}% vs ${s.acceptTarget}% target. Review targeting and the connection note with Straight-in.` })
-    if (!c.engage && c.keys.length) out.push({ w: 65, t: `${L} — Engage: Streak pipeline could not be read.` })
+    else if (c.network && !c.network.pending && c.network.rate < s.acceptTarget) out.push({ w: 74 - c.network.rate, t: `${L} — Network: acceptance ${c.network.rate}% vs ${s.acceptTarget}% target. Review targeting and the connection note with Straight-in.` }) }
+    if (!sv.engage) { /* Engage not part of this project */ }
+    else if (!c.engage && c.keys.length) out.push({ w: 65, t: `${L} — Engage: Streak pipeline could not be read.` })
     else if (!c.keys.length) out.push({ w: 80, t: `${L} — Engage: no Streak pipeline configured in this platform yet.` })
     else if (c.engage && c.engage.newLeads === 0) out.push({ w: 72, t: `${L} — Engage: 0 new leads this month (goal ${c.engage.target}). Push accepted connections into the pipeline.` })
     else if (c.engage && c.engage.pct < 50) out.push({ w: 50, t: `${L} — Engage: ${c.engage.newLeads} new leads (${c.engage.pct}% of goal).` })
@@ -79,8 +83,8 @@ export function internalModel(p: Portfolio, s: V3Settings): ReportModel {
   const rows = [...p.clients].sort((a, b) => (overallScore(b) ?? -1) - (overallScore(a) ?? -1)).map(c => [
     `#${c.no}`, c.name,
     c.promote ? `${c.promote.posts}/${c.promote.target} · ${c.promote.pct}%` : c.promoteInPlan === false ? 'not in plan' : '—',
-    c.network ? (c.network.pending ? 'pending' : `${c.network.rate}%${c.network.rate >= s.acceptTarget ? '' : ' (low)'} · ${fmt(c.network.accepted)}/${fmt(c.network.sent)}`) : '—',
-    c.engage ? `${c.engage.newLeads} · ${c.engage.pct}%` : '—',
+    c.services && !c.services.network ? 'not in plan' : c.network ? (c.network.pending ? 'pending' : `${c.network.rate}%${c.network.rate >= s.acceptTarget ? '' : ' (low)'} · ${fmt(c.network.accepted)}/${fmt(c.network.sent)}`) : '—',
+    c.services && !c.services.engage ? 'not in plan' : c.engage ? `${c.engage.newLeads} · ${c.engage.pct}%` : '—',
     overallScore(c) == null ? '—' : `${overallScore(c)}%`,
   ])
   const sources = improvementSources(p, s)
@@ -127,17 +131,27 @@ export function straightinModel(p: Portfolio, s: V3Settings): ReportModel {
   const rate = sent ? Math.round((acc / sent) * 1000) / 10 : 0
   const sorted = [...C].sort((a, b) => b.engage!.newLeads - a.engage!.newLeads)
   const users = (c: ClientMonth) => (c.campaigns || []).length > 1 ? ` (${c.campaigns.length} users)` : ''
-  const bars = sorted.map(c => ({
+  const bars = sorted.flatMap(c => [{
     label: `#${c.no} ${c.name}${users(c)}`,
     value: `${c.engage!.newLeads} / ${g(c)} · ${pctOf(c.engage!.newLeads, g(c))}%`,
     pct: pctOf(c.engage!.newLeads, g(c)),
-  }))
-  const accBars = [...C].sort((a, b) => (hasRate(b) ? b.network!.rate : -1) - (hasRate(a) ? a.network!.rate : -1)).map(c => ({
+  }, ...(c.accounts || []).filter(a => a.engage).map(a => ({
+    label: `   · ${a.name}`,
+    value: `${a.engage!.newLeads} / ${a.engage!.target} · ${pctOf(a.engage!.newLeads, a.engage!.target)}%`,
+    pct: pctOf(a.engage!.newLeads, a.engage!.target),
+  }))])
+  const accBars = [...C].sort((a, b) => (hasRate(b) ? b.network!.rate : -1) - (hasRate(a) ? a.network!.rate : -1)).flatMap(c => [{
     label: `#${c.no} ${c.name}${users(c)}`,
     value: hasRate(c) ? `${c.network!.rate}% / ${aT}%${accOk(c) ? ' OK' : ''}` : 'no data',
     pct: hasRate(c) ? pctOf(c.network!.rate, aT) : 0,
     color: !hasRate(c) ? MUT : accOk(c) ? GOOD : c.network!.rate >= aT * 0.75 ? WARN : RED,
-  }))
+  }, ...(c.accounts || []).map(a => ({
+    // one sub-bar per LinkedIn account (Steve / Noza, Anne / Alexandre)
+    label: `   · ${a.name}`,
+    value: a.network && a.network.sent ? `${a.network.rate}% · ${fmt(a.network.accepted)}/${fmt(a.network.sent)}` : 'no report',
+    pct: a.network && a.network.sent ? pctOf(a.network.rate, aT) : 0,
+    color: !(a.network && a.network.sent) ? MUT : a.network.rate >= aT ? GOOD : a.network.rate >= aT * 0.75 ? WARN : RED,
+  }))])
   const rows = sorted.map(c => {
     const n = c.network!, e = c.engage!
     return [`#${c.no}`, c.name, `${fmt(e.newLeads)}/${g(c)}`, `${pctOf(e.newLeads, g(c))}%`,
@@ -180,7 +194,7 @@ export function straightinModel(p: Portfolio, s: V3Settings): ReportModel {
   }
 }
 
-export function clientModel(c: ClientMonth, monthLabel: string, monthKey: string): ReportModel {
+export function clientModel(c: ClientMonth, monthLabel: string, monthKey: string, extra: { link?: string; insights?: { title: string; text: string }[] } = {}): ReportModel {
   const tiles: Tile[] = []
   const P = c.promote, N = c.network, E = c.engage
   if (P && P.posts > 0) tiles.push({ label: 'POSTS PUBLISHED', value: fmt(P.posts), sub: P.platforms.join(' + ') || 'social', color: RED })
@@ -218,23 +232,137 @@ export function clientModel(c: ClientMonth, monthLabel: string, monthKey: string
   if (P?.topPost && P.topPost.engagement > 0) hl.push(`Top post (${P.topPost.engagement} engagements): "${P.topPost.snippet.slice(0, 110)}${P.topPost.snippet.length > 110 ? '…' : ''}"`)
   if (!hl.length) hl.push('Campaign set-up, targeting and content are in place — results build from here.')
 
+  // LinkedIn presence — Linalysis capture of the campaign profile and the company page
+  const L = c.profile
+  const presence: string[] = []
+  if (L) {
+    const num = (v: any) => (typeof v === 'number' ? v : null)
+    const line = (label: string, key: string, note = '') => {
+      const to = num(L.to[key]), from = L.from ? num(L.from[key]) : null
+      if (to == null) return
+      const d = from != null ? to - from : null
+      const pct = from ? Math.round(((to - from) / from) * 100) : null
+      const delta = d != null && d > 0 ? ` (+${fmt(d)}${pct ? `, +${pct}%` : ''} this month)` : ''
+      presence.push(`${label}: ${fmt(to)}${delta}${note}`)
+    }
+    line('Profile connections', 'connections')
+    line('Profile views, last 90 days', 'profile_views')
+    line('Company page followers', 'company_followers')
+    line('Company post impressions, last 30 days', 'company_post_impressions')
+    line('Company search appearances, last 30 days', 'company_search_appearances')
+    const rel = num(L.to.ssi_relationships)
+    if (rel != null && rel >= 20) presence.push(`Social Selling Index, Relationships pillar: ${rel} / 25.`)
+    const conn = num(L.to.connections), conn0 = L.from ? num(L.from.connections) : null
+    if (tiles.length < 4 && conn != null && conn0 != null && conn > conn0) tiles.push({ label: 'PROFILE GROWTH', value: `+${fmt(conn - conn0)}`, sub: `${fmt(conn)} LinkedIn connections`, color: RED })
+  }
+
+  // One line per LinkedIn account when the campaign runs on several (Steve + Noza, Anne + Alexandre)
+  const accLines = (c.accounts || []).map(a => {
+    const bits: string[] = []
+    if (a.network && a.network.accepted > 0) bits.push(`${plural(a.network.accepted, 'new connection')} from ${fmt(a.network.sent)} invitations`)
+    if (a.network && a.network.opportunities > 0) bits.push(`${fmt(a.network.opportunities)} opportunit${a.network.opportunities === 1 ? 'y' : 'ies'}`)
+    if (a.engage && a.engage.newLeads > 0) bits.push(plural(a.engage.newLeads, 'new lead'))
+    return `${a.name}: ${bits.length ? bits.join(' · ') : 'campaign running, results building'}.`
+  })
+
+  const sv = c.services || { promote: c.promoteInPlan !== false, network: true, engage: true }
   const next = [
-    'Keep the publishing rhythm so your brand stays visible to US buyers.',
-    'Turn new connections into conversations with personal follow-ups.',
-    'Book qualified prospects into calls — we will keep you posted as they move.',
+    ...(sv.promote ? ['Keep the publishing rhythm so your brand stays visible to US buyers.'] : []),
+    ...(sv.network ? ['Turn new connections into conversations with personal follow-ups.'] : []),
+    ...(sv.engage ? ['Book qualified prospects into calls — we will keep you posted as they move.'] : []),
   ]
   return {
     kind: 'client', eyebrow: `Gershon Consulting · Monthly report · Client #${c.no}`, title: c.name, month: monthLabel,
     headline, subline, tiles: tiles.slice(0, 4),
     daily: P && P.posts > 0 ? P.daily : undefined, dailyCaption: 'Posts published per day',
     sections: [
+      ...(extra.insights && extra.insights.length ? [{ title: 'Key insights', lines: extra.insights.slice(0, 4).map(i => `${i.title}: ${i.text}`) }] : []),
       { title: 'Highlights', lines: hl.slice(0, 7) },
+      ...(accLines.length ? [{ title: 'By LinkedIn account', lines: accLines }] : []),
+      ...(presence.length ? [{ title: 'Your LinkedIn presence', lines: presence.slice(0, 6) }] : []),
       { title: 'Next month', lines: next },
     ],
     footer: 'Gershon Consulting · US market entry · gershonconsulting.com',
     subject: `${c.name} — your ${monthLabel} results with Gershon`,
     filename: `Gershon-${c.name.replace(/[^A-Za-z0-9]+/g, '-')}-${monthKey}.pdf`,
+    link: extra.link, linkLabel: 'Open your interactive report',
   }
+}
+
+// Data gaps — internal only, never inside a client report. One email to the internal
+// address (report@gershonconsulting.com) listing every number the month's reports could not fill.
+export function gapsModel(p: Portfolio, s: V3Settings): ReportModel {
+  const tag = (l: string) => (l === 'missing' ? 'MISSING' : l === 'partial' ? 'PARTIAL' : 'DECISION')
+  const all = p.clients.flatMap(c => (c.gaps || []).map(g => ({ c, g })))
+  const n = (l: string) => all.filter(x => x.g.level === l).length
+  const svc = (c: ClientMonth) => {
+    const v = c.services || { promote: true, network: true, engage: true }
+    return (['promote', 'network', 'engage'] as const).filter(k => v[k]).map(k => k[0].toUpperCase() + k.slice(1)).join(' + ') || 'no service'
+  }
+  const decisions = all.filter(x => x.g.level === 'decision').map(x => `#${x.c.no} ${x.c.name}: ${x.g.what} ${x.g.effect}`)
+  const sections: Section[] = [
+    { title: 'Data status by client', html: gapsMatrixHtml(p.clients) },
+    ...(decisions.length ? [{ title: 'Decisions for Olivier', lines: decisions }] : []),
+    ...p.clients.filter(c => (c.gaps || []).some(g => g.level !== 'decision')).map(c => ({
+      title: `#${c.no} ${c.name} · ${svc(c)}`,
+      lines: c.gaps.filter(g => g.level !== 'decision').map(g => `[${tag(g.level)}] ${g.area} — ${g.what} ${g.effect}${g.fix ? ` → Add it: ${g.fix.place} (${g.fix.url})` : ''}`),
+    })),
+  ]
+  sections.splice(1, 0, { title: 'Where to add the missing data', html: whereHtml(p.clients) })
+  const clean = p.clients.filter(c => !(c.gaps || []).length).map(c => `#${c.no} ${c.name}`)
+  return {
+    kind: 'gaps', eyebrow: 'GC · Internal · not sent to clients', title: 'Data missing for the reports', month: p.month.label,
+    headline: all.length ? `${all.length} item${all.length === 1 ? '' : 's'} the ${p.month.label} reports cannot fill yet` : `Every ${p.month.label} report has all its data`,
+    subline: `${n('missing')} missing · ${n('partial')} partial · ${n('decision')} decision${n('decision') === 1 ? '' : 's'} · only services sold to each client are checked`,
+    tiles: [
+      { label: 'MISSING', value: fmt(n('missing')), sub: 'blocks a number', color: RED },
+      { label: 'PARTIAL', value: fmt(n('partial')), sub: 'shown, incomplete', color: WARN },
+      { label: 'DECISIONS', value: fmt(n('decision')), sub: 'need Olivier', color: INK },
+      { label: 'CLIENTS OK', value: fmt(clean.length), sub: `of ${p.clients.length}`, color: GOOD },
+    ],
+    sections,
+    footer: 'client.gershoncrm.com/gaps · live list, refreshed on demand',
+    subject: `GC Data gaps — ${p.month.label} — ${all.length} item${all.length === 1 ? '' : 's'} before the reports go out`,
+    filename: `GC-data-gaps-${p.month.key}.pdf`,
+  }
+}
+
+// Dot table: rows = clients, columns = data sources (email-safe inline styles; also used on /gaps).
+const DOT: Record<Dot, string> = { green: GOOD, orange: '#E8890C', red: '#D92D20', off: '', unknown: '' }
+export function dotHtml(d: Dot): string {
+  if (d === 'unknown') return `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;border:2px solid #b0b0b5;vertical-align:middle;"></span>`
+  return d === 'off' ? `<span style="color:#b0b0b5;font-size:13px;">&mdash;</span>`
+    : `<span style="display:inline-block;width:13px;height:13px;border-radius:50%;background:${DOT[d]};vertical-align:middle;"></span>`
+}
+export function gapsMatrixHtml(clients: ClientMonth[]): string {
+  const th = (t: string, left = false) => `<th style="font-size:10px;color:${MUT};text-transform:uppercase;letter-spacing:.04em;font-weight:700;padding:6px 4px;border-bottom:1px solid ${RULE};text-align:${left ? 'left' : 'center'};vertical-align:bottom;">${esc(t)}</th>`
+  const rows = clients.map(c => {
+    const d = dotsFor(c)
+    const camp = (c.campaigns || []).length ? `<div style="font-size:10px;color:${MUT};font-weight:400;">${esc(c.campaigns.join(' + '))}</div>` : ''
+    return `<tr><td style="padding:7px 4px;border-bottom:1px solid ${RULE};font-size:12px;font-weight:700;white-space:nowrap;"><span style="color:${RED};">#${c.no}</span> ${esc(c.name)}${camp}</td>${GAP_COLUMNS.map(k => `<td style="padding:7px 4px;border-bottom:1px solid ${RULE};text-align:center;">${dotHtml(d[k.col])}</td>`).join('')}</tr>`
+  }).join('')
+  const legend = `<div style="font-size:11px;color:${MUT};margin-top:8px;">${dotHtml('green')} we have it &nbsp;&nbsp; ${dotHtml('orange')} some but not all &nbsp;&nbsp; ${dotHtml('red')} all missing &nbsp;&nbsp; ${dotHtml('off')} service not sold${clients.some(c => (c.unchecked || []).length) ? ` &nbsp;&nbsp; ${dotHtml('unknown')} not checked` : ''}</div>`
+  return `<table style="width:100%;border-collapse:collapse;"><tr>${th('Client', true)}${GAP_COLUMNS.map(k => th(k.label)).join('')}</tr>${rows}</table>${legend}`
+}
+
+// One row per data source that has at least one orange or red dot: where it is added, by whom, for which clients.
+export function whereHtml(clients: ClientMonth[]): string {
+  const rows = GAP_COLUMNS.map(k => {
+    const bad = clients.filter(c => { const d = dotsFor(c)[k.col]; return d === 'red' || d === 'orange' })
+    if (!bad.length) return ''
+    const streak = k.col === 'fields' ? bad.map(c => (c.gaps || []).find(g => g.col === 'fields' && g.fix)?.fix).filter(Boolean) as any[] : []
+    const f = fixFor(k.col, { no: 0 })
+    const link = (u: string, t: string) => `<a href="${esc(u)}" style="color:${RED};font-weight:700;text-decoration:none;">${esc(t)}</a>`
+    const where = k.col === 'fields' && streak.length
+      ? `${esc(f.place)}<div style="margin-top:3px;">${bad.map(c => { const fx = (c.gaps || []).find(g => g.col === 'fields' && g.fix)?.fix; return fx && fx.url.includes('/pipelines/') ? link(fx.url, `#${c.no} pipeline`) : '' }).filter(Boolean).join(' · ')}</div>`
+      : `${esc(f.place)}<div style="margin-top:3px;">${link(f.url, f.url.replace('https://', ''))}</div>`
+    return `<tr><td style="padding:8px 6px;border-bottom:1px solid ${RULE};font-weight:700;font-size:12px;white-space:nowrap;vertical-align:top;">${esc(k.label)}</td>
+      <td style="padding:8px 6px;border-bottom:1px solid ${RULE};font-size:12px;line-height:1.45;vertical-align:top;">${where}</td>
+      <td style="padding:8px 6px;border-bottom:1px solid ${RULE};font-size:12px;color:${MUT};vertical-align:top;">${esc(f.who)}</td>
+      <td style="padding:8px 6px;border-bottom:1px solid ${RULE};font-size:11px;color:${MUT};vertical-align:top;">${bad.map(c => `#${c.no}`).join(' ')}</td></tr>`
+  }).join('')
+  const th = (t: string) => `<th style="text-align:left;font-size:10px;color:${MUT};text-transform:uppercase;letter-spacing:.04em;padding:6px;border-bottom:1px solid ${RULE};">${t}</th>`
+  return rows ? `<table style="width:100%;border-collapse:collapse;"><tr>${th('Data')}${th('Where to add it')}${th('Who')}${th('Clients')}</tr>${rows}</table>` : `<div style="font-size:13px;color:${MUT};">Nothing to add.</div>`
 }
 
 // ── Email HTML (inline styles) ───────────────────────────────────────────────
@@ -255,6 +383,7 @@ export function reportHtml(m: ReportModel): string {
         ${s.table.rows.map(r => `<tr>${r.map((v, i) => `<td style="padding:8px;border-bottom:1px solid ${RULE};text-align:${s.table!.align?.[i] === 'r' ? 'right' : 'left'};${i === 0 ? `color:${RED};font-weight:800;` : ''}${i === 1 ? 'font-weight:600;' : ''}">${esc(v)}</td>`).join('')}</tr>`).join('')}
       </table>`
     }
+    if (s.html) body += s.html
     if (s.lines) body += `<ul style="margin:0;padding:0 0 0 18px;">${s.lines.map(l => `<li style="margin:0 0 6px;font-size:13px;line-height:1.5;color:${INK};">${esc(l)}</li>`).join('')}</ul>`
     return `<div style="margin:22px 0 0;"><div style="font-size:11px;font-weight:800;color:${MUT};text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid ${RULE};padding-bottom:6px;margin-bottom:10px;">${esc(s.title)}</div>${body}</div>`
   }
@@ -276,9 +405,10 @@ export function reportHtml(m: ReportModel): string {
   <div style="margin:18px 0 16px;padding:14px 16px;background:#fff5f5;border-left:4px solid ${RED};border-radius:8px;">
    <div style="font-size:16px;font-weight:800;">${esc(m.headline)}</div><div style="font-size:13px;color:${INK};margin-top:4px;">${esc(m.subline)}</div></div>
   ${m.tiles.length ? `<table style="width:100%;border-collapse:collapse;"><tr>${m.tiles.map(tile).join('')}</tr></table>` : ''}
+  ${m.link ? `<div style="margin:18px 0 4px;text-align:center;"><a href="${esc(m.link)}" style="display:inline-block;background:${RED};color:#fff;font-weight:800;font-size:14px;text-decoration:none;padding:12px 22px;border-radius:10px;">${esc(m.linkLabel || 'Open the interactive report')} &rarr;</a><div style="font-size:11px;color:${MUT};margin-top:6px;">Charts of your campaign since launch, week by week, pipeline and insights</div></div>` : ''}
   ${bars}
   ${m.sections.map(sec).join('')}
-  <div style="margin-top:22px;padding-top:10px;border-top:1px solid ${RULE};font-size:10px;color:${MUT};">${esc(m.footer)}${m.kind === 'client' ? ' · The full one-page report is attached as a PDF.' : ' · PDF attached.'}</div>
+  <div style="margin-top:22px;padding-top:10px;border-top:1px solid ${RULE};font-size:10px;color:${MUT};">${esc(m.footer)}${m.kind === 'client' ? ' · The full one-page report is attached as a PDF.' : m.kind === 'gaps' ? '' : ' · PDF attached.'}</div>
  </div>
 </div></body></html>`
 }
@@ -393,7 +523,7 @@ export function reportPdfBase64(m: ReportModel): string {
     if (s.lines) {
       for (const l of s.lines) {
         const ls = wrap(l, 8.4, false, CW - 14, 2)
-        if (y - ls.length * 11 < M + 24) break
+        if (y - ls.length * 11 < M + 30) break
         y -= 13
         p.rect(M + 2, y + 2.2, 3.2, 3.2, C.RED)
         ls.forEach((t, i) => { if (i) y -= 11; p.text(M + 12, y, t, 8.4, false, C.INK) })
@@ -401,6 +531,7 @@ export function reportPdfBase64(m: ReportModel): string {
     }
   }
   // footer
+  if (m.link) p.text(M, M + 12, clip(`Interactive report with charts: ${m.link}`, 7.2, true, CW), 7.2, true, C.RED)
   p.line(M, M + 6, PW - M, C.RULE, 0.5)
   p.text(M, M - 4, clip(m.footer, 6.6, false, 420), 6.6, false, C.MUT)
   p.rtext(PW - M, M - 4, `Generated ${new Date().toISOString().slice(0, 10)}`, 6.6, false, C.MUT)
