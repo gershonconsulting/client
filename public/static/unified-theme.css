@@ -1,0 +1,228 @@
+/* =====================================================================
+   client.gershonCRM - unified Gershon design (v1.4.0, 2026-10-22)
+   Decision 2026-10-13: every Gershon app looks like Linalysis (the master
+   design) and the main colour everywhere is the Gershon.ai red #CC3333.
+   Same approach as Radar (unified-theme.css, PR #4) and Pulse (PR #1):
+   this file is the LAST stylesheet on every HTML page -
+     - v3 pages (dashboard, client, reports, settings, users): linked in
+       shell() in src/v3.ts, after /static/gershon.css;
+     - legacy pages (landing, admin, straight-in, old dashboard): added by
+       the HTML middleware in src/v3.ts, after gershon-theme.css;
+     - /login never reaches that middleware: its few rules sit at the end of
+       gershon.css (the only stylesheet it loads).
+   The e-mailed / PDF reports (src/v3-reports.ts) are NOT touched.
+
+   Functional colours stay as they are: good / warn / crit status bars,
+   pills and score rings, the Promote / Network / Engage channel colours
+   and LinkedIn's own blue on the "Sign in with LinkedIn" button.
+   ===================================================================== */
+
+/* ---------- Tokens (html:root beats the pages' own :root) ---------- */
+html:root{
+  --gx-red:#CC3333; --gx-red-dark:#a8281f; --gx-red-light:#fdf2f2; --gx-red-line:#f3caca;
+  --gx-text:#1d1d1f; --gx-muted:#6e6e73; --gx-border:#e5e7eb; --gx-bg:#fafafa; --gx-radius:12px;
+  --gx-ring:0 0 0 3px rgba(204,51,51,.15);
+  /* gershon.css tokens */
+  --brand:var(--gx-red); --brand-dark:var(--gx-red-dark); --brand-light:var(--gx-red-light);
+  --text:var(--gx-text); --text-muted:var(--gx-muted); --border:var(--gx-border);
+  --bg:var(--gx-bg); --card:#ffffff; --radius:var(--gx-radius); --sidebar-w:240px;
+}
+
+/* ---------- Legacy Tailwind pages: palette moved from #FE1B04 to #CC3333 ----------
+   gershon-theme.css maps Tailwind blue / indigo / purple / violet / sky onto the old
+   #FE1B04 red. These are the same selectors (same specificity, loaded later) with the
+   unified palette: 50 #fdf2f2 · 100 #f9e0e0 · 200 #f3caca · 300 #e8a3a3 · 400 #dc6b6b
+   500 #d44848 · 600 #CC3333 · 700 #a8281f · 800 #8a2119 · 900 #6b1913 */
+:root{--brand:#CC3333;--brand-dark:#a8281f;--brand-light:#fdf2f2}
+.bg-blue-50,.hover\:bg-blue-50:hover,.bg-indigo-50,.hover\:bg-indigo-50:hover,.bg-purple-50,.hover\:bg-purple-50:hover,.bg-violet-50,.hover\:bg-violet-50:hover,.bg-sky-50,.hover\:bg-sky-50:hover{background-color:#fdf2f2 !important}
+.text-blue-50,.hover\:text-blue-50:hover,.text-indigo-50,.hover\:text-indigo-50:hover,.text-purple-50,.hover\:text-purple-50:hover,.text-violet-50,.hover\:text-violet-50:hover,.text-sky-50,.hover\:text-sky-50:hover{color:#fdf2f2 !important}
+.border-blue-50,.border-indigo-50,.border-purple-50,.border-violet-50,.border-sky-50{border-color:#fdf2f2 !important}
+.from-blue-50,.from-indigo-50,.from-purple-50,.from-violet-50,.from-sky-50{--tw-gradient-from:#fdf2f2 !important;--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to,rgba(204,51,51,0)) !important}
+.to-blue-50,.to-indigo-50,.to-purple-50,.to-violet-50,.to-sky-50{--tw-gradient-to:#fdf2f2 !important}
+.via-blue-50,.via-indigo-50,.via-purple-50,.via-violet-50,.via-sky-50{--tw-gradient-stops:var(--tw-gradient-from),#fdf2f2,var(--tw-gradient-to) !important}
+.ring-blue-50,.focus\:ring-blue-50:focus,.ring-indigo-50,.focus\:ring-indigo-50:focus,.ring-purple-50,.focus\:ring-purple-50:focus,.ring-violet-50,.focus\:ring-violet-50:focus,.ring-sky-50,.focus\:ring-sky-50:focus{--tw-ring-color:#fdf2f2 !important}
+.bg-blue-100,.hover\:bg-blue-100:hover,.bg-indigo-100,.hover\:bg-indigo-100:hover,.bg-purple-100,.hover\:bg-purple-100:hover,.bg-violet-100,.hover\:bg-violet-100:hover,.bg-sky-100,.hover\:bg-sky-100:hover{background-color:#f9e0e0 !important}
+.text-blue-100,.hover\:text-blue-100:hover,.text-indigo-100,.hover\:text-indigo-100:hover,.text-purple-100,.hover\:text-purple-100:hover,.text-violet-100,.hover\:text-violet-100:hover,.text-sky-100,.hover\:text-sky-100:hover{color:#f9e0e0 !important}
+.border-blue-100,.border-indigo-100,.border-purple-100,.border-violet-100,.border-sky-100{border-color:#f9e0e0 !important}
+.from-blue-100,.from-indigo-100,.from-purple-100,.from-violet-100,.from-sky-100{--tw-gradient-from:#f9e0e0 !important;--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to,rgba(204,51,51,0)) !important}
+.to-blue-100,.to-indigo-100,.to-purple-100,.to-violet-100,.to-sky-100{--tw-gradient-to:#f9e0e0 !important}
+.via-blue-100,.via-indigo-100,.via-purple-100,.via-violet-100,.via-sky-100{--tw-gradient-stops:var(--tw-gradient-from),#f9e0e0,var(--tw-gradient-to) !important}
+.ring-blue-100,.focus\:ring-blue-100:focus,.ring-indigo-100,.focus\:ring-indigo-100:focus,.ring-purple-100,.focus\:ring-purple-100:focus,.ring-violet-100,.focus\:ring-violet-100:focus,.ring-sky-100,.focus\:ring-sky-100:focus{--tw-ring-color:#f9e0e0 !important}
+.bg-blue-200,.hover\:bg-blue-200:hover,.bg-indigo-200,.hover\:bg-indigo-200:hover,.bg-purple-200,.hover\:bg-purple-200:hover,.bg-violet-200,.hover\:bg-violet-200:hover,.bg-sky-200,.hover\:bg-sky-200:hover{background-color:#f3caca !important}
+.text-blue-200,.hover\:text-blue-200:hover,.text-indigo-200,.hover\:text-indigo-200:hover,.text-purple-200,.hover\:text-purple-200:hover,.text-violet-200,.hover\:text-violet-200:hover,.text-sky-200,.hover\:text-sky-200:hover{color:#f3caca !important}
+.border-blue-200,.border-indigo-200,.border-purple-200,.border-violet-200,.border-sky-200{border-color:#f3caca !important}
+.from-blue-200,.from-indigo-200,.from-purple-200,.from-violet-200,.from-sky-200{--tw-gradient-from:#f3caca !important;--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to,rgba(204,51,51,0)) !important}
+.to-blue-200,.to-indigo-200,.to-purple-200,.to-violet-200,.to-sky-200{--tw-gradient-to:#f3caca !important}
+.via-blue-200,.via-indigo-200,.via-purple-200,.via-violet-200,.via-sky-200{--tw-gradient-stops:var(--tw-gradient-from),#f3caca,var(--tw-gradient-to) !important}
+.ring-blue-200,.focus\:ring-blue-200:focus,.ring-indigo-200,.focus\:ring-indigo-200:focus,.ring-purple-200,.focus\:ring-purple-200:focus,.ring-violet-200,.focus\:ring-violet-200:focus,.ring-sky-200,.focus\:ring-sky-200:focus{--tw-ring-color:#f3caca !important}
+.bg-blue-300,.hover\:bg-blue-300:hover,.bg-indigo-300,.hover\:bg-indigo-300:hover,.bg-purple-300,.hover\:bg-purple-300:hover,.bg-violet-300,.hover\:bg-violet-300:hover,.bg-sky-300,.hover\:bg-sky-300:hover{background-color:#e8a3a3 !important}
+.text-blue-300,.hover\:text-blue-300:hover,.text-indigo-300,.hover\:text-indigo-300:hover,.text-purple-300,.hover\:text-purple-300:hover,.text-violet-300,.hover\:text-violet-300:hover,.text-sky-300,.hover\:text-sky-300:hover{color:#e8a3a3 !important}
+.border-blue-300,.border-indigo-300,.border-purple-300,.border-violet-300,.border-sky-300{border-color:#e8a3a3 !important}
+.from-blue-300,.from-indigo-300,.from-purple-300,.from-violet-300,.from-sky-300{--tw-gradient-from:#e8a3a3 !important;--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to,rgba(204,51,51,0)) !important}
+.to-blue-300,.to-indigo-300,.to-purple-300,.to-violet-300,.to-sky-300{--tw-gradient-to:#e8a3a3 !important}
+.via-blue-300,.via-indigo-300,.via-purple-300,.via-violet-300,.via-sky-300{--tw-gradient-stops:var(--tw-gradient-from),#e8a3a3,var(--tw-gradient-to) !important}
+.ring-blue-300,.focus\:ring-blue-300:focus,.ring-indigo-300,.focus\:ring-indigo-300:focus,.ring-purple-300,.focus\:ring-purple-300:focus,.ring-violet-300,.focus\:ring-violet-300:focus,.ring-sky-300,.focus\:ring-sky-300:focus{--tw-ring-color:#e8a3a3 !important}
+.bg-blue-400,.hover\:bg-blue-400:hover,.bg-indigo-400,.hover\:bg-indigo-400:hover,.bg-purple-400,.hover\:bg-purple-400:hover,.bg-violet-400,.hover\:bg-violet-400:hover,.bg-sky-400,.hover\:bg-sky-400:hover{background-color:#dc6b6b !important}
+.text-blue-400,.hover\:text-blue-400:hover,.text-indigo-400,.hover\:text-indigo-400:hover,.text-purple-400,.hover\:text-purple-400:hover,.text-violet-400,.hover\:text-violet-400:hover,.text-sky-400,.hover\:text-sky-400:hover{color:#dc6b6b !important}
+.border-blue-400,.border-indigo-400,.border-purple-400,.border-violet-400,.border-sky-400{border-color:#dc6b6b !important}
+.from-blue-400,.from-indigo-400,.from-purple-400,.from-violet-400,.from-sky-400{--tw-gradient-from:#dc6b6b !important;--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to,rgba(204,51,51,0)) !important}
+.to-blue-400,.to-indigo-400,.to-purple-400,.to-violet-400,.to-sky-400{--tw-gradient-to:#dc6b6b !important}
+.via-blue-400,.via-indigo-400,.via-purple-400,.via-violet-400,.via-sky-400{--tw-gradient-stops:var(--tw-gradient-from),#dc6b6b,var(--tw-gradient-to) !important}
+.ring-blue-400,.focus\:ring-blue-400:focus,.ring-indigo-400,.focus\:ring-indigo-400:focus,.ring-purple-400,.focus\:ring-purple-400:focus,.ring-violet-400,.focus\:ring-violet-400:focus,.ring-sky-400,.focus\:ring-sky-400:focus{--tw-ring-color:#dc6b6b !important}
+.bg-blue-500,.hover\:bg-blue-500:hover,.bg-indigo-500,.hover\:bg-indigo-500:hover,.bg-purple-500,.hover\:bg-purple-500:hover,.bg-violet-500,.hover\:bg-violet-500:hover,.bg-sky-500,.hover\:bg-sky-500:hover{background-color:#d44848 !important}
+.text-blue-500,.hover\:text-blue-500:hover,.text-indigo-500,.hover\:text-indigo-500:hover,.text-purple-500,.hover\:text-purple-500:hover,.text-violet-500,.hover\:text-violet-500:hover,.text-sky-500,.hover\:text-sky-500:hover{color:#d44848 !important}
+.border-blue-500,.border-indigo-500,.border-purple-500,.border-violet-500,.border-sky-500{border-color:#d44848 !important}
+.from-blue-500,.from-indigo-500,.from-purple-500,.from-violet-500,.from-sky-500{--tw-gradient-from:#d44848 !important;--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to,rgba(204,51,51,0)) !important}
+.to-blue-500,.to-indigo-500,.to-purple-500,.to-violet-500,.to-sky-500{--tw-gradient-to:#d44848 !important}
+.via-blue-500,.via-indigo-500,.via-purple-500,.via-violet-500,.via-sky-500{--tw-gradient-stops:var(--tw-gradient-from),#d44848,var(--tw-gradient-to) !important}
+.ring-blue-500,.focus\:ring-blue-500:focus,.ring-indigo-500,.focus\:ring-indigo-500:focus,.ring-purple-500,.focus\:ring-purple-500:focus,.ring-violet-500,.focus\:ring-violet-500:focus,.ring-sky-500,.focus\:ring-sky-500:focus{--tw-ring-color:#d44848 !important}
+.bg-blue-600,.hover\:bg-blue-600:hover,.bg-indigo-600,.hover\:bg-indigo-600:hover,.bg-purple-600,.hover\:bg-purple-600:hover,.bg-violet-600,.hover\:bg-violet-600:hover,.bg-sky-600,.hover\:bg-sky-600:hover{background-color:#CC3333 !important}
+.text-blue-600,.hover\:text-blue-600:hover,.text-indigo-600,.hover\:text-indigo-600:hover,.text-purple-600,.hover\:text-purple-600:hover,.text-violet-600,.hover\:text-violet-600:hover,.text-sky-600,.hover\:text-sky-600:hover{color:#CC3333 !important}
+.border-blue-600,.border-indigo-600,.border-purple-600,.border-violet-600,.border-sky-600{border-color:#CC3333 !important}
+.from-blue-600,.from-indigo-600,.from-purple-600,.from-violet-600,.from-sky-600{--tw-gradient-from:#CC3333 !important;--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to,rgba(204,51,51,0)) !important}
+.to-blue-600,.to-indigo-600,.to-purple-600,.to-violet-600,.to-sky-600{--tw-gradient-to:#CC3333 !important}
+.via-blue-600,.via-indigo-600,.via-purple-600,.via-violet-600,.via-sky-600{--tw-gradient-stops:var(--tw-gradient-from),#CC3333,var(--tw-gradient-to) !important}
+.ring-blue-600,.focus\:ring-blue-600:focus,.ring-indigo-600,.focus\:ring-indigo-600:focus,.ring-purple-600,.focus\:ring-purple-600:focus,.ring-violet-600,.focus\:ring-violet-600:focus,.ring-sky-600,.focus\:ring-sky-600:focus{--tw-ring-color:#CC3333 !important}
+.bg-blue-700,.hover\:bg-blue-700:hover,.bg-indigo-700,.hover\:bg-indigo-700:hover,.bg-purple-700,.hover\:bg-purple-700:hover,.bg-violet-700,.hover\:bg-violet-700:hover,.bg-sky-700,.hover\:bg-sky-700:hover{background-color:#a8281f !important}
+.text-blue-700,.hover\:text-blue-700:hover,.text-indigo-700,.hover\:text-indigo-700:hover,.text-purple-700,.hover\:text-purple-700:hover,.text-violet-700,.hover\:text-violet-700:hover,.text-sky-700,.hover\:text-sky-700:hover{color:#a8281f !important}
+.border-blue-700,.border-indigo-700,.border-purple-700,.border-violet-700,.border-sky-700{border-color:#a8281f !important}
+.from-blue-700,.from-indigo-700,.from-purple-700,.from-violet-700,.from-sky-700{--tw-gradient-from:#a8281f !important;--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to,rgba(204,51,51,0)) !important}
+.to-blue-700,.to-indigo-700,.to-purple-700,.to-violet-700,.to-sky-700{--tw-gradient-to:#a8281f !important}
+.via-blue-700,.via-indigo-700,.via-purple-700,.via-violet-700,.via-sky-700{--tw-gradient-stops:var(--tw-gradient-from),#a8281f,var(--tw-gradient-to) !important}
+.ring-blue-700,.focus\:ring-blue-700:focus,.ring-indigo-700,.focus\:ring-indigo-700:focus,.ring-purple-700,.focus\:ring-purple-700:focus,.ring-violet-700,.focus\:ring-violet-700:focus,.ring-sky-700,.focus\:ring-sky-700:focus{--tw-ring-color:#a8281f !important}
+.bg-blue-800,.hover\:bg-blue-800:hover,.bg-indigo-800,.hover\:bg-indigo-800:hover,.bg-purple-800,.hover\:bg-purple-800:hover,.bg-violet-800,.hover\:bg-violet-800:hover,.bg-sky-800,.hover\:bg-sky-800:hover{background-color:#8a2119 !important}
+.text-blue-800,.hover\:text-blue-800:hover,.text-indigo-800,.hover\:text-indigo-800:hover,.text-purple-800,.hover\:text-purple-800:hover,.text-violet-800,.hover\:text-violet-800:hover,.text-sky-800,.hover\:text-sky-800:hover{color:#8a2119 !important}
+.border-blue-800,.border-indigo-800,.border-purple-800,.border-violet-800,.border-sky-800{border-color:#8a2119 !important}
+.from-blue-800,.from-indigo-800,.from-purple-800,.from-violet-800,.from-sky-800{--tw-gradient-from:#8a2119 !important;--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to,rgba(204,51,51,0)) !important}
+.to-blue-800,.to-indigo-800,.to-purple-800,.to-violet-800,.to-sky-800{--tw-gradient-to:#8a2119 !important}
+.via-blue-800,.via-indigo-800,.via-purple-800,.via-violet-800,.via-sky-800{--tw-gradient-stops:var(--tw-gradient-from),#8a2119,var(--tw-gradient-to) !important}
+.ring-blue-800,.focus\:ring-blue-800:focus,.ring-indigo-800,.focus\:ring-indigo-800:focus,.ring-purple-800,.focus\:ring-purple-800:focus,.ring-violet-800,.focus\:ring-violet-800:focus,.ring-sky-800,.focus\:ring-sky-800:focus{--tw-ring-color:#8a2119 !important}
+.bg-blue-900,.hover\:bg-blue-900:hover,.bg-indigo-900,.hover\:bg-indigo-900:hover,.bg-purple-900,.hover\:bg-purple-900:hover,.bg-violet-900,.hover\:bg-violet-900:hover,.bg-sky-900,.hover\:bg-sky-900:hover{background-color:#6b1913 !important}
+.text-blue-900,.hover\:text-blue-900:hover,.text-indigo-900,.hover\:text-indigo-900:hover,.text-purple-900,.hover\:text-purple-900:hover,.text-violet-900,.hover\:text-violet-900:hover,.text-sky-900,.hover\:text-sky-900:hover{color:#6b1913 !important}
+.border-blue-900,.border-indigo-900,.border-purple-900,.border-violet-900,.border-sky-900{border-color:#6b1913 !important}
+.from-blue-900,.from-indigo-900,.from-purple-900,.from-violet-900,.from-sky-900{--tw-gradient-from:#6b1913 !important;--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to,rgba(204,51,51,0)) !important}
+.to-blue-900,.to-indigo-900,.to-purple-900,.to-violet-900,.to-sky-900{--tw-gradient-to:#6b1913 !important}
+.via-blue-900,.via-indigo-900,.via-purple-900,.via-violet-900,.via-sky-900{--tw-gradient-stops:var(--tw-gradient-from),#6b1913,var(--tw-gradient-to) !important}
+.ring-blue-900,.focus\:ring-blue-900:focus,.ring-indigo-900,.focus\:ring-indigo-900:focus,.ring-purple-900,.focus\:ring-purple-900:focus,.ring-violet-900,.focus\:ring-violet-900:focus,.ring-sky-900,.focus\:ring-sky-900:focus{--tw-ring-color:#6b1913 !important}
+#gc-topnav a:hover{background:#fdf2f2;color:#CC3333}
+#gc-topnav .b{color:#CC3333;font-weight:800;margin-right:10px}
+aside#sidebar .sidebar-nav:hover,aside#sidebar .sidebar-sub:hover{background:#fdf2f2 !important;color:#CC3333 !important}
+aside#sidebar .sidebar-nav.active{background:#CC3333 !important;color:#fff !important}
+aside#sidebar .bg-amber-500,aside#sidebar .bg-yellow-500{background:#CC3333 !important}
+
+/* =====================================================================
+   APP SHELL (v3 pages: .app > .sidebar + main)
+   ===================================================================== */
+.app > main{ min-width:0; }                 /* grid child: stops wide tables pushing the page sideways */
+.app > .sidebar{ width:240px; background:#fff; border-right:1px solid var(--gx-border); }
+.app > .sidebar .brand{ color:var(--gx-red); }
+.app > .sidebar .brand-mark{ background:var(--gx-red); }
+.app > .sidebar .nav-item{ color:var(--gx-text); }
+.app > .sidebar .nav-item:hover{ background:var(--gx-red-light); color:var(--gx-red); }
+.app > .sidebar .nav-item.active{ background:var(--gx-red); color:#fff; font-weight:600; }
+.app > .sidebar .nav-item.active:hover{ background:var(--gx-red-dark); color:#fff; }
+.app > .sidebar .sidebar-footer .ver{ display:block; margin-top:6px; color:var(--gx-muted); font-variant-numeric:tabular-nums; }
+
+/* White page header like Linalysis (was translucent) */
+.app > main > .topbar{ background:#fff; backdrop-filter:none; -webkit-backdrop-filter:none; border-bottom:1px solid var(--gx-border); }
+.app > main > .topbar h1{ color:var(--gx-text); font-weight:800; letter-spacing:-0.02em; }
+
+/* Cards: white, 12px, 1px #e5e7eb, flat */
+.app .card, .app .kpi, .app .metric-card{ background:#fff; border:1px solid var(--gx-border); border-radius:var(--gx-radius); box-shadow:0 1px 2px rgba(16,24,40,.04); }
+.app .summary{ border-color:var(--gx-border); border-left-color:var(--gx-red); background:linear-gradient(135deg,var(--gx-red-light),#fff); }
+.app .ctable tr.row:hover td, .app .data-table tbody tr:hover{ background:var(--gx-bg); }
+
+/* Buttons, period switch, tabs */
+.app .btn.primary{ background:var(--gx-red); border-color:var(--gx-red); color:#fff; }
+.app .btn.primary:hover{ background:var(--gx-red-dark); border-color:var(--gx-red-dark); color:#fff; }
+.app .btn:not(.primary):hover{ border-color:var(--gx-red); color:var(--gx-red); }
+.app .seg button.active{ background:var(--gx-red); color:#fff; }
+.app .seg button:not(.active):hover{ color:var(--gx-red); }
+
+/* Red focus rings */
+.app input:focus, .app select:focus, .app textarea:focus,
+.login input:focus{ outline:none; border-color:var(--gx-red); box-shadow:var(--gx-ring); }
+.app .btn:focus-visible, .app .nav-item:focus-visible, .app .seg button:focus-visible,
+.login .btn:focus-visible, .login .li-btn:focus-visible{ outline:none; box-shadow:var(--gx-ring); }
+.app input[type="checkbox"], .app input[type="radio"]{ accent-color:var(--gx-red) !important; }
+
+/* Users page pills / messages (src/users.ts) */
+.app .u-pill.admin{ color:var(--gx-red-dark); background:var(--gx-red-light); border-color:var(--gx-red-line); }
+.app .u-msg.err{ color:var(--gx-red-dark); background:var(--gx-red-light); border-color:var(--gx-red-line); }
+
+/* ---------- Phone ---------- */
+@media (max-width:900px){
+  .app > .sidebar{ box-shadow:none; }
+  .app > .sidebar.open{ box-shadow:0 10px 40px rgba(29,29,31,.12); }
+  /* page header: menu button + title on line 1, the page's controls on line 2
+     (they used to squeeze the title and run off the right edge) */
+  .app > main > .topbar{ height:auto; min-height:var(--topbar-h,64px); flex-wrap:wrap; padding:10px 16px; row-gap:8px; }
+  .app > main > .topbar > div:first-child{ min-width:0; flex:1 1 auto; }
+  .app > main > .topbar h1{ font-size:17px; line-height:1.25; overflow-wrap:anywhere; }
+  .app > main > .topbar .menu-toggle{ flex-shrink:0; }
+  .app > main > .topbar .topbar-right{ flex:1 1 100%; flex-wrap:wrap; gap:8px; }
+  .app > main > .topbar .topbar-right:empty{ display:none; }
+  .app .summary{ padding:12px 14px; }
+  .app .kpi-row{ grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); }
+  .app .stat-grid{ grid-template-columns:1fr 1fr; }
+  .app .card{ min-width:0; }
+  .app .data-table{ display:block; overflow-x:auto; }   /* weekly tables scroll inside their card */
+}
+@media (max-width:480px){
+  .app .kpi-row{ grid-template-columns:1fr 1fr; gap:10px; }
+  .app .kpi{ padding:14px; }
+  .app .kpi-value{ font-size:22px; }
+  .app .content{ padding:14px; }
+}
+
+/* =====================================================================
+   SIGN-IN PAGE (/login - renderLoginPage)
+   /login is answered before the HTML middleware, so its rules also live at
+   the end of gershon.css; these copies cover any page that does get this file.
+   ===================================================================== */
+.login-wrap{ background:linear-gradient(180deg,#ffffff 0%,var(--gx-bg) 55%,var(--gx-red-light) 100%) !important; }
+.login .card{ border:1px solid var(--gx-border); border-radius:var(--gx-radius); box-shadow:0 18px 50px rgba(29,29,31,.08); }
+.login .btn.primary{ background:var(--gx-red); border-color:var(--gx-red); }
+.login .btn.primary:hover{ background:var(--gx-red-dark); border-color:var(--gx-red-dark); }
+
+/* =====================================================================
+   LEGACY PAGES (Tailwind): top bar, landing page, admin, straight-in
+   ===================================================================== */
+#gc-topnav{ overflow-x:auto; white-space:nowrap; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+#gc-topnav::-webkit-scrollbar{ display:none; }
+#gc-topnav a{ flex-shrink:0; color:var(--gx-text); }
+#gc-topnav a:hover{ background:var(--gx-red-light); color:var(--gx-red); }
+#gc-topnav .b{ color:var(--gx-red); flex-shrink:0; }
+input:focus-visible, select:focus-visible, textarea:focus-visible{ outline:none; box-shadow:var(--gx-ring) !important; border-color:var(--gx-red) !important; }
+
+/* ---- Landing page (renderHomePage: header + sections + footer straight under body) ---- */
+body > header.sticky a[href="/login"]{ background:var(--gx-red) !important; color:#fff !important; border-radius:999px; }
+body > header.sticky a[href="/login"]:hover{ background:var(--gx-red-dark) !important; }
+body > header.sticky nav a:not([href="/login"]):hover{ color:var(--gx-red) !important; }
+body > section a.bg-gradient-to-r[href="/login"]{ background:var(--gx-red) !important; border-radius:999px; box-shadow:none !important; }
+body > section a.bg-gradient-to-r[href="/login"]:hover{ background:var(--gx-red-dark) !important; box-shadow:0 8px 22px rgba(204,51,51,.28) !important; }
+body > section a[href="#how"].bg-white{ border-radius:999px; border-color:var(--gx-border) !important; }
+body > section a[href="#how"].bg-white:hover{ border-color:var(--gx-red) !important; color:var(--gx-red) !important; }
+body > section:first-of-type > .absolute{ background:linear-gradient(180deg,#ffffff 0%,var(--gx-bg) 60%,var(--gx-red-light) 100%) !important; }
+body > section .rounded-2xl.border{ border-color:var(--gx-border) !important; }
+
+/* Closing band: solid Gershon red like Linalysis' call-to-action */
+body > section:last-of-type{ background:linear-gradient(135deg,var(--gx-red) 0%,var(--gx-red-dark) 100%); color:#fff; }
+body > section:last-of-type h2{ color:#fff; }
+body > section:last-of-type p{ color:rgba(255,255,255,.9) !important; }
+body > section:last-of-type .bg-gray-900:not(a){ background:rgba(255,255,255,.16) !important; border:1px solid rgba(255,255,255,.35); }
+body > section:last-of-type a[href="/login"]{ background:#fff !important; color:var(--gx-red) !important; border-radius:999px; }
+body > section:last-of-type a[href="/login"]:hover{ background:var(--gx-red-light) !important; color:var(--gx-red-dark) !important; }
+body > footer a:hover{ color:var(--gx-red) !important; }
+@media (max-width:640px){
+  body > section h1{ font-size:32px !important; }
+}
+
+/* ---- Legacy admin page header: white bar with a hairline, like Linalysis ---- */
+body > div.bg-white.border-b-4{ border-bottom:1px solid var(--gx-border) !important; box-shadow:none !important; }
+
+/* ---- Legacy pages on a phone: no sideways page scroll ---- */
+@media (max-width:640px){
+  body .flex.justify-between{ flex-wrap:wrap; gap:8px; }
+  body > div.bg-white.border-b-4 h1{ font-size:20px !important; }
+}
