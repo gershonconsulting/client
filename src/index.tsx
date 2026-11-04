@@ -17,6 +17,7 @@ type Bindings = {
   AUTH_PASSWORD_HASH?: string
   SESSION_SECRET?: string
   SOCIAL_PROMOTE_KEY?: string
+  LINALYSIS_REPORT_KEY?: string   // shared secret of linalysis.net/api/client-month (same as the matrix secret)
   LINKEDIN_CLIENT_ID?: string
   LINKEDIN_CLIENT_SECRET?: string
 }
@@ -28,8 +29,10 @@ const app = new Hono<{ Bindings: Bindings }>()
 // Captured per request so the module-level Promote helpers can send it without
 // threading c.env through every call.
 let _socialPromoteKey = ''
+let _linalysisKey = ''
 app.use('*', async (c, next) => {
   _socialPromoteKey = c.env.SOCIAL_PROMOTE_KEY || ''
+  _linalysisKey = c.env.LINALYSIS_REPORT_KEY || ''
   await next()
 })
 
@@ -148,7 +151,17 @@ app.all('/api/auth/logout', (c) => {
 app.use('/static/*', serveStatic({ root: './public' }))
 
 // v3: simplified Dashboard / Client / Reports / Settings + Gershon theme on legacy pages
-registerV3(app, { callStreakAPI: (e: string) => callStreakAPI(e), socialFetch: (p: string) => socialFetch(p), getCompany: (kv: any, k: string) => getCompany(kv, k), classifyStage: (n: string) => classifyStage(n) })
+registerV3(app, {
+  callStreakAPI: (e: string) => callStreakAPI(e), socialFetch: (p: string) => socialFetch(p), getCompany: (kv: any, k: string) => getCompany(kv, k), classifyStage: (n: string) => classifyStage(n),
+  // LinkedIn profile + company page per client-month, read from Linalysis (only when the key is set)
+  get linalysisFetch() {
+    if (!_linalysisKey) return undefined
+    return async (body: { emails: string[]; start: string; end: string }) => {
+      const r = await fetch('https://linalysis.net/api/client-month', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: _linalysisKey, ...body }) })
+      return r.ok ? r.json() : null
+    }
+  },
+})
 
 // Streak API configuration
 let streakApiKey: string = ''
@@ -204,6 +217,7 @@ const PUBLIC_PATH_PREFIXES = [
   '/static/',
   '/favicon',
   '/api/chat/',
+  '/r/', // signed interactive client reports (HMAC link, see v3-story.ts)
 ]
 const PUBLIC_EXACT_PATHS = [
   '/', // landing page when signed out; the handler redirects to the dashboard when signed in
@@ -611,7 +625,7 @@ const COMPANIES = {
     url: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgLnYo_uUCww'
   },
   'altavia': {
-    name: 'Altavia',
+    name: 'Altavia (Anne)',
     pipelineKey: 'agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgICFz_elmwgM',
     url: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgICFz_elmwgM'
   },
@@ -629,6 +643,12 @@ const COMPANIES = {
     name: 'Finance Montreal (Noza)',
     pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgKWVvvDkCgw',
     url: 'https://www.streak.com/a/pipelines/agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgKWVvvDkCgw'
+  },
+  // #229 second LinkedIn account (Olivier, 2026-11-02). Streak pipeline set in Admin or in Settings → Altavia profiles.
+  'altavia-alexandre': {
+    name: 'Altavia (Alexandre)',
+    pipelineKey: '',
+    url: ''
   }
 }
 
@@ -1534,25 +1554,25 @@ app.post('/api/companies', async (c) => {
     const body = await c.req.json()
     const { name, pipelineKey, networkUrl, promoteUrl, engageUrl, notionUrl, networkGid, key: providedKey, googleChatUrl, googleChatWebhookUrl, straightInReportId, messages, services } = body
 
-    if (!name || !pipelineKey) {
-      return c.json({ error: 'name and pipelineKey are required' }, 400)
+    if (!name) {
+      return c.json({ error: 'name is required' }, 400)
     }
 
     // Use provided key or auto-generate from name
     const key = providedKey || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
     // Auto-fix pipeline key if user pasted a strk_ API key or full URL
-    const resolvedPipelineKey = resolvePipelineKey(pipelineKey, engageUrl)
+    const resolvedPipelineKey = pipelineKey ? resolvePipelineKey(pipelineKey, engageUrl) : ''
 
     const company: any = {
       key,
       name,
       pipelineKey: resolvedPipelineKey,
-      url: engageUrl || `https://www.streak.com/a/pipelines/${pipelineKey}`,
+      url: engageUrl || (resolvedPipelineKey ? `https://www.streak.com/a/pipelines/${resolvedPipelineKey}` : ''),
       sources: {
         promote: promoteUrl || '',
         network: networkUrl || '',
-        engage: engageUrl || `https://www.streak.com/a/pipelines/${pipelineKey}`,
+        engage: engageUrl || (resolvedPipelineKey ? `https://www.streak.com/a/pipelines/${resolvedPipelineKey}` : ''),
         notion: notionUrl || ''
       },
     }
@@ -3338,6 +3358,9 @@ const STRAIGHTIN_ALIASES: Record<string, string> = {
   'urban': 'urban-factory',
   'mab': 'mabsilico',
   'valos': 'valos',
+  'altavia alexandre': 'altavia-alexandre',
+  'altavia alex': 'altavia-alexandre',
+  'altavia anne': 'altavia',
   'altavia': 'altavia',
   'apm': 'apm-music',
   'finance steve': 'finance-montreal',
@@ -3780,14 +3803,13 @@ app.get('/admin', (c) => {
                     <div class="md:col-span-2">
                         <label class="block text-sm font-semibold text-gray-700 mb-2">
                             <i class="fas fa-handshake text-green-600 mr-1"></i>
-                            ENGAGE — Streak API Key <span class="text-red-500">*</span>
+                            ENGAGE — Streak pipeline link or key <span class="text-gray-400 font-normal">(can be added later)</span>
                         </label>
                         <textarea
                             id="pipeline-key"
                             rows="2"
-                            placeholder="e.g., agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlh..."
+                            placeholder="https://www.streak.com/a/pipelines/… or agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlh..."
                             class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 font-mono text-sm"
-                            required
                         ></textarea>
                     </div>
 
@@ -6617,7 +6639,7 @@ app.get('/', async (c) => {
                     pipelineKey: 'agxzfm1haWxmb29nYWVyNwsSDE9yZ2FuaXphdGlvbiIQb2F0dGlhQGdtYWlsLmNvbQwLEghXb3JrZmxvdxiAgLnYo_uUCww'
                 },
                 'altavia': {
-                    name: 'Altavia',
+                    name: 'Altavia (Anne)',
                     pipelineKey: 'agxzfm1haWxmb29nYWVyRAsSDE9yZ2FuaXphdGlvbiIdYWluYS5hbmRyaWFtYW5nYXNvbkBnbWFpbC5jb20MCxIIV29ya2Zsb3cYgICFz_elmwgM'
                 },
                 'valos': {

@@ -6,10 +6,11 @@
 import type { Hono } from 'hono'
 import {
   CLIENT_REGISTRY, registryByNo, readSettings, saveSettings, monthWin, lastFullMonthKey, todayNY,
-  getClientMonth, portfolioOf, type Deps, type V3Settings, type ClientMonth,
+  getClientMonth, portfolioOf, servicesFor, profilesFor, pipelineKeyOf, reportIdOf, type Deps, type V3Settings, type ClientMonth,
 } from './v3-data'
-import { registerHistory } from './v3-history'
-import { clientModel, internalModel, straightinModel, reportHtml, reportPdfBase64, pdfBytesFromBase64, type ReportKind, type ReportModel } from './v3-reports'
+import { registerHistory, clientProjection } from './v3-history'
+import { storyPage, insightsOf, reportLink, verifyReportSig, type StoryHistory } from './v3-story'
+import { clientModel, internalModel, straightinModel, gapsModel, gapsMatrixHtml, whereHtml, reportHtml, reportPdfBase64, pdfBytesFromBase64, type ReportKind, type ReportModel } from './v3-reports'
 
 const esc = (s: any) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
@@ -30,7 +31,7 @@ export function shell(opts: { title: string; active: string; h1: string; right?:
   <a class="brand" href="/dashboard"><span class="brand-mark">G</span><span>Gershon<span class="tag">Client results</span></span></a>
   <div class="nav-group">${nav('/dashboard', 'fa-gauge-high', 'Dashboard', 'dashboard')}${nav('/reports', 'fa-file-lines', 'Monthly reports', 'reports')}</div>
   <div class="nav-group"><div class="nav-group-label">Clients</div>${clients}</div>
-  <div class="nav-group"><div class="nav-group-label">Data</div>${nav('/straightin', 'fa-link', 'Straight-in links', 'straightin')}${nav('/settings', 'fa-sliders', 'Targets & recipients', 'settings')}${nav('/admin', 'fa-gear', 'Admin', 'admin')}${nav('/users', 'fa-user-shield', 'Users', 'users')}</div>
+  <div class="nav-group"><div class="nav-group-label">Data</div>${nav('/gaps', 'fa-triangle-exclamation', 'Data gaps', 'gaps')}${nav('/straightin', 'fa-link', 'Straight-in links', 'straightin')}${nav('/settings', 'fa-sliders', 'Targets & recipients', 'settings')}${nav('/admin', 'fa-gear', 'Admin', 'admin')}${nav('/users', 'fa-user-shield', 'Users', 'users')}</div>
   <div class="nav-spacer"></div>
   <a class="nav-item" href="/api/auth/logout"><i class="fas fa-right-from-bracket"></i><span>Sign out</span></a>
   <div class="sidebar-footer">Promote · social.gershon.ai<br>Network · Straight-in<br>Engage · Streak</div>
@@ -40,7 +41,7 @@ export function shell(opts: { title: string; active: string; h1: string; right?:
   <div class="content">${opts.body}</div>
 </main></div>
 <div id="toast"></div>
-<script src="/static/v3.js?v=8"></script></body></html>`
+<script src="/static/v3.js?v=9"></script></body></html>`
 }
 
 function monthSeg(): string {
@@ -67,10 +68,11 @@ function clientPage(no: number, name: string, keys: string[]): string {
   const legacy = keys[0] ? `<a class="btn" href="/?company=${encodeURIComponent(keys[0])}"><i class="fas fa-table-list"></i> Detailed view</a>` : ''
   return shell({
     title: `#${no} ${name}`, active: 'c' + no, h1: `<span class="cno">#${no}</span> ${esc(name)}`, data: { page: 'client', no: String(no) },
-    right: `${monthSeg()}<a class="btn" id="pdfBtn" href="#" target="_blank"><i class="fas fa-file-pdf"></i> Client report</a>${legacy}`,
+    right: `${monthSeg()}<a class="btn primary" id="storyBtn" href="/client/${no}/story" target="_blank"><i class="fas fa-chart-line"></i> Interactive report</a><a class="btn" id="pdfBtn" href="#" target="_blank"><i class="fas fa-file-pdf"></i> PDF</a>${legacy}`,
     body: `
 <div class="summary" id="summary"><div class="summary-text" id="summaryText"><span class="skeleton">Loading…………………………………</span></div><div id="scoreBox"></div></div>
 <div class="grid cols-3" id="channels"></div>
+<div id="accounts"></div>
 <div class="grid cols-2" id="details"></div>
 <div id="history"></div>`,
   })
@@ -81,7 +83,7 @@ function reportsPage(s: V3Settings): string {
   const card = (kind: ReportKind, icon: string, title: string, desc: string, to: string, extra = '') => `
 <div class="card report-card"><div class="card-header" style="margin:0"><h3><i class="fas ${icon}" style="color:var(--brand)"></i> ${title}</h3></div>
 <p>${desc}</p><p style="font-size:12px"><b>Sent to:</b> ${to}</p>${extra}
-<div class="actions"><button class="btn" data-preview="${kind}"><i class="fas fa-eye"></i> Preview</button><button class="btn" data-pdf="${kind}"><i class="fas fa-file-pdf"></i> PDF</button><button class="btn primary" data-send="${kind}"><i class="fas fa-paper-plane"></i> Send now</button></div></div>`
+<div class="actions">${kind === 'client' ? `<button class="btn" data-story="1"><i class="fas fa-chart-line"></i> Interactive</button>` : ''}<button class="btn" data-preview="${kind}"><i class="fas fa-eye"></i> Preview</button><button class="btn" data-pdf="${kind}"><i class="fas fa-file-pdf"></i> PDF</button><button class="btn primary" data-send="${kind}"><i class="fas fa-paper-plane"></i> Send now</button></div></div>`
   return shell({
     title: 'Monthly reports', active: 'reports', h1: 'Monthly reports', data: { page: 'reports', lastmonth: lastFullMonthKey() },
     right: `<div class="field" style="margin:0"><input type="month" id="month" value="${lastFullMonthKey()}" max="${todayNY().slice(0, 7)}"></div>`,
@@ -90,16 +92,45 @@ function reportsPage(s: V3Settings): string {
 <div class="grid cols-3">
 ${card('straightin', 'fa-handshake', 'Straight-in — leads goal & acceptance goal', 'For our LinkedIn provider: two equally important goals per client — ' + s.leadsPerMonth + ' qualified leads per LinkedIn user per month (Finance Montreal and Altavia run 2 users) and an acceptance rate above ' + s.acceptTarget + '%. Shows how far each client is from each goal, in %, and ends with concrete requests for next month.', esc(s.straightinEmail || s.internalEmail + ' (to forward — add Straight-in\'s email in Settings)'))}
 ${card('internal', 'fa-chart-line', 'Gershon — our results', 'Portfolio score, every client against target on Promote, Network and Engage, and the sources of improvement ranked by impact.', esc(s.internalEmail))}
-${card('client', 'fa-star', 'Client — one-pager', 'Always positive and encouraging: wins, highlights and what comes next. One-page summary in the email, PDF attached.', s.autoSendClients ? 'each client\'s address (Settings), copy to ' + esc(s.internalEmail) : esc(s.internalEmail) + ' for review before forwarding', `<div class="field" style="margin:0"><select id="clientSel">${opts}</select></div>`)}
+${card('client', 'fa-star', 'Client — one-pager', 'Always positive on the campaign\'s actions: what we did, insights, and an interactive web report with charts since launch (link in the email). One-page summary in the email, PDF attached.', s.autoSendClients ? 'each client\'s address (Settings), copy to ' + esc(s.internalEmail) : esc(s.internalEmail) + ' for review before forwarding', `<div class="field" style="margin:0"><select id="clientSel">${opts}</select></div>`)}
 </div>
 <div class="card" id="previewCard" style="display:none"><div class="card-header"><h3 id="previewTitle">Preview</h3><button class="btn" onclick="document.getElementById('previewCard').style.display='none'">Close</button></div><iframe class="preview" id="previewFrame"></iframe></div>`,
   })
 }
 
-function settingsPage(s: V3Settings, resendOk: boolean): string {
+function settingsPage(s: V3Settings, resendOk: boolean, shared: Record<string, string> = {}): string {
+  const sv = (r: any) => servicesFor(r, s)
+  const box = (r: any, k: 'promote' | 'network' | 'engage') => `<td style="text-align:center"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" name="sv_${r.no}_${k}"${sv(r)[k] ? ' checked' : ''}><span style="font-size:12px;color:var(--muted)">${sv(r)[k] ? 'On' : 'Off'}</span></label></td>`
+  const svcRows = CLIENT_REGISTRY.map(r => `<tr><td><span class="cno">#${r.no}</span> ${esc(r.name)}${(r.campaigns || []).length ? ` <span style="color:var(--muted);font-size:12px">(${esc((r.campaigns || []).join(', '))})</span>` : ''}</td>${box(r, 'promote')}${box(r, 'network')}${box(r, 'engage')}</tr>`).join('')
   const rows = CLIENT_REGISTRY.map(r => `<tr><td><span class="cno">#${r.no}</span> ${esc(r.name)}</td>
     <td><input name="pt_${r.no}" type="number" step="0.5" min="0" placeholder="${s.promoteTarget}" value="${s.promoteTargets[String(r.no)] ?? ''}" style="width:90px;border:1px solid var(--border);border-radius:8px;padding:7px"></td>
     <td><input name="ce_${r.no}" type="text" placeholder="client@company.com" value="${esc(s.clientEmails[String(r.no)] || '')}" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:7px"></td></tr>`).join('')
+  // LinkedIn account profiles — one block per account for multi-account clients (Altavia: Anne + Alexandre)
+  const inp = (no: number, i: number, k: string, v: string, ph: string) => `<input name="ap_${no}_${i}_${k}" type="text" placeholder="${esc(ph)}" value="${esc(v)}" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:7px">`
+  const status = (ok: boolean, yes: string, no: string) => `<div class="hint" style="color:${ok ? '#057642' : 'var(--muted)'}">${ok ? '● ' + yes : '○ ' + no}</div>`
+  const multi = CLIENT_REGISTRY.filter(r => (r.campaigns || []).length >= 2).sort((a, b) => (a.no === 229 ? -1 : b.no === 229 ? 1 : a.no - b.no))
+  const profCards = multi.map(r => {
+    const ps = profilesFor(r, s)
+    const sharedUrl = shared[String(r.no)] || ''
+    const adminUrl = (name: string) => shared[`${r.no}:${name}`] || ''
+    const blocks = ps.map((p, i) => {
+      const pk = pipelineKeyOf(p.streakUrl), rid = reportIdOf(p.straightinUrl)
+      const same = pk && ps.some((q, j) => j !== i && pipelineKeyOf(q.streakUrl) === pk)
+      return `<div style="border:1px solid var(--border);border-radius:10px;padding:12px 14px">
+      <input type="hidden" name="ap_${r.no}_${i}_name" value="${esc(p.name)}">
+      <div style="font-weight:800;font-size:14px;margin-bottom:8px"><i class="fab fa-linkedin" style="color:#0a66c2"></i> Profile ${i + 1} — ${esc(p.name)}</div>
+      <div class="field"><label>Full name</label>${inp(r.no, i, 'fullName', p.fullName, p.name + ' …')}</div>
+      <div class="field"><label>LinkedIn profile</label>${inp(r.no, i, 'linkedinUrl', p.linkedinUrl, 'https://www.linkedin.com/in/…')}</div>
+      <div class="field"><label>Streak pipeline link</label>${inp(r.no, i, 'streakUrl', p.streakUrl, 'https://www.streak.com/a/pipelines/…')}${p.streakUrl && !pk ? status(false, '', 'Not a Streak pipeline link') : same ? status(true, 'Same pipeline as the other profile — leads shown combined', '') : status(!!pk || !!adminUrl(p.name), pk ? 'Own pipeline — leads counted for ' + p.name : 'Empty — uses the Admin entry ' + r.name + ' (' + p.name + ') pipeline', sharedUrl ? 'Empty — uses the shared ' + r.name + ' pipeline (combined)' : 'Empty — no pipeline yet (here or in Admin)')}</div>
+      <div class="field"><label>Straight-in report link</label>${inp(r.no, i, 'straightinUrl', p.straightinUrl, 'https://prospecthub.straight-in.com/…crp_…')}${p.straightinUrl && !rid ? status(false, '', 'No crp_ report id in this link') : status(!!rid, 'Report linked to ' + p.name + ' (the newest week wins over /straightin)', 'Empty — taken from the weekly links on /straightin')}</div>
+      <div class="field"><label>Linalysis account email</label>${inp(r.no, i, 'linalysis', p.linalysis, 'name@company.com')}</div>
+      <div class="field" style="margin-bottom:0"><label>Notes</label>${inp(r.no, i, 'notes', p.notes, 'Optional')}</div>
+    </div>`
+    }).join('')
+    return `<div class="card" style="margin-bottom:16px"><div class="card-header"><h3><span class="cno">#${r.no}</span> ${esc(r.name)} — LinkedIn account profiles</h3></div>
+    <div class="hint" style="margin:-4px 0 10px">${ps.length} profiles, goal ${s.leadsPerMonth} leads each. ${sharedUrl ? `Shared client pipeline: <a href="${esc(sharedUrl)}" target="_blank" style="color:#CC3333">open in Streak</a>. ` : ''}Give each profile its own Streak link to split leads per person.</div>
+    <div class="grid cols-2">${blocks}</div></div>`
+  }).join('')
   return shell({
     title: 'Targets & recipients', active: 'settings', h1: 'Targets & recipients', data: { page: 'settings' },
     body: `
@@ -117,6 +148,8 @@ ${resendOk ? '' : `<div class="summary" style="border-left-color:var(--warn)"><d
   <div class="field"><label><input name="autoSendClients" type="checkbox"${s.autoSendClients ? ' checked' : ''}> Send client reports directly to clients on the 1st</label><div class="hint">Off = client reports come to the internal address first, ready to forward.</div></div>
  </div>
 </div>
+${profCards}
+<div class="card" style="padding:0;overflow:auto;margin-bottom:16px"><div class="card-header" style="padding:14px 16px 0"><h3>Services we deliver</h3></div><div class="hint" style="padding:4px 16px 8px">Off = not collected, not in the client report, not in scores and not checked for data gaps.</div><table class="ctable"><thead><tr><th>Client</th><th style="text-align:center">Promote</th><th style="text-align:center">Network</th><th style="text-align:center">Engage</th></tr></thead><tbody>${svcRows}</tbody></table></div>
 <div class="card" style="padding:0;overflow:auto"><table class="ctable"><thead><tr><th>Client</th><th>Posts target (override)</th><th>Client report recipients</th></tr></thead><tbody>${rows}</tbody></table></div>
 <div style="margin-top:16px;display:flex;gap:10px"><button class="btn primary" type="submit"><i class="fas fa-check"></i> Save</button></div>
 </form>`,
@@ -127,11 +160,11 @@ ${resendOk ? '' : `<div class="summary" style="border-left-color:var(--warn)"><d
 async function sendReport(env: any, m: ReportModel, to: string[], bcc: string[] = []): Promise<{ ok: boolean; id?: string; error?: string }> {
   if (!env.RESEND_API_KEY) return { ok: false, error: 'RESEND_API_KEY not configured on the Cloudflare project' }
   const addr = ((env.REPORT_FROM_EMAIL || '').match(/<([^>]+)>/) || [])[1] || (env.REPORT_FROM_EMAIL && env.REPORT_FROM_EMAIL.includes('@') ? env.REPORT_FROM_EMAIL : 'reports@gershon.ai')
-  const from = m.kind === 'internal' ? `GC Client Reports <${addr}>` : `Gershon Consulting <${addr}>`
+  const from = m.kind === 'internal' ? `GC Client Reports <${addr}>` : m.kind === 'gaps' ? `GC Data Gaps <${addr}>` : `Gershon Consulting <${addr}>`
   const r = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from, to, bcc: bcc.length ? bcc : undefined, subject: m.subject, html: reportHtml(m), attachments: [{ filename: m.filename, content: reportPdfBase64(m) }] }),
+    body: JSON.stringify({ from, to, bcc: bcc.length ? bcc : undefined, subject: m.subject, html: reportHtml(m), attachments: m.kind === 'gaps' ? undefined : [{ filename: m.filename, content: reportPdfBase64(m) }] }),
   })
   const body = await r.text().catch(() => '')
   return r.ok ? { ok: true, id: (body.match(/"id"\s*:\s*"([^"]+)"/) || [])[1] } : { ok: false, error: body.slice(0, 300) }
@@ -139,6 +172,28 @@ async function sendReport(env: any, m: ReportModel, to: string[], bcc: string[] 
 const emails = (s: string) => String(s || '').split(/[,;\s]+/).map(x => x.trim()).filter(x => /.+@.+\..+/.test(x))
 
 // ── Registration ─────────────────────────────────────────────────────────────
+// ── Data gaps page ───────────────────────────────────────────────────────────
+function gapsPage(monthKey: string, label: string, rows: ClientMonth[]): string {
+  const lvl = (l: string) => `<span style="display:inline-block;font-size:10px;font-weight:800;letter-spacing:.06em;padding:1px 6px;border:1.5px ${l === 'partial' ? 'dashed' : 'solid'} #111;white-space:nowrap">${l.toUpperCase()}</span>`
+  const total = rows.reduce((a, r) => a + (r.gaps || []).length, 0)
+  const blocks = rows.map(r => {
+    const g = r.gaps || []
+    const body = g.length
+      ? `<table style="width:100%;border-collapse:collapse;font-size:13px">${g.map(x => `<tr style="border-top:1px solid #e5e7eb">
+          <td style="padding:7px 8px;width:90px;color:#6e6e73;font-weight:600">${esc(x.area)}</td>
+          <td style="padding:7px 8px"><b>${esc(x.what)}</b><div style="color:#6e6e73;font-size:12px;margin-top:2px">${esc(x.effect)}</div>${x.fix ? `<div style="font-size:12px;margin-top:3px"><a href="${esc(x.fix.url)}" target="_blank" style="color:#CC3333;font-weight:700;text-decoration:none">Add it →</a> <span style="color:#6e6e73">${esc(x.fix.place)}</span></div>` : ''}</td>
+          <td style="padding:7px 8px;width:190px;color:#6e6e73">${esc(x.owner)}</td>
+          <td style="padding:7px 8px;width:90px;text-align:right">${lvl(x.level)}</td></tr>`).join('')}</table>`
+      : `<div style="padding:8px;color:#6e6e73">Nothing missing for ${esc(label)}.</div>`
+    return `<div class="card" style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+      <a href="/client/${r.no}" style="font-weight:800;font-size:15px;color:#111;text-decoration:none">#${r.no} ${esc(r.name)}</a>
+      <span style="color:#6e6e73;font-size:12px">${g.length} gap${g.length === 1 ? '' : 's'}</span></div>${body}</div>`
+  }).join('')
+  const right = `<form method="get" style="display:flex;gap:8px;align-items:center"><input type="month" name="month" value="${esc(monthKey)}" class="input" style="padding:6px 8px"><button class="btn" type="submit">Show</button><a class="btn" href="/gaps?month=${esc(monthKey)}&fresh=1">Refresh</a></form>`
+  return shell({ title: 'Data gaps', active: 'gaps', h1: `Data gaps · ${esc(label)}`, right,
+    body: `<p style="color:#6e6e73;margin:0 0 14px">${total} item${total === 1 ? '' : 's'} the ${esc(label)} reports cannot fill yet.</p><div class="card" style="margin-bottom:14px;overflow:auto">${gapsMatrixHtml(rows)}</div><div class="card" style="margin-bottom:14px;overflow:auto"><h3 style="margin:0 0 8px">Where to add the missing data</h3>${whereHtml(rows)}</div>${blocks}` })
+}
+
 export function registerV3(app: Hono<any>, deps: Deps) {
   // Theme + top bar on every legacy HTML page (v3 pages are already styled).
   app.use('*', async (c, next) => {
@@ -159,7 +214,7 @@ export function registerV3(app: Hono<any>, deps: Deps) {
     html = html.includes('</head>') ? html.replace('</head>', theme + '</head>') : theme + html
     const showBar = path !== '/login' && !(path === '/' && !new URL(c.req.url).searchParams.get('company'))
     if (showBar) {
-      const bar = `<div id="gc-topnav"><span class="b">Gershon</span><a href="/dashboard">Dashboard</a><a href="/reports">Monthly reports</a><a href="/straightin">Straight-in links</a><a href="/settings">Settings</a><a href="/admin">Admin</a><a href="/users">Users</a></div>`
+      const bar = `<div id="gc-topnav"><span class="b">Gershon</span><a href="/dashboard">Dashboard</a><a href="/reports">Monthly reports</a><a href="/gaps">Data gaps</a><a href="/straightin">Straight-in links</a><a href="/settings">Settings</a><a href="/admin">Admin</a><a href="/users">Users</a></div>`
       html = html.replace(/<body([^>]*)>/i, (m0) => m0 + bar)
     }
     const headers = new Headers(c.res.headers); headers.delete('content-length')
@@ -178,7 +233,38 @@ export function registerV3(app: Hono<any>, deps: Deps) {
     return htmlV3(c, clientPage(r.no, r.name, r.keys))
   })
   app.get('/reports', async (c) => htmlV3(c, reportsPage(await readSettings(c.env.COMPANIES_KV))))
-  app.get('/settings', async (c) => htmlV3(c, settingsPage(await readSettings(c.env.COMPANIES_KV), !!c.env.RESEND_API_KEY)))
+
+  // Data gaps — every number the month's reports could not fill, per client, with an owner.
+  app.get('/gaps', async (c) => {
+    const win = monthWin(c.req.query('month') || todayNY().slice(0, 7))
+    const s = await readSettings(c.env.COMPANIES_KV)
+    const fresh = c.req.query('fresh') === '1'
+    const rows: ClientMonth[] = []
+    for (const r of CLIENT_REGISTRY) rows.push(await getClientMonth(c.env, deps, r, win.key, { fresh, settings: s }))
+    return htmlV3(c, gapsPage(win.key, win.label, rows))
+  })
+  app.get('/api/v3/gaps', async (c) => {
+    const win = monthWin(c.req.query('month') || todayNY().slice(0, 7))
+    const s = await readSettings(c.env.COMPANIES_KV)
+    const out = []
+    for (const r of CLIENT_REGISTRY) {
+      const cm = await getClientMonth(c.env, deps, r, win.key, { fresh: c.req.query('fresh') === '1', settings: s })
+      out.push({ no: cm.no, name: cm.name, gaps: cm.gaps })
+    }
+    return c.json({ month: win.key, clients: out })
+  })
+  app.get('/settings', async (c) => {
+    const shared: Record<string, string> = {}
+    for (const r of CLIENT_REGISTRY.filter(x => (x.campaigns || []).length >= 2)) {
+      const co: any = await deps.getCompany(c.env.COMPANIES_KV, r.keys[0]).catch(() => null)
+      if (co?.pipelineKey && r.keys.length === 1) shared[String(r.no)] = co.url || `https://www.streak.com/a/pipelines/${co.pipelineKey}`
+      for (const [k, name] of Object.entries(r.accountKeys || {})) {
+        const a: any = await deps.getCompany(c.env.COMPANIES_KV, k).catch(() => null)
+        if (a?.pipelineKey) shared[`${r.no}:${name}`] = `https://www.streak.com/a/pipelines/${a.pipelineKey}`
+      }
+    }
+    return htmlV3(c, settingsPage(await readSettings(c.env.COMPANIES_KV), !!c.env.RESEND_API_KEY, shared))
+  })
 
   // ── API ──
   app.get('/api/v3/registry', async (c) => {
@@ -188,8 +274,10 @@ export function registerV3(app: Hono<any>, deps: Deps) {
   app.post('/api/v3/settings', async (c) => {
     const b = await c.req.json().catch(() => ({})) as any
     const s = await saveSettings(c.env.COMPANIES_KV, b)
+    // account links changed → drop this month's and last month's cached client records
+    if (b && b.accounts) { for (const r of CLIENT_REGISTRY) for (const m of [monthWin(todayNY().slice(0, 7)).key, lastFullMonthKey()]) await c.env.COMPANIES_KV.delete(`v3:cm9:${m}:${r.no}`).catch(() => {}) }
     // targets changed → drop cached month records so percentages recompute
-    await Promise.all([monthWin().key, lastFullMonthKey()].flatMap(m => CLIENT_REGISTRY.map(r => c.env.COMPANIES_KV.delete(`v3:cm6:${m}:${r.no}`).catch(() => null))))
+    await Promise.all([monthWin().key, lastFullMonthKey()].flatMap(m => CLIENT_REGISTRY.map(r => c.env.COMPANIES_KV.delete(`v3:cm9:${m}:${r.no}`).catch(() => null))))
     return c.json({ ok: true, settings: s })
   })
   app.get('/api/v3/client/:no', async (c) => {
@@ -201,6 +289,40 @@ export function registerV3(app: Hono<any>, deps: Deps) {
     return c.json({ client: cm, month: monthWin(month), settings: s })
   })
 
+  const originOf = (c: any) => { const u = new URL(c.req.url); return /localhost|127\.0\.0\.1/.test(u.host) ? u.origin : (c.env.PUBLIC_APP_URL || u.origin) }
+  async function storyHistory(env: any, r: any, s: V3Settings): Promise<StoryHistory | null> {
+    try { const p = await clientProjection(env, deps, r, s); return { start: p.start, series: p.series, next3RunRate: p.next3RunRate, basis: p.basis } } catch { return null }
+  }
+  async function renderStory(c: any, r: any, monthKey: string, withPdf: string | null) {
+    const s = await readSettings(c.env.COMPANIES_KV)
+    const win = monthWin(monthKey)
+    const cm = await getClientMonth(c.env, deps, r, win.key, { settings: s })
+    const h = await storyHistory(c.env, r, s)
+    const m = clientModel(cm, win.label, win.key)
+    const next = m.sections.find(x => x.title === 'Next month')?.lines || []
+    c.header('x-gc-v3', '1')
+    return c.html(storyPage(cm, win.key, win.label, m.headline, m.subline, h, withPdf, next))
+  }
+  // Interactive client report — public signed link (sent in the client email)
+  app.get('/r/:no/:month/:sig', async (c) => {
+    const { no, month, sig } = c.req.param()
+    const r = registryByNo(no)
+    if (!r || !/^\d{4}-\d{2}$/.test(month) || !(await verifyReportSig(c.env, no, month, sig))) return c.text('This report link is not valid.', 404)
+    if (c.req.query('format') === 'pdf') {
+      const m = await buildModel(c, 'client', month, no)
+      if ('error' in m) return c.text(m.error, 400)
+      return new Response(pdfBytesFromBase64(reportPdfBase64(m)), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${m.filename}"` } })
+    }
+    return renderStory(c, r, month, `/r/${no}/${month}/${sig}?format=pdf`)
+  })
+  // Signed-in shortcut: /client/:no/story?month=YYYY-MM → the client's signed link
+  app.get('/client/:no/story', async (c) => {
+    const r = registryByNo(c.req.param('no'))
+    if (!r) return c.redirect('/dashboard', 302)
+    const month = monthWin(c.req.query('month') || lastFullMonthKey()).key
+    return c.redirect(await reportLink(c.env, new URL(c.req.url).origin, r.no, month), 302)
+  })
+
   async function buildModel(c: any, kind: ReportKind, monthKey: string, no?: string | null): Promise<ReportModel | { error: string }> {
     const s = await readSettings(c.env.COMPANIES_KV)
     const win = monthWin(monthKey)
@@ -208,14 +330,16 @@ export function registerV3(app: Hono<any>, deps: Deps) {
       const r = registryByNo(no || '')
       if (!r) return { error: 'client number required' }
       const cm = await getClientMonth(c.env, deps, r, win.key, { settings: s })
-      return clientModel(cm, win.label, win.key)
+      const h = await storyHistory(c.env, r, s)
+      const link = await reportLink(c.env, originOf(c), r.no, win.key)
+      return clientModel(cm, win.label, win.key, { link, insights: insightsOf(cm, h, win.key) })
     }
     const all: ClientMonth[] = []
     for (const r of CLIENT_REGISTRY) all.push(await getClientMonth(c.env, deps, r, win.key, { settings: s }))
     const p = portfolioOf(win, all, s)
-    return kind === 'internal' ? internalModel(p, s) : straightinModel(p, s)
+    return kind === 'internal' ? internalModel(p, s) : kind === 'gaps' ? gapsModel(p, s) : straightinModel(p, s)
   }
-  const kindOf = (k: string): ReportKind | null => (['straightin', 'internal', 'client'].includes(k) ? k as ReportKind : null)
+  const kindOf = (k: string): ReportKind | null => (['straightin', 'internal', 'client', 'gaps'].includes(k) ? k as ReportKind : null)
 
   app.get('/api/v3/report/:kind', async (c) => {
     const kind = kindOf(c.req.param('kind'))
@@ -253,7 +377,7 @@ export function registerV3(app: Hono<any>, deps: Deps) {
     const s = await readSettings(c.env.COMPANIES_KV)
     const no = c.req.query('no'), part = c.req.query('part')
     const item = no ? `client-${no}` : part
-    if (!item || (part && !['internal', 'straightin'].includes(part))) return c.json({ error: 'pass ?no=<client> or ?part=internal|straightin' }, 400)
+    if (!item || (part && !['internal', 'straightin', 'gaps'].includes(part))) return c.json({ error: 'pass ?no=<client> or ?part=internal|straightin|gaps' }, 400)
     const sentKey = `v3:sent:${month.key}:${item}`
     const already = await c.env.COMPANIES_KV.get(sentKey)
     if (already && c.req.query('force') !== '1') return c.json({ ok: true, skipped: true, already })
