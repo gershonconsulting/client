@@ -1,0 +1,15 @@
+# Cloudflare Worker "gershon-client-cron" — the schedule for client.gershoncrm.com
+# (Cloudflare Pages has no cron). Deployed by .github/workflows/deploy-cron.yml on main only.
+name = "gershon-client-cron"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+workers_dev = false
+
+[triggers]
+# Mondays, UTC:
+#   09:05 → #24 weekly client report   (05:05 New York in EDT, 04:05 in EST)
+#   13:10 → #07 GC Pipeline next due dates (09:10 New York in EDT, 08:10 in EST)
+crons = ["5 9 * * 1", "10 13 * * 1"]
+
+# Secret (not in git): REPORT_CRON_KEY — same value as the gershoncrm-client Pages secret.
+# Pushed from the GitHub repo secret REPORT_CRON_KEY by the deploy workflow.
