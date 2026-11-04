@@ -11,7 +11,7 @@ import { projectClient, newClientOutlook, type MonthPoint, type ClientProjection
 
 const addMonth = (k: string, n: number) => { const [y, m] = k.split('-').map(Number); const d = new Date(Date.UTC(y, m - 1 + n, 15)); return d.toISOString().slice(0, 7) }
 
-async function clientProjection(env: any, deps: Deps, r: RegistryEntry, s: V3Settings): Promise<{ no: number; name: string; start: string | null } & ClientProjection> {
+export async function clientProjection(env: any, deps: Deps, r: RegistryEntry, s: V3Settings): Promise<{ no: number; name: string; start: string | null } & ClientProjection> {
   const h = CLIENT_HISTORY[r.no]
   const series: MonthPoint[] = (h?.months || []).map(([month, sent, accepted, opportunities]) => ({ month, sent, accepted, opportunities, live: false }))
   const cur = todayNY().slice(0, 7)

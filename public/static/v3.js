@@ -26,6 +26,9 @@
     if (!parts.length) return null;
     return Math.round(parts.map(function (p) { return Math.min(100, p); }).reduce(function (a, b) { return a + b; }, 0) / parts.length);
   }
+  var on = function (cm, k) { return !cm.services || cm.services[k] !== false; };
+  var offCell = function (t) { return '<div class="chan"><div class="v muted">Not in plan</div><div class="s">' + t + '</div></div>'; };
+  var accLine = function (cm) { return (cm.campaigns || []).length > 1 ? '<div class="muted" style="font-size:11px;font-weight:400">' + cm.campaigns.length + ' accounts: ' + esc(cm.campaigns.join(' + ')) + '</div>' : ''; };
   function chanP(cm) {
     if (cm.promoteInPlan === false) return '<div class="chan"><div class="v muted">Not in plan</div><div class="s">No social content for this client</div></div>';
     if (!cm.promote) return '<div class="chan"><div class="v muted">No social account</div><div class="s">Not collecting in social.gershon.ai</div>' + bar(null) + '</div>';
@@ -33,12 +36,14 @@
     return '<div class="chan"><div class="v">' + fmt(p.posts) + ' of ' + fmt(p.target) + ' posts <span class="pill ' + band(p.pct) + '">' + p.pct + '%</span></div>' + bar(p.pct) + '<div class="s">' + p.perDay + ' / working day · ' + fmt(p.engagement) + ' engagements</div></div>';
   }
   function chanN(cm, s) {
+    if (!on(cm, 'network')) return offCell('No LinkedIn campaign for this client');
     if (!cm.network) return '<div class="chan"><div class="v muted">No campaign report</div><div class="s">Paste the Straight-in link</div>' + bar(null) + '</div>';
     var n = cm.network;
     if (n.pending) return '<div class="chan"><div class="v muted">Awaiting report</div><div class="s">No Straight-in week covers this month yet</div>' + bar(null) + '</div>';
     return '<div class="chan"><div class="v">' + n.rate + '% accepted <span class="pill ' + band(nb(n.pct)) + '">' + n.pct + '%</span></div>' + bar(nb(n.pct)) + '<div class="s">' + fmt(n.accepted) + ' of ' + fmt(n.sent) + ' invites · ' + fmt(n.opportunities) + ' opps</div></div>';
   }
   function chanE(cm, s) {
+    if (!on(cm, 'engage')) return offCell('No lead pipeline for this client');
     if (!cm.engage) return '<div class="chan"><div class="v muted">No pipeline</div><div class="s">Streak not configured</div>' + bar(null) + '</div>';
     var e = cm.engage;
     return '<div class="chan"><div class="v">' + fmt(e.newLeads) + ' new leads <span class="pill ' + band(e.pct) + '">' + e.pct + '%</span></div>' + bar(e.pct) + '<div class="s">goal ' + e.target + '/month · ' + fmt(e.meetings) + ' meetings · ' + fmt(e.activeLeads) + ' active</div></div>';
@@ -71,7 +76,7 @@
               if (my !== gen) return;
               var cm = d.client; results[r.no] = cm;
               var tr = document.querySelector('tr[data-no="' + r.no + '"]');
-              tr.innerHTML = '<td><span class="cno">' + r.no + '</span> <b>' + esc(r.name) + '</b></td><td>' + chanP(cm) + '</td><td>' + chanN(cm) + '</td><td>' + chanE(cm) + '</td><td class="hide-sm" style="text-align:center">' + scoreBadge(score(cm)) + '</td>';
+              tr.innerHTML = '<td><span class="cno">' + r.no + '</span> <b>' + esc(r.name) + '</b>' + accLine(cm) + '</td><td>' + chanP(cm) + '</td><td>' + chanN(cm) + '</td><td>' + chanE(cm) + '</td><td class="hide-sm" style="text-align:center">' + scoreBadge(score(cm)) + '</td>';
               totals(d.month, s);
             }).catch(function () { }).then(function () { running--; next(); });
           })(queue.shift());
@@ -161,6 +166,7 @@
     function load() {
       var m = monthKey(current);
       $('pdfBtn').href = '/api/v3/report/client?client=' + no + '&month=' + m + '&format=pdf';
+      if ($('storyBtn')) $('storyBtn').href = '/client/' + no + '/story?month=' + m;
       $('channels').innerHTML = '<div class="card"><span class="skeleton">loading…………</span></div><div class="card"><span class="skeleton">loading…………</span></div><div class="card"><span class="skeleton">loading…………</span></div>';
       $('details').innerHTML = '';
       getJSON('/api/v3/client/' + no + '?month=' + m).then(function (d) {
@@ -170,11 +176,26 @@
         var card = function (icon, title, src, inner) { return '<div class="card chan-card"><div class="card-header"><h3><i class="fas ' + icon + '"></i>' + title + '</h3><span class="muted" style="font-size:11px">' + src + '</span></div>' + inner + '</div>'; };
         var stat = function (k, v) { return '<div><div class="k">' + k + '</div><div class="v">' + v + '</div></div>'; };
         var p = cm.promote, n = cm.network, e = cm.engage;
-        var cp = cm.promoteInPlan === false ? '<div class="empty">Social content creation is not part of this project.</div>' : p ? '<div class="big">' + fmt(p.posts) + ' <span style="font-size:15px;color:var(--text-muted)">of ' + fmt(p.target) + ' posts</span></div><div style="margin:8px 0">' + bar(p.pct) + '</div><div class="muted" style="font-size:12px">' + p.pct + '% of ' + esc(p.targetLabel) + ' · ' + p.perDay + ' per working day</div><div class="stat-grid">' + stat('Engagements', fmt(p.engagement)) + stat('Followers', p.followers ? fmt(p.followers) : '—') + stat('New followers', p.followers ? (p.followersGrowth >= 0 ? '+' : '') + fmt(p.followersGrowth) : '—') + '</div><div class="muted" style="font-size:11px">' + esc(p.platforms.join(' + ') || '') + ' · last month ' + fmt(p.prevPosts) + ' posts</div>' : '<div class="empty">No social account is collecting for this client in social.gershon.ai.</div>';
+        var cp = cm.promoteInPlan === false ? '<div class="empty">Social content creation is not part of this project.</div>' : p ? '<div class="big">' + fmt(p.posts) + ' <span style="font-size:15px;color:var(--text-muted)">of ' + fmt(p.target) + ' posts</span></div><div style="margin:8px 0">' + bar(p.pct) + '</div><div class="muted" style="font-size:12px">' + p.pct + '% of ' + esc(p.targetLabel) + ' · ' + p.perDay + ' per working day</div><div class="stat-grid">' + stat('Engagements', fmt(p.engagement)) + stat('Followers', p.followers ? fmt(p.followers) : '—') + stat('New followers', p.followers ? (p.followersGrowth >= 0 ? '+' : '') + fmt(p.followersGrowth) : '—') + '</div><div class="muted" style="font-size:11px">' + esc(p.platforms.join(' + ') || '') + ' · last month ' + fmt(p.prevPosts) + ' posts</div>' : '<div class="empty">' + esc(cm.promoteWhy || 'No social account is collecting for this client in social.gershon.ai.') + ' <a href="https://socialtracking.gershon.ai" target="_blank" style="color:var(--brand);font-weight:600">Open socialtracking</a></div>';
         var cn = n && n.pending ? '<div class="empty">No Straight-in weekly report covers ' + esc(mo.label) + ' yet. Last report: ' + esc(n.lastReport) + '.</div>' : n ? '<div class="big">' + n.rate + '% <span style="font-size:15px;color:var(--text-muted)">accepted</span></div><div style="margin:8px 0">' + bar(nb(n.pct)) + '</div><div class="muted" style="font-size:12px">' + n.pct + '% of the ' + s.acceptTarget + '% target · last month ' + n.prevRate + '%</div><div class="stat-grid">' + stat('Invitations', fmt(n.sent)) + stat('Accepted', fmt(n.accepted)) + stat('Opportunities', fmt(n.opportunities)) + '</div><div class="muted" style="font-size:11px">' + fmt(n.messages) + ' messages · latest report ' + esc(n.lastReport) + '</div>' : '<div class="empty">No Straight-in campaign report linked. <a href="/straightin" style="color:var(--brand);font-weight:600">Paste this week\'s links</a></div>';
         var ce = e ? '<div class="big">' + fmt(e.newLeads) + ' <span style="font-size:15px;color:var(--text-muted)">new leads</span></div><div style="margin:8px 0">' + bar(e.pct) + '</div><div class="muted" style="font-size:12px">' + e.pct + '% of ' + e.target + ' per month' + (mo.isCurrent ? ' (pro rata)' : '') + ' · last month ' + fmt(e.prevNewLeads) + '</div><div class="stat-grid">' + stat('Meetings', fmt(e.meetings)) + stat('Active', fmt(e.activeLeads)) + stat('Won', fmt(e.won)) + '</div><div class="muted" style="font-size:11px">' + fmt(e.meetingsTotal) + ' at meeting stage or beyond · ' + fmt(e.totalLeads) + ' in pipeline</div>' : '<div class="empty">No Streak pipeline configured for this client.</div>';
         if (n && ((n.missingCampaigns || []).length || (n.staleCampaigns || []).length)) cn += '<div class="note" style="margin-top:10px">' + (n.missingCampaigns || []).map(function (m) { return 'No report linked for <b>' + esc(m) + '</b>. '; }).join('') + (n.staleCampaigns || []).map(function (m) { return '<b>' + esc(m) + '</b>: report has no week in this month. '; }).join('') + '<a href="/straightin" style="color:var(--brand);font-weight:600">Straight-in links</a></div>';
-        $('channels').innerHTML = card('fa-bullhorn', 'Promote', 'social.gershon.ai', cp) + card('fa-user-plus', 'Network', 'Straight-in', cn) + card('fa-handshake', 'Engage', 'Streak', ce);
+        var cards = (on(cm, 'promote') ? card('fa-bullhorn', 'Promote', 'social.gershon.ai', cp) : '') + (on(cm, 'network') ? card('fa-user-plus', 'Network', 'Straight-in', cn) : '') + (on(cm, 'engage') ? card('fa-handshake', 'Engage', 'Streak', ce) : '');
+        var nOn = [on(cm, 'promote'), on(cm, 'network'), on(cm, 'engage')].filter(Boolean).length;
+        $('channels').className = 'grid cols-' + Math.max(2, nOn);
+        $('channels').innerHTML = cards;
+        // One block per LinkedIn account (Finance Montreal: Steve + Noza, Altavia: Anne + Alexandre)
+        var acc = '';
+        if ((cm.accounts || []).length) {
+          acc = '<div class="card" style="margin-bottom:16px"><div class="card-header"><h3><i class="fas fa-users" style="color:var(--brand)"></i> LinkedIn accounts</h3><span class="muted" style="font-size:11px">' + cm.accounts.length + ' accounts · goal ' + s.leadsPerMonth + ' leads/month each</span></div><div class="grid cols-' + cm.accounts.length + '">' +
+            cm.accounts.map(function (a) {
+              var an = a.network, ae = a.engage;
+              var net = an ? '<div class="stat-grid">' + stat('Invitations', fmt(an.sent)) + stat('Accepted', fmt(an.accepted) + ' · ' + an.rate + '%') + stat('Opportunities', fmt(an.opportunities)) + '</div><div style="margin:6px 0 10px">' + bar(nb(Math.round(an.rate / s.acceptTarget * 100))) + '</div>' : '<div class="note">No Straight-in report linked for ' + esc(a.name) + '. <a href="/straightin" style="color:var(--brand);font-weight:600">Straight-in links</a></div>';
+              var eng = ae ? '<div class="stat-grid">' + stat('New leads', fmt(ae.newLeads) + ' / ' + ae.target) + stat('Meetings', fmt(ae.meetings)) + stat('Active', fmt(ae.activeLeads)) + '</div><div style="margin-top:6px">' + bar(ae.pct) + '</div>' : (e ? '<div class="muted" style="font-size:12px">Leads: shared pipeline with the other account (' + fmt(e.newLeads) + ' new for the client).</div>' : '');
+              return '<div style="border:1px solid var(--border);border-radius:10px;padding:12px"><div style="font-weight:800;font-size:15px;margin-bottom:6px">' + esc(a.name) + (an && an.label && an.label.toLowerCase() !== a.name.toLowerCase() ? ' <span class="muted" style="font-weight:400;font-size:12px">' + esc(an.label) + '</span>' : '') + '</div>' + net + eng + '</div>';
+            }).join('') + '</div></div>';
+        }
+        if ($('accounts')) $('accounts').innerHTML = acc; else $('channels').insertAdjacentHTML('afterend', '<div id="accounts">' + acc + '</div>');
         var det = '';
         if (p) {
           var max = Math.max.apply(null, [1].concat(p.daily.map(function (x) { return x.posts; })));
@@ -182,7 +203,7 @@
         }
         if (n || e) {
           var inner = '';
-          if (n && n.campaigns && (n.campaigns.length > 1 || (cm.campaigns || []).length > 1)) inner += '<table class="data-table" style="margin-bottom:14px"><thead><tr><th>Campaign</th><th>Sent</th><th>Accepted</th><th>Rate</th><th>Opps</th></tr></thead><tbody>' + n.campaigns.map(function (k) { return '<tr><td><b>' + esc(k.label) + '</b></td><td>' + fmt(k.sent) + '</td><td>' + fmt(k.accepted) + '</td><td>' + k.rate + '%</td><td>' + fmt(k.opportunities) + '</td></tr>'; }).join('') + '</tbody></table>';
+          if (!(cm.accounts || []).length && n && n.campaigns && n.campaigns.length > 1) inner += '<table class="data-table" style="margin-bottom:14px"><thead><tr><th>Campaign</th><th>Sent</th><th>Accepted</th><th>Rate</th><th>Opps</th></tr></thead><tbody>' + n.campaigns.map(function (k) { return '<tr><td><b>' + esc(k.label) + '</b></td><td>' + fmt(k.sent) + '</td><td>' + fmt(k.accepted) + '</td><td>' + k.rate + '%</td><td>' + fmt(k.opportunities) + '</td></tr>'; }).join('') + '</tbody></table>';
           if (n && n.weeks.length) inner += '<table class="data-table"><thead><tr><th>Week of</th><th>Sent</th><th>Accepted</th><th>Messages</th><th>Opps</th></tr></thead><tbody>' + n.weeks.map(function (w) { return '<tr><td>' + w.weekStart + '</td><td>' + fmt(w.sent) + '</td><td>' + fmt(w.accepted) + '</td><td>' + fmt(w.messages) + '</td><td>' + fmt(w.opportunities) + '</td></tr>'; }).join('') + '</tbody></table>';
           if (n && n.namedOpps.length) inner += '<div style="margin-top:12px">' + n.namedOpps.map(function (o) { return '<div class="feed-item ok"><div class="feed-dot"></div><div class="feed-text"><b>' + esc(o.name) + '</b> — ' + esc(o.title) + (o.company ? ' at ' + esc(o.company) : '') + '<div class="feed-time">' + esc(o.type) + ' · ' + o.date + '</div></div></div>'; }).join('') + '</div>';
           if (e) { var f = e.funnel, tot = Object.keys(f).reduce(function (a, k) { return a + f[k]; }, 0) || 1; inner += '<div class="section-title" style="margin-top:16px">Pipeline funnel</div>' + ['contacted', 'connected', 'meeting', 'proposal', 'won', 'recycled'].map(function (k) { return '<div style="display:grid;grid-template-columns:90px 1fr 50px;gap:10px;align-items:center;margin-bottom:6px;font-size:12px"><span style="text-transform:capitalize">' + k + '</span><div class="bar ' + (k === 'recycled' ? 'none' : k === 'won' || k === 'meeting' || k === 'proposal' ? 'good' : 'crit') + '"><span style="width:' + Math.max(1, f[k] / tot * 100) + '%"></span></div><span class="num" style="text-align:right">' + fmt(f[k]) + '</span></div>'; }).join(''); }
@@ -199,6 +220,7 @@
     var monthEl = $('month');
     var url = function (kind, fmtq) { var u = '/api/v3/report/' + kind + '?month=' + monthEl.value; if (kind === 'client') u += '&client=' + $('clientSel').value; return u + (fmtq ? '&format=' + fmtq : ''); };
     document.querySelectorAll('[data-preview]').forEach(function (b) { b.onclick = function () { var k = b.getAttribute('data-preview'); $('previewCard').style.display = ''; $('previewTitle').textContent = 'Preview · ' + b.closest('.card').querySelector('h3').textContent.trim(); $('previewFrame').src = url(k); $('previewCard').scrollIntoView({ behavior: 'smooth' }); }; });
+    document.querySelectorAll('[data-story]').forEach(function (b) { b.onclick = function () { window.open('/client/' + $('clientSel').value + '/story?month=' + monthEl.value, '_blank'); }; });
     document.querySelectorAll('[data-pdf]').forEach(function (b) { b.onclick = function () { window.open(url(b.getAttribute('data-pdf'), 'pdf'), '_blank'); }; });
     document.querySelectorAll('[data-send]').forEach(function (b) {
       b.onclick = function () {
@@ -213,14 +235,18 @@
   function settings() {
     $('settingsForm').onsubmit = function (ev) {
       ev.preventDefault();
-      var f = ev.target, body = { promoteTargets: {}, clientEmails: {} };
+      var f = ev.target, body = { promoteTargets: {}, clientEmails: {}, services: {}, accounts: {} };
       ['promoteTarget', 'acceptTarget', 'leadsPerMonth'].forEach(function (k) { body[k] = Number(f[k].value); });
       body.promoteUnit = f.promoteUnit.value; body.internalEmail = f.internalEmail.value.trim(); body.straightinEmail = f.straightinEmail.value.trim(); body.autoSendClients = f.autoSendClients.checked;
       Array.prototype.forEach.call(f.elements, function (el) {
         if (/^pt_/.test(el.name) && el.value !== '') body.promoteTargets[el.name.slice(3)] = Number(el.value);
         if (/^ce_/.test(el.name) && el.value.trim()) body.clientEmails[el.name.slice(3)] = el.value.trim();
+        var ap = /^ap_(\d+)_(\d+)_(\w+)$/.exec(el.name);
+        if (ap) { var L = body.accounts[ap[1]] = body.accounts[ap[1]] || []; (L[+ap[2]] = L[+ap[2]] || {})[ap[3]] = el.value.trim(); }
+        var m = /^sv_(\d+)_(promote|network|engage)$/.exec(el.name);
+        if (m) { (body.services[m[1]] = body.services[m[1]] || {})[m[2]] = el.checked; }
       });
-      fetch('/api/v3/settings', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) { return r.json(); }).then(function (d) { toast(d.ok ? 'Saved' : 'Not saved'); });
+      fetch('/api/v3/settings', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) { return r.json(); }).then(function (d) { toast(d.ok ? 'Saved' : 'Not saved'); if (d.ok && Object.keys(body.accounts).length) setTimeout(function () { location.reload(); }, 700); });
     };
   }
 
