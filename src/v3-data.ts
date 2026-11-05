@@ -62,7 +62,9 @@ export interface V3Settings {
   internalEmail: string            // our own monthly report
   straightinEmail: string          // provider report (Straight-in)
   clientEmails: Record<string, string> // client number → comma-separated recipients
-  autoSendClients: boolean         // monthly cron mails clients directly (else to internalEmail for review)
+  autoSendClients: boolean         // legacy — clients are now only mailed on the first Friday after validation (v3-approval.ts)
+  approverEmails: { aina: string; olivier: string } // who validates client reports before the first-Friday delivery
+  approvalMode: 'either' | 'both'  // validation needed from Aina OR Olivier (either) or from both
   services: Record<string, Partial<Services>> // client number → service on/off overrides (Settings page)
   linalysis: Record<string, string>           // client number → Linalysis account email(s), comma-separated (overrides registry)
   accounts: Record<string, AccountProfile[]>  // client number → one profile per LinkedIn account (multi-account clients: Altavia, Finance Montreal)
@@ -106,6 +108,8 @@ export const DEFAULT_SETTINGS: V3Settings = {
   straightinEmail: '',
   clientEmails: {},
   autoSendClients: false,
+  approverEmails: { aina: 'aina.andriamangason@gmail.com', olivier: 'olivier@gershonconsulting.com' },
+  approvalMode: 'either',
   services: {},
   linalysis: {},
   accounts: {},
@@ -133,6 +137,8 @@ export async function saveSettings(kv: KVNamespace, s: Partial<V3Settings>): Pro
   next.promoteUnit = next.promoteUnit === 'week' ? 'week' : 'day'
   next.acceptTarget = Math.max(1, Math.min(100, Number(next.acceptTarget) || 20))
   next.leadsPerMonth = Math.max(1, Math.min(500, Number(next.leadsPerMonth) || 10))
+  next.approvalMode = next.approvalMode === 'both' ? 'both' : 'either'
+  next.approverEmails = { ...DEFAULT_SETTINGS.approverEmails, ...(cur.approverEmails || {}), ...((s as any).approverEmails || {}) }
   const linIn = (s as any).linalysis && typeof (s as any).linalysis === 'object' ? (s as any).linalysis : cur.linalysis || {}
   next.linalysis = {}
   for (const r of CLIENT_REGISTRY) { const v = String(linIn[String(r.no)] || '').trim(); if (v && v !== (r.linalysis || []).join(', ')) next.linalysis[String(r.no)] = v }

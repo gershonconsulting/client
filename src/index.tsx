@@ -218,12 +218,16 @@ const PUBLIC_PATH_PREFIXES = [
   '/favicon',
   '/api/chat/',
   '/r/', // signed interactive client reports (HMAC link, see v3-story.ts)
+  '/approve/', // signed validation links for Aina / Olivier (HMAC, see v3-approval.ts)
 ]
 const PUBLIC_EXACT_PATHS = [
   '/', // landing page when signed out; the handler redirects to the dashboard when signed in
   '/api/reports/weekly/send',
   '/api/reports/monthly/send',
   '/api/v3/monthly/run',
+  '/api/v3/monthly/deliver',
+  '/api/v3/monthly/deliver/summary',
+  '/api/v3/approval/request',
 ]
 
 function isPublicPath(path: string): boolean {
