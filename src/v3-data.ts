@@ -36,7 +36,7 @@ export const CLIENT_REGISTRY: RegistryEntry[] = [
   { no: 212, name: 'Wallix',                 reportTo: 'ldescormiers@wallix.com', keys: ['wallix'],                 socialId: 'cmp0eqlsx000dbqj3hmvwldbe', services: P_ONLY },
   { no: 229, name: 'Altavia',                reportTo: 'abougel@altavia.co, arouleau@altavia.co', keys: ['altavia', 'altavia-alexandre'], socialId: 'cmp0eqm3y000mbqj321j14ksw', services: NE, campaigns: ['Anne', 'Alexandre'], accountKeys: { 'altavia': 'Anne', 'altavia-alexandre': 'Alexandre' }, linalysis: ['abougel@altavia.co'] },
   { no: 233, name: 'Valos',                  reportTo: 'dmitri.petratchenko@valos.it', keys: ['valos'],                  socialId: 'cmp0eqlp4000abqj325ow1eyf', services: ALL, linalysis: ['dmitri.petratchenko@valos.it'] },
-  { no: 245, name: 'PhiTech Bioinformatics', reportTo: 'ozge.guney@phitech.bio', keys: ['phitech-bioinformatics'], socialId: 'cmoda8pxb000pmayx7fbslr0j', services: ALL },
+  { no: 245, name: 'PhiTech Bioinformatics', reportTo: 'tunahan.cakir@phitech.bio', keys: ['phitech-bioinformatics'], socialId: 'cmoda8pxb000pmayx7fbslr0j', services: ALL },
   { no: 246, name: 'Enzymicals AG',          reportTo: 'david.liese@enzymicals.com', keys: ['enzymicals-ag'],          socialId: 'cmrumcbd6000011b111l8s53r', services: ALL, linalysis: ['david.liese12@gmail.com'] },
   { no: 247, name: 'Flying Secoya',          reportTo: 'charles@flyingsecoya.io', keys: ['flying-secoya'],          socialId: 'cmrnknd4e0000q7qo69o3193g', services: ALL },
   { no: 248, name: 'Meteor Biotech',         reportTo: 'amos.lee@meteorbiotech.com', keys: ['meteor-biotech'],         socialId: 'cmrumd4gb000c11b193zq0t2h', services: ALL, linalysis: ['amoslee89@gmail.com'] },
