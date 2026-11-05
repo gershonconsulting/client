@@ -109,7 +109,7 @@ function reportsPage(s: V3Settings): string {
 <div class="grid cols-3">
 ${card('straightin', 'fa-handshake', 'Straight-in — leads goal & acceptance goal', 'For our LinkedIn provider: two equally important goals per client — ' + s.leadsPerMonth + ' qualified leads per LinkedIn user per month (Finance Montreal and Altavia run 2 users) and an acceptance rate above ' + s.acceptTarget + '%. Shows how far each client is from each goal, in %, and ends with concrete requests for next month.', esc(s.straightinEmail || s.internalEmail + ' (to forward — add Straight-in\'s email in Settings)'))}
 ${card('internal', 'fa-chart-line', 'Gershon — our results', 'Portfolio score, every client against target on Promote, Network and Engage, and the sources of improvement ranked by impact.', esc(s.internalEmail))}
-${card('client', 'fa-star', 'Client — one-pager', 'Always positive on the campaign\'s actions: what we did, insights, and an interactive web report with charts since launch (link in the email). One-page summary in the email, PDF attached.', 'review copy to ' + esc(s.internalEmail) + ' on the 1st; to the client (professional email) on the first Friday, from client@gershon.ai, once validated — <a href="/delivery" style="color:#CC3333">validation status</a>', `<div class="field" style="margin:0"><select id="clientSel">${opts}</select></div>`)}
+${card('client', 'fa-star', 'Client — monthly report', 'Always positive on the campaign\'s actions: what we did, insights, and a multi-page PDF with charts since launch (network growth, monthly activity, acceptance, opportunities, weeks, accounts, seniority, pipeline, brand visibility, LinkedIn presence). Summary in the email, full report attached. No link to the interactive web report.', 'review copy to ' + esc(s.internalEmail) + ' on the 1st; to the client (professional email) on the first Friday, from client@gershon.ai, once validated — <a href="/delivery" style="color:#CC3333">validation status</a>', `<div class="field" style="margin:0"><select id="clientSel">${opts}</select></div>`)}
 </div>
 <div class="card" id="previewCard" style="display:none"><div class="card-header"><h3 id="previewTitle">Preview</h3><button class="btn" onclick="document.getElementById('previewCard').style.display='none'">Close</button></div><iframe class="preview" id="previewFrame"></iframe></div>`,
   })
@@ -368,8 +368,8 @@ export function registerV3(app: Hono<any>, deps: Deps) {
       if (!r) return { error: 'client number required' }
       const cm = await getClientMonth(c.env, deps, r, win.key, { settings: s })
       const h = await storyHistory(c.env, r, s)
-      const link = await reportLink(c.env, originOf(c), r.no, win.key)
-      return clientModel(cm, win.label, win.key, { link, insights: insightsOf(cm, h, win.key) })
+      // No link to the interactive report in the client email/PDF (Olivier, 2026-11-05) — the PDF carries the charts.
+      return clientModel(cm, win.label, win.key, { insights: insightsOf(cm, h, win.key), history: h, acceptTarget: s.acceptTarget })
     }
     const all: ClientMonth[] = []
     for (const r of CLIENT_REGISTRY) all.push(await getClientMonth(c.env, deps, r, win.key, { settings: s }))
