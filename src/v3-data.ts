@@ -1,3 +1,4 @@
+import { SI_MONTHLY } from "./straightin-monthly"
 // ─────────────────────────────────────────────────────────────────────────────
 // v3 data layer — one record per Gershon client NUMBER, per calendar month.
 //
@@ -622,7 +623,7 @@ export function computeGaps(entry: RegistryEntry, cm: ClientMonth, win: MonthWin
     const late = lacking.filter(m => due(m) <= today), coming = lacking.filter(m => due(m) > today)
     const md = (d: string) => d.slice(5).replace('-', '/')
     if (N.pending) g.push({ col: 'weeks', level: 'missing', area: 'Network', what: `No Straight-in week of ${win.label} received yet.`, effect: 'No network numbers for the month.', owner: 'Straight-in (weekly links)' })
-    else if (lacking.length) g.push({ col: 'weeks', level: 'partial', area: 'Network',
+    else if (lacking.length && (N as any).source !== 'straightin-monthly') g.push({ col: 'weeks', level: 'partial', area: 'Network',
       what: [late.length ? `Straight-in weeks late: ${late.map(md).join(', ')}.` : '', coming.length ? `Not in yet: ${coming.map(m => `${md(m)} (due about ${md(due(m))})`).join(', ')}.` : ''].filter(Boolean).join(' '),
       effect: `Network covers ${N.weeks.length} of ${N.weeks.length + lacking.length} weeks; totals are understated until they arrive.`, owner: 'Straight-in (weekly links)' })
     for (const c of N.missingCampaigns || []) g.push({ col: 'weeks', level: 'partial', area: 'Network', what: `No report for the ${c} campaign.`, effect: 'That campaign is not counted.', owner: 'Straight-in links page' })
@@ -710,12 +711,13 @@ export async function collectClientMonth(env: { COMPANIES_KV: KVNamespace }, dep
   }
   const errors: string[] = []
   const why = { v: "" }
-  const [promote, network, engage, profile] = await Promise.all([
+  const [promote, network0, engage, profile] = await Promise.all([
     collectPromote(deps, entry, win, prev, settings, why).catch(e => { errors.push('promote: ' + e.message); return null }),
     reports.some(r => !r.oppsOnly) ? collectNetwork(reports, win, prev, settings, entry.campaigns || []).catch(e => { errors.push('network: ' + e.message); return null }) : Promise.resolve(null),
     svc.engage ? collectEngage(deps, companies, win, prev, settings, (entry.campaigns || []).length || 1).catch(e => { errors.push('engage: ' + e.message); return null }) : Promise.resolve(null),
     svc.network ? collectProfile(deps, entry, win, settings).catch(e => { errors.push('profile: ' + e.message); return null }) : Promise.resolve(null),
   ])
+  const network = svc.network ? applySiMonthly(network0, entry, win, prev, settings) : network0
   const accounts = accountRows(entry, network, engage, settings, profileKeys)
   const cm: ClientMonth = { promoteWhy: svc.promote && !promote ? why.v || undefined : undefined, accounts, no: entry.no, name: entry.name, keys: entry.keys, promoteInPlan: svc.promote, services: svc, campaigns: entry.campaigns || [], month: win.key, generatedAt: new Date().toISOString(), promote, network, engage, profile, gaps: [], errors }
   const pk = (companies.find((co: any) => co?.pipelineKey) as any)?.pipelineKey
@@ -723,10 +725,34 @@ export async function collectClientMonth(env: { COMPANIES_KV: KVNamespace }, dep
   return cm
 }
 
+// Straight-in monthly reports (full month) override the summed weekly trajectories when present.
+function applySiMonthly(network: any, entry: RegistryEntry, win: MonthWin, prev: MonthWin, s: V3Settings): any {
+  const cur = (SI_MONTHLY[win.key] || []).filter(a => a.no === entry.no)
+  const pr = (SI_MONTHLY[prev.key] || []).filter(a => a.no === entry.no)
+  if (!cur.length && !pr.length) return network
+  const n: any = network ? { ...network } : { weeks: [], prevSent: 0, prevAccepted: 0, prevRate: 0, staleCampaigns: [], missingCampaigns: [], namedOpps: [], campaigns: [], lastReport: '' }
+  const tot = (L: typeof cur, k: 'sent' | 'accepted' | 'messages' | 'opportunities' | 'followups' | 'inmails') => L.reduce((a, x) => a + x[k], 0)
+  if (cur.length) {
+    n.sent = tot(cur, 'sent'); n.accepted = tot(cur, 'accepted'); n.messages = tot(cur, 'messages'); n.opportunities = tot(cur, 'opportunities')
+    n.followups = tot(cur, 'followups'); n.inmails = tot(cur, 'inmails')
+    n.rate = n.sent ? r1((n.accepted / n.sent) * 100) : 0
+    n.pending = false; n.missingCampaigns = []; n.staleCampaigns = []
+    n.pct = pctOf(n.rate, s.acceptTarget)
+    n.campaigns = cur.map(a => ({ label: a.label, account: a.account || undefined, sent: a.sent, accepted: a.accepted, rate: a.sent ? r1((a.accepted / a.sent) * 100) : 0, opportunities: a.opportunities }))
+    n.namedOpps = cur.flatMap(a => a.opps.map(o => ({ name: o.name, company: o.company, title: o.title, type: '', date: o.date }))).sort((a, b) => b.date.localeCompare(a.date))
+    n.lastReport = `Straight-in monthly report — ${win.label}`
+    n.source = 'straightin-monthly'
+  }
+  if (pr.length) {
+    n.prevSent = tot(pr, 'sent'); n.prevAccepted = tot(pr, 'accepted'); n.prevRate = n.prevSent ? r1((n.prevAccepted / n.prevSent) * 100) : 0
+  }
+  return n
+}
+
 // KV cache: 30 min for the current month, 12 h for closed months.
 export async function getClientMonth(env: { COMPANIES_KV: KVNamespace }, deps: Deps, entry: RegistryEntry, monthKey: string, opts: { fresh?: boolean; settings?: V3Settings } = {}): Promise<ClientMonth> {
   const win = monthWin(monthKey)
-  const ck = `v3:cm9:${win.key}:${entry.no}`
+  const ck = `v3:cm10:${win.key}:${entry.no}`
   if (!opts.fresh) {
     try {
       const raw = await env.COMPANIES_KV.get(ck)
