@@ -6,7 +6,7 @@
 import type { Hono } from 'hono'
 import {
   CLIENT_REGISTRY, registryByNo, readSettings, saveSettings, monthWin, lastFullMonthKey, todayNY,
-  getClientMonth, portfolioOf, servicesFor, profilesFor, pipelineKeyOf, reportIdOf, type Deps, type V3Settings, type ClientMonth,
+  getClientMonth, portfolioOf, servicesFor, clientRecipientsOf, profilesFor, pipelineKeyOf, reportIdOf, type Deps, type V3Settings, type ClientMonth,
 } from './v3-data'
 import { registerHistory, clientProjection } from './v3-history'
 import { storyPage, insightsOf, reportLink, verifyReportSig, type StoryHistory } from './v3-story'
@@ -122,7 +122,7 @@ function settingsPage(s: V3Settings, resendOk: boolean, shared: Record<string, s
   const svcRows = CLIENT_REGISTRY.map(r => `<tr><td><span class="cno">#${r.no}</span> ${esc(r.name)}${(r.campaigns || []).length ? ` <span style="color:var(--muted);font-size:12px">(${esc((r.campaigns || []).join(', '))})</span>` : ''}</td>${box(r, 'promote')}${box(r, 'network')}${box(r, 'engage')}</tr>`).join('')
   const rows = CLIENT_REGISTRY.map(r => `<tr><td><span class="cno">#${r.no}</span> ${esc(r.name)}</td>
     <td><input name="pt_${r.no}" type="number" step="0.5" min="0" placeholder="${s.promoteTarget}" value="${s.promoteTargets[String(r.no)] ?? ''}" style="width:90px;border:1px solid var(--border);border-radius:8px;padding:7px"></td>
-    <td><input name="ce_${r.no}" type="text" placeholder="name@company.com (professional)" value="${esc(s.clientEmails[String(r.no)] || '')}" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:7px">${recipHint(s.clientEmails[String(r.no)] || '')}</td></tr>`).join('')
+    <td><input name="ce_${r.no}" type="text" placeholder="${esc(r.reportTo || 'name@company.com (professional)')}" value="${esc(s.clientEmails[String(r.no)] || '')}" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:7px">${recipHint(clientRecipientsOf(r, s))}</td></tr>`).join('')
   // LinkedIn account profiles — one block per account for multi-account clients (Altavia: Anne + Alexandre)
   const inp = (no: number, i: number, k: string, v: string, ph: string) => `<input name="ap_${no}_${i}_${k}" type="text" placeholder="${esc(ph)}" value="${esc(v)}" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:7px">`
   const status = (ok: boolean, yes: string, no: string) => `<div class="hint" style="color:${ok ? '#057642' : 'var(--muted)'}">${ok ? '● ' + yes : '○ ' + no}</div>`
@@ -399,7 +399,7 @@ export function registerV3(app: Hono<any>, deps: Deps) {
       const monthKey = monthWin(c.req.query('month') || lastFullMonthKey()).key
       const rec = await readApproval(c.env.COMPANIES_KV, monthKey, no)
       if (!isValidated(rec, s.approvalMode, new Date(8.64e15))) return c.json({ ok: false, error: 'Not validated yet by ' + (s.approvalMode === 'both' ? 'Aina and Olivier' : 'Aina or Olivier') }, 400)
-      const pro = recipientCheck(s.clientEmails[no] || '').pro
+      const pro = recipientCheck(clientRecipientsOf(registryByNo(no)!, s)).pro
       if (!pro.length) return c.json({ ok: false, error: 'No professional client email in Settings' }, 400)
       to = pro; bcc = internal
     }
@@ -444,7 +444,7 @@ export function registerV3(app: Hono<any>, deps: Deps) {
     for (const r of CLIENT_REGISTRY) {
       const cm = await getClientMonth(c.env, deps, r, win.key, { settings: s }).catch(() => null)
       const active = !!cm && clientModel(cm, win.label, win.key).tiles.length > 0
-      const rc = recipientCheck(s.clientEmails[String(r.no)] || '')
+      const rc = recipientCheck(clientRecipientsOf(r, s))
       const rec = await readApproval(c.env.COMPANIES_KV, month, r.no)
       const validated = isValidated(rec, s.approvalMode, dw.deadline)
       const delivered = await c.env.COMPANIES_KV.get(deliveryKey(month, r.no))
@@ -558,7 +558,7 @@ ${locked ? '' : `<div style="margin-top:14px;display:flex;gap:10px;align-items:c
     const rec = await readApproval(c.env.COMPANIES_KV, month, r.no)
     const block = async (reason: string) => { await c.env.COMPANIES_KV.put(`v3:delivery-block:${month}:${r.no}`, reason, { expirationTtl: 60 * 60 * 24 * 400 }); return c.json({ ok: true, sent: false, no: r.no, reason }) }
     if (!isValidated(rec, s.approvalMode, dw.deadline)) return block(`not validated by ${s.approvalMode === 'both' ? 'Aina and Olivier' : 'Aina or Olivier'} before ${dw.deadlineLabel}`)
-    const pro = recipientCheck(s.clientEmails[String(r.no)] || '').pro
+    const pro = recipientCheck(clientRecipientsOf(r, s)).pro
     if (!pro.length) return block('no professional client email in Settings')
     const m = await buildModel(c, 'client', month, String(r.no))
     if ('error' in m) return c.json(m, 400)

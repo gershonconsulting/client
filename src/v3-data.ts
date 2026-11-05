@@ -18,6 +18,7 @@ export interface RegistryEntry {
   campaigns?: string[]    // LinkedIn campaigns (Straight-in) run under this one client number
   accountKeys?: Record<string, string> // company key → LinkedIn account name (when each account has its own Streak pipeline)
   linalysis?: string[]    // Linalysis account email(s) of the LinkedIn profile used for the campaign
+  reportTo?: string       // default professional email(s) of the person(s) we run the campaign for — Settings overrides
   services: Services      // what Gershon delivers for this client (Olivier's table, 2026-10-28); Settings can override
 }
 
@@ -29,16 +30,16 @@ const P_ONLY: Services = { promote: true, network: false, engage: false }
 
 export const CLIENT_REGISTRY: RegistryEntry[] = [
   // 175 and 229: one client number, two LinkedIn campaigns each, no Promote (Olivier, 2026-10-13)
-  { no: 175, name: 'Finance Montreal',       keys: ['finance-montreal', 'finance-montreal-noza'], socialId: 'cmp0eqm9o000rbqj3ayeto7zp', services: NE, campaigns: ['Steve', 'Noza'], accountKeys: { 'finance-montreal': 'Steve', 'finance-montreal-noza': 'Noza' } },
-  { no: 200, name: 'MAbSilico',              keys: ['mabsilico'],              socialId: 'cmnzg13dn0000j4oeke3nh3ko', services: NE, linalysis: ['vincent.puard@gmail.com'] },
-  { no: 212, name: 'Wallix',                 keys: ['wallix'],                 socialId: 'cmp0eqlsx000dbqj3hmvwldbe', services: P_ONLY },
-  { no: 229, name: 'Altavia',                keys: ['altavia', 'altavia-alexandre'], socialId: 'cmp0eqm3y000mbqj321j14ksw', services: NE, campaigns: ['Anne', 'Alexandre'], accountKeys: { 'altavia': 'Anne', 'altavia-alexandre': 'Alexandre' }, linalysis: ['abougel@altavia.co'] },
-  { no: 233, name: 'Valos',                  keys: ['valos'],                  socialId: 'cmp0eqlp4000abqj325ow1eyf', services: ALL, linalysis: ['dmitri.petratchenko@valos.it'] },
-  { no: 245, name: 'PhiTech Bioinformatics', keys: ['phitech-bioinformatics'], socialId: 'cmoda8pxb000pmayx7fbslr0j', services: ALL },
-  { no: 246, name: 'Enzymicals AG',          keys: ['enzymicals-ag'],          socialId: 'cmrumcbd6000011b111l8s53r', services: ALL, linalysis: ['david.liese12@gmail.com'] },
-  { no: 247, name: 'Flying Secoya',          keys: ['flying-secoya'],          socialId: 'cmrnknd4e0000q7qo69o3193g', services: ALL },
-  { no: 248, name: 'Meteor Biotech',         keys: ['meteor-biotech'],         socialId: 'cmrumd4gb000c11b193zq0t2h', services: ALL, linalysis: ['amoslee89@gmail.com'] },
-  { no: 250, name: 'Amphasys',               keys: [],                         socialId: 'cmv6rya4i0001nh4l1a92cf48', services: ALL, linalysis: ['markus.bernasconi@amphasys.com'] },
+  { no: 175, name: 'Finance Montreal',       reportTo: 'steve.gauthier@finance-montreal.com, noza.mutalova@finance-montreal.com', keys: ['finance-montreal', 'finance-montreal-noza'], socialId: 'cmp0eqm9o000rbqj3ayeto7zp', services: NE, campaigns: ['Steve', 'Noza'], accountKeys: { 'finance-montreal': 'Steve', 'finance-montreal-noza': 'Noza' } },
+  { no: 200, name: 'MAbSilico',              reportTo: 'vincent.puard@mabsilico.com', keys: ['mabsilico'],              socialId: 'cmnzg13dn0000j4oeke3nh3ko', services: NE, linalysis: ['vincent.puard@gmail.com'] },
+  { no: 212, name: 'Wallix',                 reportTo: 'ldescormiers@wallix.com', keys: ['wallix'],                 socialId: 'cmp0eqlsx000dbqj3hmvwldbe', services: P_ONLY },
+  { no: 229, name: 'Altavia',                reportTo: 'abougel@altavia.co, arouleau@altavia.co', keys: ['altavia', 'altavia-alexandre'], socialId: 'cmp0eqm3y000mbqj321j14ksw', services: NE, campaigns: ['Anne', 'Alexandre'], accountKeys: { 'altavia': 'Anne', 'altavia-alexandre': 'Alexandre' }, linalysis: ['abougel@altavia.co'] },
+  { no: 233, name: 'Valos',                  reportTo: 'dmitri.petratchenko@valos.it', keys: ['valos'],                  socialId: 'cmp0eqlp4000abqj325ow1eyf', services: ALL, linalysis: ['dmitri.petratchenko@valos.it'] },
+  { no: 245, name: 'PhiTech Bioinformatics', reportTo: 'ozge.guney@phitech.bio', keys: ['phitech-bioinformatics'], socialId: 'cmoda8pxb000pmayx7fbslr0j', services: ALL },
+  { no: 246, name: 'Enzymicals AG',          reportTo: 'david.liese@enzymicals.com', keys: ['enzymicals-ag'],          socialId: 'cmrumcbd6000011b111l8s53r', services: ALL, linalysis: ['david.liese12@gmail.com'] },
+  { no: 247, name: 'Flying Secoya',          reportTo: 'charles@flyingsecoya.io', keys: ['flying-secoya'],          socialId: 'cmrnknd4e0000q7qo69o3193g', services: ALL },
+  { no: 248, name: 'Meteor Biotech',         reportTo: 'amos.lee@meteorbiotech.com', keys: ['meteor-biotech'],         socialId: 'cmrumd4gb000c11b193zq0t2h', services: ALL, linalysis: ['amoslee89@gmail.com'] },
+  { no: 250, name: 'Amphasys',               reportTo: 'markus.bernasconi@amphasys.com', keys: [],                         socialId: 'cmv6rya4i0001nh4l1a92cf48', services: ALL, linalysis: ['markus.bernasconi@amphasys.com'] },
 ]
 
 // Lost clients (Oct 2026): data kept, never shown — Manoeuvre Group, Urban Factory, APM Music.
@@ -108,7 +109,7 @@ export const DEFAULT_SETTINGS: V3Settings = {
   straightinEmail: '',
   clientEmails: {},
   autoSendClients: false,
-  approverEmails: { aina: 'aina.andriamangason@gmail.com', olivier: 'olivier@gershonconsulting.com' },
+  approverEmails: { aina: 'aina.rama@gershonconsulting.com', olivier: 'olivier@gershonconsulting.com' },
   approvalMode: 'either',
   services: {},
   linalysis: {},
@@ -119,6 +120,10 @@ export function linalysisFor(entry: RegistryEntry, s?: V3Settings): string[] {
   const base = o ? o.split(/[,;\s]+/).map(x => x.trim().toLowerCase()).filter(x => x.includes('@')) : (entry.linalysis || [])
   const extra = profilesFor(entry, s).map(p => p.linalysis.toLowerCase()).filter(x => x.includes('@'))
   return [...new Set([...base, ...extra])]
+}
+// Client report recipients: Settings value if set, else the registry default (professional emails, 2026-11-05).
+export function clientRecipientsOf(entry: RegistryEntry, s?: V3Settings): string {
+  return String((s?.clientEmails || {})[String(entry.no)] || entry.reportTo || '')
 }
 export function servicesFor(entry: RegistryEntry, s?: V3Settings): Services {
   return { ...entry.services, ...((s?.services || {})[String(entry.no)] || {}) }
@@ -642,7 +647,7 @@ export function computeGaps(entry: RegistryEntry, cm: ClientMonth, win: MonthWin
   else if (!L) g.push({ col: 'profile', level: 'missing', area: 'Profile', what: `Linalysis has no capture in ${win.label} for ${lin.join(', ')}.`, effect: 'No LinkedIn profile block.', owner: 'Linalysis extension' })
   else if (L.missing.length) g.push({ col: 'profile', level: 'partial', area: 'Profile', what: `Linalysis opening values missing: ${L.missing.map(f => f.replace(/_/g, ' ')).join(', ')}.`, effect: 'Those figures show a value but no monthly change.', owner: 'Linalysis' })
   // Delivery
-  if (!emailsOf(s.clientEmails?.[String(entry.no)] || '').length) g.push({ col: 'recipient', level: 'missing', area: 'Delivery', what: 'No client recipient email set.', effect: `The report goes to ${s.internalEmail} only.`, owner: 'Targets & recipients' })
+  if (!emailsOf(clientRecipientsOf(entry, s)).length) g.push({ col: 'recipient', level: 'missing', area: 'Delivery', what: 'No client recipient email set.', effect: `The report goes to ${s.internalEmail} only.`, owner: 'Targets & recipients' })
   // Definition — two meanings of "lead"
   if (E && N && !N.pending && E.newLeads !== N.opportunities) g.push({ col: 'goal', level: 'decision', area: 'Goal', what: `"Qualified lead" has two counts: ${E.newLeads} new Streak accounts vs ${N.opportunities} Straight-in opportunities.`, effect: `The ${E.target}/month goal reads ${pctOf(E.newLeads, E.target)}% or ${pctOf(N.opportunities, E.target)}% depending on the source.`, owner: 'Olivier' })
   for (const x of g) if (x.col && !x.fix) x.fix = fixFor(x.col, { streakUrl, no: entry.no })
