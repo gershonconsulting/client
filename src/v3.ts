@@ -9,6 +9,7 @@ import {
   getClientMonth, portfolioOf, servicesFor, clientRecipientsOf, profilesFor, pipelineKeyOf, reportIdOf, type Deps, type V3Settings, type ClientMonth,
 } from './v3-data'
 import { registerHistory, clientProjection } from './v3-history'
+import { registerCampaign } from './v3-campaign'
 import { storyPage, insightsOf, reportLink, verifyReportSig, type StoryHistory } from './v3-story'
 import { APPROVERS, recipientCheck, deliveryWindow, upcomingReportMonth, readApproval, approvalKey, deliveryKey, isValidated, approverLink, verifyApproverSig, type ApproverId, type ApprovalRecord } from './v3-approval'
 import { clientModel, internalModel, straightinModel, gapsModel, gapsMatrixHtml, whereHtml, reportHtml, reportPdfBase64, pdfBytesFromBase64, type ReportKind, type ReportModel } from './v3-reports'
@@ -53,6 +54,7 @@ export function shell(opts: { title: string; active: string; h1: string; right?:
   <div class="content">${opts.body}</div>
 </main></div>
 <div id="toast"></div>
+${opts.data && opts.data.page === 'client' ? '<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><script src="/static/campaign.js?v=2" defer></script>' : ''}
 <script src="/static/v3.js?v=10"></script></body></html>`
 }
 
@@ -82,6 +84,8 @@ function clientPage(no: number, name: string, keys: string[]): string {
     title: `#${no} ${name}`, active: 'c' + no, h1: `<span class="cno">#${no}</span> ${esc(name)}`, data: { page: 'client', no: String(no) },
     right: `${monthSeg()}<a class="btn primary" id="storyBtn" href="/client/${no}/story" target="_blank"><i class="fas fa-chart-line"></i> Interactive report</a><a class="btn" id="pdfBtn" href="#" target="_blank"><i class="fas fa-file-pdf"></i> PDF</a>${legacy}`,
     body: `
+<div id="campaign" data-no="${no}"><div class="card"><span class="skeleton">Loading the whole campaign since launch…………………………</span></div></div>
+<h2 class="sec-title" id="monthTitle"><i class="fas fa-calendar-day"></i> This month in detail</h2>
 <div class="summary" id="summary"><div class="summary-text" id="summaryText"><span class="skeleton">Loading…………………………………</span></div><div id="scoreBox"></div></div>
 <div class="grid cols-3" id="channels"></div>
 <div id="accounts"></div>
@@ -253,6 +257,7 @@ export function registerV3(app: Hono<any>, deps: Deps) {
   })
 
   registerHistory(app, deps)
+  registerCampaign(app, deps)
 
   const htmlV3 = (c: any, body: string) => { c.header('x-gc-v3', '1'); return c.html(body) }
 
