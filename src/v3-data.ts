@@ -122,8 +122,12 @@ export function linalysisFor(entry: RegistryEntry, s?: V3Settings): string[] {
   return [...new Set([...base, ...extra])]
 }
 // Client report recipients: Settings value if set, else the registry default (professional emails, 2026-11-05).
+// Our own addresses (report@gershonconsulting.com…) are never a client recipient: if Settings only holds
+// those, the registry default is used.
+const OWN_DOMAINS = /@(gershonconsulting\.(com|net)|gershon\.ai|gershoncrm\.com)$/i
 export function clientRecipientsOf(entry: RegistryEntry, s?: V3Settings): string {
-  return String((s?.clientEmails || {})[String(entry.no)] || entry.reportTo || '')
+  const set = String((s?.clientEmails || {})[String(entry.no)] || '').split(/[,;\s]+/).map(x => x.trim()).filter(x => x.includes('@') && !OWN_DOMAINS.test(x))
+  return set.length ? set.join(', ') : String(entry.reportTo || '')
 }
 export function servicesFor(entry: RegistryEntry, s?: V3Settings): Services {
   return { ...entry.services, ...((s?.services || {})[String(entry.no)] || {}) }
