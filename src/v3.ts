@@ -11,6 +11,7 @@ import {
 import { registerHistory, clientProjection } from './v3-history'
 import { registerCampaign } from './v3-campaign'
 import { storyPage, insightsOf, reportLink, verifyReportSig, type StoryHistory } from './v3-story'
+import { OWNER_EMAILS } from './users'
 import { APPROVERS, recipientCheck, deliveryWindow, upcomingReportMonth, readApproval, approvalKey, deliveryKey, isValidated, approverLink, verifyApproverSig, type ApproverId, type ApprovalRecord } from './v3-approval'
 import { clientModel, internalModel, straightinModel, gapsModel, gapsMatrixHtml, whereHtml, reportHtml, reportPdfBase64, pdfBytesFromBase64, type ReportKind, type ReportModel } from './v3-reports'
 
@@ -474,6 +475,23 @@ export function registerV3(app: Hono<any>, deps: Deps) {
     }).join('')
     return `<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="text-align:left;color:#6e6e73;font-size:12px"><th style="padding:6px 8px">Client</th><th style="padding:6px 8px">Sent to (professional)</th><th style="padding:6px 8px">Validation</th><th style="padding:6px 8px">Friday</th>${who ? '<th style="padding:6px 8px">Your validation</th>' : ''}</tr></thead><tbody>${tr}</tbody></table>`
   }
+  // Signed-in user → approver (Aina by her work e-mail or the Settings address; Olivier by any of his addresses)
+  function approverForSession(user: string, s: V3Settings): ApproverId | null {
+    const u = user.trim().toLowerCase()
+    if (!u) return null
+    const inList = (raw: string) => String(raw || '').toLowerCase().split(/[,;\s]+/).includes(u)
+    if (u === 'aina.rama@gershonconsulting.com' || inList(s.approverEmails?.aina || '')) return 'aina'
+    if (OWNER_EMAILS.includes(u) || inList(s.approverEmails?.olivier || '')) return 'olivier'
+    return null
+  }
+  // One-click from the menu / emails: open my validation page
+  app.get('/delivery/validate', async (c) => {
+    const s = await readSettings(c.env.COMPANIES_KV)
+    const me = approverForSession(String(c.get('authUser' as never) || ''), s)
+    if (!me) return c.redirect('/delivery', 302)
+    const month = /^\d{4}-\d{2}$/.test(c.req.query('month') || '') ? c.req.query('month')! : upcomingReportMonth(todayNY())
+    return c.redirect(await approverLink(c.env, originOf(c), month, me), 302)
+  })
   function approvePage(month: string, who: ApproverId, rows: DeliveryRow[], s: V3Settings, msg = ''): string {
     const dw = deliveryWindow(month), locked = Date.now() > dw.deadline.getTime(), label = monthWin(month).label
     const name = APPROVERS.find(a => a.id === who)!.label
@@ -517,7 +535,10 @@ ${locked ? '' : `<div style="margin-top:14px;display:flex;gap:10px;align-items:c
   app.get('/delivery', async (c) => {
     const month = /^\d{4}-\d{2}$/.test(c.req.query('month') || '') ? c.req.query('month')! : upcomingReportMonth(todayNY())
     const s = await readSettings(c.env.COMPANIES_KV), dw = deliveryWindow(month), rows = await deliveryRows(c, month, s)
-    const links = (await Promise.all(APPROVERS.map(async a => `<a class="btn${a.id === 'olivier' ? ' primary' : ''}" href="${esc(await approverLink(c.env, originOf(c), month, a.id))}"><i class="fas fa-circle-check"></i> Validate as ${a.label}</a>`))).join(' ')
+    const me = approverForSession(String(c.get('authUser' as never) || ''), s)
+    const links = me
+      ? `<a class="btn primary" href="${esc(await approverLink(c.env, originOf(c), month, me))}"><i class="fas fa-circle-check"></i> Validate my reports (${APPROVERS.find(a => a.id === me)!.label})</a>`
+      : (await Promise.all(APPROVERS.map(async a => `<a class="btn${a.id === 'olivier' ? ' primary' : ''}" href="${esc(await approverLink(c.env, originOf(c), month, a.id))}"><i class="fas fa-circle-check"></i> Validate as ${a.label}</a>`))).join(' ')
     return htmlV3(c, shell({ title: 'Client delivery', active: 'delivery', h1: `Client delivery · ${esc(monthWin(month).label)} reports`, right: links,
       body: `<div class="summary"><div class="summary-text">Sent on <b>${esc(dw.friday)}</b> (first Friday) from client@gershon.ai to the client's professional email, report in the email + PDF. Validation by ${s.approvalMode === 'both' ? '<b>Aina and Olivier</b>' : '<b>Aina or Olivier</b>'} required by <b>${esc(dw.deadlineLabel)}</b>; otherwise the report is not sent.</div><a class="btn" href="/settings"><i class="fas fa-sliders"></i> Recipients</a></div><div class="card" style="overflow:auto">${deliveryTable(rows, null, true)}</div>` }))
   })
