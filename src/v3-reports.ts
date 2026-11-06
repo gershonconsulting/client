@@ -5,9 +5,10 @@
 //   client     : one per client, always positive — one-pager in the email body + PDF attached
 // Email HTML uses inline styles only (Gmail strips <style>). PDFs are one Letter
 // page each, drawn with the Linalysis/Social zero-dependency writer.
+// Client-facing text never names the outreach provider (Olivier, 2026-11-06).
 // ─────────────────────────────────────────────────────────────────────────────
 import { MrPdf, strWidth as W, type RGB } from './pdf-writer'
-import { clientPdfBase64, type ClientPdfInput } from './v3-client-pdf'
+import { clientPdfBase64, crmAsk, CLIENT_CONTACT_LINE, type ClientPdfInput } from './v3-client-pdf'
 import type { StoryHistory } from './v3-story'
 import { band, clientLabel, overallScore, pctOf, dotsFor, GAP_COLUMNS, fixFor, type ClientMonth, type Portfolio, type V3Settings, type Dot } from './v3-data'
 
@@ -274,6 +275,8 @@ export function clientModel(c: ClientMonth, monthLabel: string, monthKey: string
     ...(sv.network ? ['Turn new connections into conversations with personal follow-ups.'] : []),
     ...(sv.engage ? ['Book qualified prospects into calls — we will keep you posted as they move.'] : []),
   ]
+  // Fit / Interest missing in the client's CRM (Streak) → ask them to fill it in
+  const ask = crmAsk(c)
   const footer = 'Gershon Consulting · US market entry · gershonconsulting.com'
   return {
     kind: 'client', eyebrow: `Gershon Consulting · Monthly report · Client #${c.no}`, title: c.name, month: monthLabel,
@@ -285,6 +288,8 @@ export function clientModel(c: ClientMonth, monthLabel: string, monthKey: string
       ...(accLines.length ? [{ title: 'By LinkedIn account', lines: accLines }] : []),
       ...(presence.length ? [{ title: 'Your LinkedIn presence', lines: presence.slice(0, 6) }] : []),
       { title: 'Next month', lines: next },
+      ...(ask ? [{ title: 'One thing we need from you', lines: [ask] }] : []),
+      { title: 'Questions about this report?', lines: [CLIENT_CONTACT_LINE] },
     ],
     footer,
     subject: `${c.name} — your ${monthLabel} results with Gershon`,
