@@ -48,6 +48,36 @@ const fmt = (n: number | null | undefined) => (n == null ? '—' : Math.round(n)
 const pct1 = (n: number) => `${(Math.round(n * 10) / 10).toString()}%`
 const plural = (n: number, w: string, pl?: string) => `${fmt(n)} ${Math.round(n) === 1 ? w : (pl || w + 's')}`
 
+// Closing line of the client report (Olivier, 2026-11-06).
+export const CLIENT_CONTACT_LINE = "Let's review your questions during our weekly meeting."
+
+/**
+ * Request to the client when the Streak "Fit" and/or "Interest" fields are empty on
+ * active accounts of their pipeline (Olivier, 2026-11-06: "tell them that we are
+ * missing FIT and INTEREST in their CRM"). null = nothing to ask (Engage not sold,
+ * no pipeline read, or both fields filled everywhere).
+ */
+export function crmAsk(cm: ClientMonth): string | null {
+  const sv = cm.services || { promote: cm.promoteInPlan !== false, network: true, engage: true }
+  const E = cm.engage
+  if (!E || !sv.engage) return null
+  const fields: string[] = []
+  const boxes = new Set<string>()
+  for (const [name, list] of Object.entries(E.fieldGaps || {})) {
+    const n = String(name || '').trim().toLowerCase()
+    if ((n === 'fit' || n === 'interest') && Array.isArray(list) && list.length) {
+      const label = n === 'fit' ? 'Fit' : 'Interest'
+      if (!fields.includes(label)) fields.push(label)
+      list.forEach(b => boxes.add(String(b)))
+    }
+  }
+  if (!fields.length) return null
+  fields.sort()
+  const what = fields.length === 2 ? 'The "Fit" and "Interest" fields are' : `The "${fields[0]}" field is`
+  const where = E.activeLeads > 0 ? ` on ${fmt(Math.min(boxes.size, E.activeLeads))} of ${plural(E.activeLeads, 'active account')}` : ''
+  return `${what} missing in your CRM${where}. Please fill ${fields.length === 2 ? 'them' : 'it'} in so we can rank your hottest prospects and focus follow-ups where they matter most.`
+}
+
 function clip(s: string, size: number, bold: boolean, max: number): string {
   s = String(s ?? '')
   if (W(s, bold, size) <= max) return s
@@ -541,11 +571,24 @@ export function clientPdfBase64(inp: ClientPdfInput): string {
     chapter(d, 'Next month', 'What we will focus on for you', 20 + inp.next.length * 16)
     bullets(d, inp.next)
   }
+
+  // One thing we need from the client: Fit / Interest missing in their CRM (Streak)
+  const ask = crmAsk(cm)
+  if (ask) {
+    const ls = wrap(ask, 8.6, false, CW - 28, 4)
+    const h = 22 + ls.length * 11.5 + 6
+    d.ensure(h + 14)
+    d.y -= h + 6
+    p.rect(M, d.y, CW, h, C.BG); p.rect(M, d.y, 3, h, C.GOLD)
+    p.text(M + 14, d.y + h - 15, 'One thing we need from you', 10, true, C.INK)
+    ls.forEach((t, k) => p.text(M + 14, d.y + h - 29 - k * 11.5, t, 8.6, false, C.INK))
+  }
+
   d.ensure(64)
   d.y -= 52
   p.rect(M, d.y, CW, 46, C.RED_TT); p.rect(M, d.y, 3, 46, C.RED)
   p.text(M + 14, d.y + 28, 'Questions about this report?', 10, true, C.INK)
-  p.text(M + 14, d.y + 14, 'Reply to this email or book a call with your Gershon team: gershonconsulting.com/calendar', 8.4, false, C.INK)
+  p.text(M + 14, d.y + 14, CLIENT_CONTACT_LINE, 8.4, false, C.INK)
 
   d.footers(inp.footer)
   return p.base64()
