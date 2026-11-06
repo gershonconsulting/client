@@ -12,13 +12,17 @@
 // A client that does not buy Network today (e.g. #212 Wallix = Promote only) gets no
 // outreach history: an ended LinkedIn campaign is not shown (Olivier, 2026-11-06).
 //
-// registerCampaign also registers the automatic-sending blocks (v3-hold.ts): it is
-// called before the scheduled send routes in v3.ts, so the block gate runs first.
+// registerCampaign also registers, before the scheduled send routes in v3.ts:
+//   v3-hold.ts          automatic-sending blocks (the gate runs first)
+//   v3-crm-quality.ts   /crm-quality — Fit / Interest across all clients
+//   v3-settings-ui.ts   several report recipients per client on /settings
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Hono } from 'hono'
 import { registryByNo, readSettings, getClientMonth, monthWin, todayNY, servicesFor, type Deps, type RegistryEntry, type V3Settings } from './v3-data'
 import { CLIENT_HISTORY, LIVE_FROM, HISTORY_BENCHMARKS } from './v3-history-data'
 import { registerHold } from './v3-hold'
+import { registerCrmQuality } from './v3-crm-quality'
+import { registerSettingsUi } from './v3-settings-ui'
 
 const addMonth = (k: string, n: number) => { const [y, m] = k.split('-').map(Number); return new Date(Date.UTC(y, m - 1 + n, 15)).toISOString().slice(0, 7) }
 
@@ -70,6 +74,8 @@ export async function campaignOf(env: any, deps: Deps, r: RegistryEntry, s: V3Se
 
 export function registerCampaign(app: Hono<any>, deps: Deps) {
   registerHold(app)
+  registerCrmQuality(app, deps)
+  registerSettingsUi(app)
   app.get('/api/v3/campaign/:no', async (c) => {
     const r = registryByNo(c.req.param('no'))
     if (!r) return c.json({ error: 'Unknown client number' }, 404)
