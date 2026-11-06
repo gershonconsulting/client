@@ -54,28 +54,37 @@ export const CLIENT_CONTACT_LINE = "Let's review your questions during our weekl
 /**
  * Request to the client when the Streak "Fit" and/or "Interest" fields are empty on
  * active accounts of their pipeline (Olivier, 2026-11-06: "tell them that we are
- * missing FIT and INTEREST in their CRM"). null = nothing to ask (Engage not sold,
- * no pipeline read, or both fields filled everywhere).
+ * missing FIT and INTEREST in their CRM" — then "we need to be more explicit").
+ * null = nothing to ask (Engage not sold, no pipeline read, or both fields filled).
  */
-export function crmAsk(cm: ClientMonth): string | null {
+export interface CrmAskDetail { text: string; fitMissing: number; interestMissing: number; active: number; accounts: string[] }
+export function crmAskDetail(cm: ClientMonth): CrmAskDetail | null {
   const sv = cm.services || { promote: cm.promoteInPlan !== false, network: true, engage: true }
   const E = cm.engage
   if (!E || !sv.engage) return null
-  const fields: string[] = []
-  const boxes = new Set<string>()
+  let fit: string[] = [], interest: string[] = []
   for (const [name, list] of Object.entries(E.fieldGaps || {})) {
     const n = String(name || '').trim().toLowerCase()
-    if ((n === 'fit' || n === 'interest') && Array.isArray(list) && list.length) {
-      const label = n === 'fit' ? 'Fit' : 'Interest'
-      if (!fields.includes(label)) fields.push(label)
-      list.forEach(b => boxes.add(String(b)))
-    }
+    if (!Array.isArray(list)) continue
+    if (n === 'fit') fit = list.map(String)
+    if (n === 'interest') interest = list.map(String)
   }
-  if (!fields.length) return null
-  fields.sort()
-  const what = fields.length === 2 ? 'The "Fit" and "Interest" fields are' : `The "${fields[0]}" field is`
-  const where = E.activeLeads > 0 ? ` on ${fmt(Math.min(boxes.size, E.activeLeads))} of ${plural(E.activeLeads, 'active account')}` : ''
-  return `${what} missing in your CRM${where}. Please fill ${fields.length === 2 ? 'them' : 'it'} in so we can rank your hottest prospects and focus follow-ups where they matter most.`
+  if (!fit.length && !interest.length) return null
+  const active = E.activeLeads > 0 ? E.activeLeads : Math.max(fit.length, interest.length)
+  const nf = Math.min(fit.length, active), ni = Math.min(interest.length, active)
+  const parts: string[] = []
+  if (nf) parts.push(`"Fit" is empty on ${fmt(nf)} of your ${plural(active, 'active account')}`)
+  if (ni) parts.push(`"Interest" is empty on ${fmt(ni)} of ${fmt(active)}`)
+  const text = `Two ratings in your CRM (your Streak pipeline) tell us which prospects to prioritise: "Fit" - how well the company matches your ideal US customer - and "Interest" - how interested the contact is in your offer. Each one takes a single value: High, Medium or Low. Today ${parts.join(', and ')}. Please open each account in your pipeline and choose High, Medium or Low for both; it takes a few seconds per account. Next month's report will then rank your hottest prospects first.`
+  const accounts = [...new Set([...fit, ...interest])].sort((a, b) => a.localeCompare(b))
+  return { text, fitMissing: nf, interestMissing: ni, active, accounts }
+}
+/** Same request as one paragraph (client email). */
+export function crmAsk(cm: ClientMonth): string | null {
+  const a = crmAskDetail(cm)
+  if (!a) return null
+  const n = a.accounts
+  return a.text + (n.length ? ` Accounts to complete: ${n.slice(0, 15).join(', ')}${n.length > 15 ? ` and ${n.length - 15} more (full list in the PDF)` : ''}.` : '')
 }
 
 function clip(s: string, size: number, bold: boolean, max: number): string {
@@ -572,16 +581,39 @@ export function clientPdfBase64(inp: ClientPdfInput): string {
     bullets(d, inp.next)
   }
 
-  // One thing we need from the client: Fit / Interest missing in their CRM (Streak)
-  const ask = crmAsk(cm)
+  // Action needed from the client: Fit / Interest missing in their CRM (Streak) — explicit version
+  const ask = crmAskDetail(cm)
   if (ask) {
-    const ls = wrap(ask, 8.6, false, CW - 28, 4)
-    const h = 22 + ls.length * 11.5 + 6
-    d.ensure(h + 14)
-    d.y -= h + 6
-    p.rect(M, d.y, CW, h, C.BG); p.rect(M, d.y, 3, h, C.GOLD)
-    p.text(M + 14, d.y + h - 15, 'One thing we need from you', 10, true, C.INK)
-    ls.forEach((t, k) => p.text(M + 14, d.y + h - 29 - k * 11.5, t, 8.6, false, C.INK))
+    chapter(d, 'Action needed: complete "Fit" and "Interest" in your CRM', 'Two ratings that let us rank your hottest prospects and focus follow-ups', 90)
+    for (const t of wrap(ask.text, 8.8, false, CW, 8)) { d.ensure(13); d.y -= 12; p.text(M, d.y, t, 8.8, false, C.INK) }
+    d.y -= 6
+    for (const [label, miss] of [['Fit', ask.fitMissing], ['Interest', ask.interestMissing]] as [string, number][]) {
+      const filled = Math.max(0, ask.active - miss)
+      d.ensure(22); d.y -= 18
+      const bx = M + 62, bw = CW - 62 - 170
+      p.text(M, d.y + 1.5, `"${label}"`, 9, true, C.INK)
+      p.rect(bx, d.y, bw, 10, C.RED_T)
+      if (ask.active > 0 && filled > 0) p.rect(bx, d.y, (bw * filled) / ask.active, 10, C.GREEN)
+      p.text(bx + bw + 8, d.y + 1.5, `${fmt(filled)} filled · ${fmt(miss)} missing (of ${fmt(ask.active)})`, 8, true, miss ? C.RED : C.GREEN)
+    }
+    if (ask.accounts.length) {
+      d.ensure(34); d.y -= 22
+      p.text(M, d.y, `Accounts to complete in your pipeline (${fmt(ask.accounts.length)})`, 9, true, C.INK)
+      d.y -= 4
+      const cols = 3, colW = CW / cols, list = ask.accounts.slice(0, 60)
+      for (let r = 0; r < Math.ceil(list.length / cols); r++) {
+        d.ensure(13); d.y -= 12
+        for (let c = 0; c < cols; c++) {
+          const name = list[r * cols + c]
+          if (!name) continue
+          const x = M + c * colW
+          p.rect(x + 1, d.y + 2.2, 3, 3, C.GOLD)
+          p.text(x + 9, d.y, clip(name, 8, false, colW - 14), 8, false, C.INK)
+        }
+      }
+      if (ask.accounts.length > list.length) { d.y -= 12; p.text(M + 9, d.y, `+ ${fmt(ask.accounts.length - list.length)} more`, 8, false, C.MUT) }
+    }
+    d.y -= 8
   }
 
   d.ensure(64)
