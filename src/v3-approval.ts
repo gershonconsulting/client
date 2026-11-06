@@ -4,8 +4,9 @@
 //  • The monthly client report is delivered to the client on the FIRST FRIDAY of
 //    the month, for the month just closed, from client@gershon.ai (body + PDF).
 //  • It may only go out if it was validated by Aina and/or Olivier (Settings:
-//    "either" or "both") no later than THURSDAY 18:00 New York time, the day
-//    before that Friday. No validation in time = the report is not sent.
+//    "either" or "both") no later than 12:00 PM (noon) New York time on that
+//    same Friday; the reports are sent at 1:00 PM New York time (Olivier,
+//    2026-11-06 — was Thursday 6:00 PM). No validation in time = not sent.
 //  • It only goes to professional addresses: personal mailboxes (gmail, yahoo,
 //    hotmail…) are never used; a client with no professional address is blocked.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -38,7 +39,7 @@ export function recipientCheck(raw: string): { pro: string[]; personal: string[]
   return { pro: all.filter(e => !isPersonalEmail(e)), personal: all.filter(e => isPersonalEmail(e)) }
 }
 
-// ── Calendar: first Friday + Thursday 18:00 New York deadline ────────────────
+// ── Calendar: first Friday — validate by 12:00 PM, send at 1:00 PM New York ────────────────
 const pad = (n: number) => String(n).padStart(2, '0')
 const nextMonthKey = (k: string) => { const y = +k.slice(0, 4), m = +k.slice(5, 7); return m === 12 ? `${y + 1}-01` : `${y}-${pad(m + 1)}` }
 const prevMonthKey = (k: string) => { const y = +k.slice(0, 4), m = +k.slice(5, 7); return m === 1 ? `${y - 1}-12` : `${y}-${pad(m - 1)}` }
@@ -58,15 +59,18 @@ export function nyToUtc(dateIso: string, hh: number, mm = 0): Date {
   const asNy = Date.UTC(g('year'), g('month') - 1, g('day'), g('hour') % 24, g('minute'))
   return new Date(guess + (guess - asNy))
 }
-export interface DeliveryWindow { reportMonth: string; friday: string; thursday: string; deadline: Date; deadlineLabel: string }
+export interface DeliveryWindow { reportMonth: string; friday: string; thursday: string; deadline: Date; deadlineLabel: string; sendAt: Date; sendLabel: string }
 // Report for month M is delivered on the first Friday of month M+1.
 export function deliveryWindow(reportMonth: string): DeliveryWindow {
   const friday = firstFridayOf(nextMonthKey(reportMonth))
   const thursday = dayBefore(friday)
-  const deadline = nyToUtc(thursday, 18, 0)
-  const d = new Date(thursday + 'T12:00:00Z')
-  const deadlineLabel = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' }) + ' at 6:00 PM Eastern'
-  return { reportMonth, friday, thursday, deadline, deadlineLabel }
+  const deadline = nyToUtc(friday, 12, 0)
+  const sendAt = nyToUtc(friday, 13, 0)
+  const d = new Date(friday + 'T12:00:00Z')
+  const day = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' })
+  const deadlineLabel = day + ' at 12:00 PM Eastern'
+  const sendLabel = day + ' at 1:00 PM Eastern'
+  return { reportMonth, friday, thursday, deadline, deadlineLabel, sendAt, sendLabel }
 }
 // The report month whose first-Friday delivery is upcoming (or today) for a given New York date.
 export function upcomingReportMonth(todayNy: string): string {
