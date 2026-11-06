@@ -3,9 +3,12 @@
 // joined with the live monthly Straight-in reports collected by this app.
 //   GET /api/v3/history          → benchmarks + every registry client
 //   GET /api/v3/history/:no      → one client
+// A client that does not buy Network today (e.g. #212 Wallix = Promote only) gets
+// no outreach history: an old, ended LinkedIn campaign must never reappear in its
+// reports (Olivier, 2026-11-06).
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Hono } from 'hono'
-import { CLIENT_REGISTRY, registryByNo, readSettings, getClientMonth, monthWin, todayNY, type Deps, type RegistryEntry, type V3Settings } from './v3-data'
+import { CLIENT_REGISTRY, registryByNo, readSettings, getClientMonth, monthWin, todayNY, servicesFor, type Deps, type RegistryEntry, type V3Settings } from './v3-data'
 import { CLIENT_HISTORY, LIVE_FROM, HISTORY_BENCHMARKS } from './v3-history-data'
 import { projectClient, newClientOutlook, type MonthPoint, type ClientProjection } from './history-model'
 
@@ -13,9 +16,10 @@ const addMonth = (k: string, n: number) => { const [y, m] = k.split('-').map(Num
 
 export async function clientProjection(env: any, deps: Deps, r: RegistryEntry, s: V3Settings): Promise<{ no: number; name: string; start: string | null } & ClientProjection> {
   const h = CLIENT_HISTORY[r.no]
-  const series: MonthPoint[] = (h?.months || []).map(([month, sent, accepted, opportunities]) => ({ month, sent, accepted, opportunities, live: false }))
+  const network = servicesFor(r, s).network
+  const series: MonthPoint[] = network ? (h?.months || []).map(([month, sent, accepted, opportunities]) => ({ month, sent, accepted, opportunities, live: false })) : []
   const cur = todayNY().slice(0, 7)
-  for (let k = LIVE_FROM; k <= cur; k = addMonth(k, 1)) {
+  if (network) for (let k = LIVE_FROM; k <= cur; k = addMonth(k, 1)) {
     try {
       const cm = await getClientMonth(env, deps, r, k, { settings: s })
       const n = cm.network
@@ -31,7 +35,7 @@ export async function clientProjection(env: any, deps: Deps, r: RegistryEntry, s
 export function registerHistory(app: Hono<any>, deps: Deps) {
   app.get('/api/v3/history', async (c) => {
     const s = await readSettings(c.env.COMPANIES_KV)
-    const ck = `v3:hist1:${todayNY()}`
+    const ck = `v3:hist2:${todayNY()}`
     if (c.req.query('fresh') !== '1') {
       try { const raw = await c.env.COMPANIES_KV.get(ck); if (raw) return c.json(JSON.parse(raw)) } catch { /* miss */ }
     }
