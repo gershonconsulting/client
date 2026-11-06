@@ -8,6 +8,7 @@ import type { Hono } from 'hono'
 import { CLIENT_REGISTRY, registryByNo, readSettings, getClientMonth, monthWin, todayNY, type Deps, type RegistryEntry, type V3Settings } from './v3-data'
 import { CLIENT_HISTORY, LIVE_FROM, HISTORY_BENCHMARKS } from './v3-history-data'
 import { projectClient, newClientOutlook, type MonthPoint, type ClientProjection } from './history-model'
+import { registerPageTitle } from './page-title'
 
 const addMonth = (k: string, n: number) => { const [y, m] = k.split('-').map(Number); const d = new Date(Date.UTC(y, m - 1 + n, 15)); return d.toISOString().slice(0, 7) }
 
@@ -29,6 +30,10 @@ export async function clientProjection(env: any, deps: Deps, r: RegistryEntry, s
 }
 
 export function registerHistory(app: Hono<any>, deps: Deps) {
+  // Not history-related: the landing-page <title> rewrite lives here because this is
+  // the smallest file on the page-route path (see src/page-title.ts).
+  registerPageTitle(app)
+
   app.get('/api/v3/history', async (c) => {
     const s = await readSettings(c.env.COMPANIES_KV)
     const ck = `v3:hist1:${todayNY()}`
