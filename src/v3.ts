@@ -168,7 +168,7 @@ ${resendOk ? '' : `<div class="summary" style="border-left-color:var(--warn)"><d
  <div class="card"><div class="card-header"><h3>Report recipients</h3></div>
   <div class="field"><label>Our monthly review (internal)</label><input name="internalEmail" type="text" value="${esc(s.internalEmail)}"></div>
   <div class="field"><label>Straight-in report</label><input name="straightinEmail" type="text" placeholder="contact@straight-in.com" value="${esc(s.straightinEmail)}"><div class="hint">Empty = sent to the internal address so you can forward it.</div></div>
-  <div class="hint" style="margin-bottom:10px">On the 1st, every client report comes to the internal address as a review copy. Clients get theirs on the <b>first Friday</b>, from client@gershon.ai, only if validated by Thursday 6:00 PM Eastern.</div>
+  <div class="hint" style="margin-bottom:10px">On the 1st, every client report comes to the internal address as a review copy. Clients get theirs on the <b>first Friday</b>, from client@gershon.ai, only if validated by 12:00 PM Eastern that Friday; they are sent at 1:00 PM Eastern.</div>
   <div class="field"><label>Validation needed from</label><select name="approvalMode"><option value="either"${s.approvalMode !== 'both' ? ' selected' : ''}>Aina or Olivier (one is enough)</option><option value="both"${s.approvalMode === 'both' ? ' selected' : ''}>Aina and Olivier (both)</option></select></div>
   <div class="field"><label>Aina — validation email</label><input name="approverAina" type="text" value="${esc(s.approverEmails?.aina || '')}"></div>
   <div class="field"><label>Olivier — validation email</label><input name="approverOlivier" type="text" value="${esc(s.approverEmails?.olivier || '')}"></div>
@@ -442,7 +442,7 @@ export function registerV3(app: Hono<any>, deps: Deps) {
   })
 
   // ── First-Friday client delivery with validation gate (Olivier, 2026-11-05) ──
-  // Validation by Aina and/or Olivier (Settings) before Thursday 18:00 New York is required;
+  // Validation by Aina and/or Olivier (Settings) before Friday 12:00 PM New York is required (sent at 1:00 PM);
   // without it the report is not sent. Only professional client addresses are used.
   interface DeliveryRow { no: number; name: string; active: boolean; pro: string[]; personal: string[]; rec: ApprovalRecord; validated: boolean; delivered: string | null; link: string; pdf: string; blockers: string[] }
   async function deliveryRows(c: any, month: string, s: V3Settings): Promise<DeliveryRow[]> {
@@ -499,7 +499,7 @@ export function registerV3(app: Hono<any>, deps: Deps) {
 <body style="background:#f6f6f7"><div style="max-width:1100px;margin:0 auto;padding:24px 16px;font-family:system-ui,-apple-system,Segoe UI,sans-serif">
 <div style="font-weight:900;color:#CC3333;letter-spacing:.04em">GERSHON · CLIENT REPORTS</div>
 <h1 style="margin:6px 0 4px">Hi ${esc(name)} — validate the ${esc(label)} client reports</h1>
-<p style="color:#444;margin:0 0 14px">Each report you tick is sent to the client on <b>${esc(new Date(dw.friday + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' }))}</b> from client@gershon.ai (report in the email + PDF). ${s.approvalMode === 'both' ? 'Both Aina and Olivier must validate.' : 'One validation (Aina or Olivier) is enough.'} Deadline: <b>${esc(dw.deadlineLabel)}</b> — anything not validated by then is not sent.</p>
+<p style="color:#444;margin:0 0 14px">Each report you tick is sent to the client on <b>${esc(dw.sendLabel)}</b> from client@gershon.ai (report in the email + PDF). ${s.approvalMode === 'both' ? 'Both Aina and Olivier must validate.' : 'One validation (Aina or Olivier) is enough.'} Deadline: <b>${esc(dw.deadlineLabel)}</b> — anything not validated by then is not sent.</p>
 ${msg ? `<div style="background:#ecfdf3;border:1px solid #057642;color:#057642;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-weight:700">${esc(msg)}</div>` : ''}
 ${locked ? `<div style="background:#fef2f2;border:1px solid #b91c1c;color:#b91c1c;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-weight:700">The deadline has passed — validations are locked for this month.</div>` : ''}
 <form method="post"><div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:8px;overflow:auto">${deliveryTable(rows, who, locked)}</div>
@@ -540,14 +540,14 @@ ${locked ? '' : `<div style="margin-top:14px;display:flex;gap:10px;align-items:c
       ? `<a class="btn primary" href="${esc(await approverLink(c.env, originOf(c), month, me))}"><i class="fas fa-circle-check"></i> Validate my reports (${APPROVERS.find(a => a.id === me)!.label})</a>`
       : (await Promise.all(APPROVERS.map(async a => `<a class="btn${a.id === 'olivier' ? ' primary' : ''}" href="${esc(await approverLink(c.env, originOf(c), month, a.id))}"><i class="fas fa-circle-check"></i> Validate as ${a.label}</a>`))).join(' ')
     return htmlV3(c, shell({ title: 'Client delivery', active: 'delivery', h1: `Client delivery · ${esc(monthWin(month).label)} reports`, right: links,
-      body: `<div class="summary"><div class="summary-text">Sent on <b>${esc(dw.friday)}</b> (first Friday) from client@gershon.ai to the client's professional email, report in the email + PDF. Validation by ${s.approvalMode === 'both' ? '<b>Aina and Olivier</b>' : '<b>Aina or Olivier</b>'} required by <b>${esc(dw.deadlineLabel)}</b>; otherwise the report is not sent.</div><a class="btn" href="/settings"><i class="fas fa-sliders"></i> Recipients</a></div><div class="card" style="overflow:auto">${deliveryTable(rows, null, true)}</div>` }))
+      body: `<div class="summary"><div class="summary-text">Sent on <b>${esc(dw.sendLabel)}</b> (first Friday) from client@gershon.ai to the client's professional email, report in the email + PDF. Validation by ${s.approvalMode === 'both' ? '<b>Aina and Olivier</b>' : '<b>Aina or Olivier</b>'} required by <b>${esc(dw.deadlineLabel)}</b>; otherwise the report is not sent.</div><a class="btn" href="/settings"><i class="fas fa-sliders"></i> Recipients</a></div><div class="card" style="overflow:auto">${deliveryTable(rows, null, true)}</div>` }))
   })
   // Approval request / reminder to Aina and Olivier — called by the Thursday schedule (public, harmless: mails approvers only).
   app.post('/api/v3/approval/request', async (c) => {
     const s = await readSettings(c.env.COMPANIES_KV)
     const month = /^\d{4}-\d{2}$/.test(c.req.query('month') || '') ? c.req.query('month')! : upcomingReportMonth(todayNY())
     const dw = deliveryWindow(month)
-    if (c.req.query('force') !== '1' && todayNY() !== dw.thursday) return c.json({ ok: true, skipped: true, reason: `not the Thursday before the first Friday (${dw.thursday})` })
+    if (c.req.query('force') !== '1' && todayNY() !== dw.thursday && todayNY() !== dw.friday) return c.json({ ok: true, skipped: true, reason: `not the Thursday/first Friday (${dw.thursday} / ${dw.friday})` })
     if (Date.now() > dw.deadline.getTime()) return c.json({ ok: true, skipped: true, reason: 'deadline passed' })
     const rows = await deliveryRows(c, month, s)
     const pending = rows.filter(r => r.active && !r.validated && !r.delivered)
@@ -562,7 +562,7 @@ ${locked ? '' : `<div style="margin-top:14px;display:flex;gap:10px;align-items:c
       const label = monthWin(month).label
       const html = `<div style="font-family:Arial,sans-serif;max-width:640px;color:#111"><div style="font-weight:900;color:#CC3333">GERSHON · CLIENT REPORTS</div>
 <h2 style="margin:8px 0">${reminder ? 'Reminder — ' : ''}${esc(a.label)}, please validate the ${esc(label)} client reports</h2>
-<p>They go out to clients <b>tomorrow (first Friday)</b> from client@gershon.ai. Deadline: <b>${esc(dw.deadlineLabel)}</b>. ${s.approvalMode === 'both' ? 'Both Aina and Olivier must validate.' : 'One validation (Aina or Olivier) is enough.'} Anything not validated is <b>not sent</b>.</p>
+<p>They go out to clients on <b>${esc(dw.sendLabel)}</b> (first Friday) from client@gershon.ai. Deadline: <b>${esc(dw.deadlineLabel)}</b>. ${s.approvalMode === 'both' ? 'Both Aina and Olivier must validate.' : 'One validation (Aina or Olivier) is enough.'} Anything not validated is <b>not sent</b>.</p>
 <p style="margin:20px 0"><a href="${esc(link)}" style="background:#CC3333;color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:800">Review &amp; validate</a></p>
 <p style="font-size:13px;color:#444">${pending.length} of ${rows.filter(r => r.active).length} reports still waiting for validation:</p><ul style="font-size:13px">${pending.map(r => `<li>#${r.no} ${esc(r.name)}${r.pro.length ? '' : ' — <span style="color:#b91c1c">no professional email</span>'}</li>`).join('')}</ul></div>`
       out.push({ who: a.id, to, ...(await sendPlain(c.env, to, `${reminder ? 'Reminder: ' : ''}Validate the ${label} client reports by ${dw.deadlineLabel}`, html)) })
@@ -579,6 +579,7 @@ ${locked ? '' : `<div style="margin-top:14px;display:flex;gap:10px;align-items:c
     if (!r) return c.json({ error: 'pass ?no=<client>' }, 400)
     if (c.req.query('force') !== '1' && todayNY() !== dw.friday) return c.json({ ok: true, skipped: true, reason: `today is not the delivery Friday (${dw.friday})` })
     if (todayNY() < dw.friday) return c.json({ ok: false, skipped: true, reason: 'never before the delivery Friday' })
+    if (c.req.query('force') !== '1' && Date.now() < dw.sendAt.getTime()) return c.json({ ok: true, skipped: true, reason: `not before ${dw.sendLabel}` })
     const done = await c.env.COMPANIES_KV.get(deliveryKey(month, r.no))
     if (done) return c.json({ ok: true, skipped: true, already: done })
     const rec = await readApproval(c.env.COMPANIES_KV, month, r.no)
@@ -599,6 +600,10 @@ ${locked ? '' : `<div style="margin-top:14px;display:flex;gap:10px;align-items:c
     const month = /^\d{4}-\d{2}$/.test(c.req.query('month') || '') ? c.req.query('month')! : upcomingReportMonth(todayNY())
     const dw = deliveryWindow(month)
     if (c.req.query('force') !== '1' && todayNY() !== dw.friday) return c.json({ ok: true, skipped: true })
+    if (c.req.query('force') !== '1' && Date.now() < dw.sendAt.getTime()) return c.json({ ok: true, skipped: true, reason: `not before ${dw.sendLabel}` })
+    const sumKey = `v3:delivery-summary:${month}`
+    if (c.req.query('force') !== '1' && await c.env.COMPANIES_KV.get(sumKey)) return c.json({ ok: true, skipped: true, reason: 'summary already sent' })
+    await c.env.COMPANIES_KV.put(sumKey, new Date().toISOString(), { expirationTtl: 60 * 60 * 24 * 400 })
     const rows = await deliveryRows(c, month, s)
     const sent = rows.filter(r => r.delivered), held = rows.filter(r => r.active && !r.delivered)
     const html = `<div style="font-family:Arial,sans-serif;max-width:680px;color:#111"><div style="font-weight:900;color:#CC3333">GERSHON · CLIENT REPORTS</div><h2 style="margin:8px 0">${esc(monthWin(month).label)} client reports — ${sent.length} sent, ${held.length} held back</h2>${deliveryTable(rows, null, true)}</div>`
