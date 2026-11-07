@@ -23,6 +23,8 @@ import { CLIENT_HISTORY, LIVE_FROM, HISTORY_BENCHMARKS } from './v3-history-data
 import { registerHold } from './v3-hold'
 import { registerCrmQuality } from './v3-crm-quality'
 import { registerSettingsUi } from './v3-settings-ui'
+// #24 sent-log + #07 GC Pipeline Next Due Dates (2026-11-07, replaces PR #5) — see src/next-due.ts
+import { registerNextDue } from './next-due'
 
 const addMonth = (k: string, n: number) => { const [y, m] = k.split('-').map(Number); return new Date(Date.UTC(y, m - 1 + n, 15)).toISOString().slice(0, 7) }
 
@@ -76,6 +78,7 @@ export function registerCampaign(app: Hono<any>, deps: Deps) {
   registerHold(app)
   registerCrmQuality(app, deps)
   registerSettingsUi(app)
+  registerNextDue(app)
   app.get('/api/v3/campaign/:no', async (c) => {
     const r = registryByNo(c.req.param('no'))
     if (!r) return c.json({ error: 'Unknown client number' }, 404)
