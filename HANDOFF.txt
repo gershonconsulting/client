@@ -7,11 +7,13 @@ Rules: Olivier never runs commands/uploads. Executors: Ariel (code/repo), Charle
   What: src/report-email.ts re-dresses the legacy "<emoji> Weekly/Monthly Report — …" e-mail (template in src/index.tsx)
     just before it goes to Resend: sender "GC Client Report" (address unchanged), white page, single column,
     max-width 680px, dark text #12211d, #CC3333 accent line/labels, "Source: … · Data as of … ET" footer,
-    Promote followers "— not collected" instead of a fake 0. Loaded from src/v3.ts (side-effect import).
-    Also src/v3.ts: internal sender "GC Client Reports" -> "GC Client Report" (sendReport + sendPlain default).
+    Promote followers "— not collected" instead of a fake 0, funnel bar dark text on light tints (no white-on-colour).
+    Same wrapper renames the v3 internal sender "GC Client Reports" -> "GC Client Report" (sendReport/sendPlain),
+    so src/v3.ts and src/index.tsx are untouched. Loaded by a side-effect import at the end of src/v3-approval.ts.
     Only that one e-mail is touched (subject + legacy header must match); any error sends the original.
-  ✅ Ready to test: Claude artifact "Client Report Email" https://claude.ai/artifact/LzBgCqhJhGcpn4oRHarqmA (sample data). Build passes; tested through the
-     real sendEmail() path: sender rewritten, other e-mails untouched.
+  ✅ Ready to test: Claude artifact "Client Report Email" https://claude.ai/artifact/LvJ5wqYNnTR272q541XWek (sample data). npm run build passes; tsc: no new errors
+     (166 pre-existing on main). Tested through the real sendEmail() + template extracted from current main:
+     sender rewritten, other e-mails untouched, 680px/390px no sideways scroll, no white text left.
   ❌ Ariel (needs git, ~15 min): move the same styles into generateComprehensiveReportHtml() in src/index.tsx,
      use reportFrom() in the two /api/reports/*/send handlers, then delete installReportEmailStyle().
   ❌ Merge = Olivier's call (merge = live via CI).

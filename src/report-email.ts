@@ -26,12 +26,16 @@
 //     - every rewrite is a plain string replacement; if the template changes and a
 //       pattern no longer matches, that part is simply left as it was (the e-mail
 //       still goes out), and any error falls back to the untouched request.
+//   Also renames the v3 internal sender "GC Client Reports" (src/v3.ts) to
+//   "GC Client Report", so src/v3.ts does not need to change.
+//   Loaded by a side-effect import in src/v3-approval.ts (small file, imported by src/v3.ts).
 //   PROPER FIX LATER (anyone with git access, ~15 min): apply the same styles in
 //   generateComprehensiveReportHtml() + use reportFrom() below in the two send
 //   handlers in src/index.tsx, then delete installReportEmailStyle().
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const REPORT_FROM_NAME = 'GC Client Report'
+const LEGACY_V3_NAME = 'GC Client Reports <'
 const INK = '#12211d'
 const LINK = '#1f6f5c'
 const RED = '#CC3333'
@@ -93,6 +97,12 @@ export function restyleLegacyReportHtml(html: string, asOf: Date = new Date()): 
   rep('<div style="font-size:10px;color:#94a3b8;margin-top:1px;">likes+comments+shares</div>',
     '<div style="font-size:10px;color:#94a3b8;margin-top:1px;">likes · comments · shares</div>')
 
+  // Funnel bar: no white text on coloured segments → dark text on lighter tints.
+  rep('font-size:10px;color:#fff;font-weight:700;" title=', `font-size:10px;color:${INK};font-weight:700;" title=`)
+  rep('background:#6366f1;', 'background:#a5b4fc;')
+  rep('background:#8b5cf6;', 'background:#c4b5fd;')
+  rep('background:#22c55e;', 'background:#86efac;')
+
   // Promote followers: "0 · +0 last 7d" means no follower snapshot exists → say so.
   h = h.replace(
     /(<div style="font-size:19px;font-weight:800;color:[^;"]+;line-height:1\.1;">)0(<\/div>\s*<div[^>]*>Followers<\/div>\s*<div[^>]*>)\+0 last (?:7|30)d(<\/div>)/g,
@@ -127,10 +137,18 @@ export function installReportEmailStyle(): void {
   g.fetch = function (input: any, init?: any) {
     try {
       const url = typeof input === 'string' ? input : (input && input.url) || ''
-      if (url === 'https://api.resend.com/emails' && init && typeof init.body === 'string' && init.body.includes(MARKER)) {
-        const payload = JSON.parse(init.body)
-        if (isLegacyPortfolioReport(payload)) {
-          init = { ...init, body: JSON.stringify(restylePayload(payload)) }
+      if (url === 'https://api.resend.com/emails' && init && typeof init.body === 'string') {
+        if (init.body.includes(MARKER)) {
+          const payload = JSON.parse(init.body)
+          if (isLegacyPortfolioReport(payload)) {
+            init = { ...init, body: JSON.stringify(restylePayload(payload)) }
+          }
+        } else if (init.body.includes(LEGACY_V3_NAME)) {
+          // v3 monthly internal report (src/v3.ts sendReport/sendPlain): "GC Client Reports" → "GC Client Report".
+          const payload = JSON.parse(init.body)
+          if (typeof payload.from === 'string' && payload.from.startsWith(LEGACY_V3_NAME)) {
+            init = { ...init, body: JSON.stringify({ ...payload, from: REPORT_FROM_NAME + payload.from.slice(LEGACY_V3_NAME.length - 2) }) }
+          }
         }
       }
     } catch {
