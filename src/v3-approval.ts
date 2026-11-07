@@ -111,3 +111,7 @@ export async function verifyApproverSig(env: any, month: string, who: string, si
   for (let i = 0; i < want.length; i++) d |= want.charCodeAt(i) ^ sig.charCodeAt(i)
   return d === 0
 }
+
+// Side effect (2026-11-07, replaces PR #4): sender "GC Client Report" + house style for the weekly/monthly
+// report e-mails. See src/report-email.ts.
+import './report-email'
