@@ -1,0 +1,57 @@
+name: Client reports — validation & first-Friday delivery
+
+# Olivier, 2026-11-05: client monthly reports go to the client on the FIRST FRIDAY of the
+# month (month just closed), from client@gershon.ai, report in the email + PDF attached —
+# ONLY if validated by Aina and/or Olivier before THURSDAY 6:00 PM Eastern, and only to a
+# professional address. The endpoints check the calendar themselves, so these weekly
+# schedules do nothing on other weeks.
+#   Thu 14:00 UTC  → validation request to Aina + Olivier (signed "Review & validate" link)
+#   Thu 20:00 UTC  → reminder if anything is still not validated
+#   Fri 15:00 UTC  → delivery of every validated report + summary of sent / held back
+
+on:
+  schedule:
+    - cron: '0 14 * * 4'
+    - cron: '0 20 * * 4'
+    - cron: '0 15 * * 5'
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'request | reminder | deliver'
+        required: true
+        default: 'request'
+      month:
+        description: 'Report month (YYYY-MM). Empty = the one due this first Friday.'
+        required: false
+        default: ''
+      force:
+        description: 'Ignore the calendar check (1 = yes). Validation and professional email are ALWAYS required.'
+        required: false
+        default: '0'
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    env:
+      BASE: https://client.gershoncrm.com
+      MONTH: ${{ github.event.inputs.month }}
+      FORCE: ${{ github.event.inputs.force }}
+      ACTION: ${{ github.event.inputs.action || (github.event.schedule == '0 14 * * 4' && 'request') || (github.event.schedule == '0 20 * * 4' && 'reminder') || 'deliver' }}
+    steps:
+      - name: Validation request / reminder
+        if: env.ACTION == 'request' || env.ACTION == 'reminder'
+        run: |
+          Q="x=1"; [ "$ACTION" = "reminder" ] && Q="$Q&reminder=1"; [ -n "$MONTH" ] && Q="$Q&month=$MONTH"; [ "$FORCE" = "1" ] && Q="$Q&force=1"
+          curl -s -X POST "$BASE/api/v3/approval/request?$Q"; echo
+      - name: Deliver validated client reports
+        if: env.ACTION == 'deliver'
+        run: |
+          for NO in 175 200 212 229 233 245 246 247 248 250; do
+            Q="no=$NO"; [ -n "$MONTH" ] && Q="$Q&month=$MONTH"; [ "$FORCE" = "1" ] && Q="$Q&force=1"
+            echo "client $NO:"; curl -s -X POST "$BASE/api/v3/monthly/deliver?$Q"; echo; sleep 2
+          done
+      - name: Summary to Aina, Olivier and report@
+        if: env.ACTION == 'deliver'
+        run: |
+          Q="x=1"; [ -n "$MONTH" ] && Q="$Q&month=$MONTH"; [ "$FORCE" = "1" ] && Q="$Q&force=1"
+          curl -s -X POST "$BASE/api/v3/monthly/deliver/summary?$Q"; echo

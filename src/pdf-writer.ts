@@ -90,6 +90,33 @@ export class MrPdf {
   ctext(x: number, y: number, s: string, size: number, bold: boolean, c: RGB) {
     this.text(x - strWidth(s, bold, size) / 2, y, s, size, bold, c);
   }
+  /** Filled polygon (area under a line chart). */
+  poly(pts: [number, number][], c: RGB) {
+    if (pts.length < 3) return;
+    this.col(c);
+    this.ops.push(pts.map((q, i) => `${n2(q[0])} ${n2(q[1])} ${i ? "l" : "m"}`).join(" ") + " h f");
+  }
+  /** Stroked polyline; dash e.g. [3, 2] for a dashed reference line. */
+  stroke(pts: [number, number][], c: RGB, lw = 1, dash?: number[]) {
+    if (pts.length < 2) return;
+    this.ops.push(`${n2(c[0])} ${n2(c[1])} ${n2(c[2])} RG ${n2(lw)} w 1 J 1 j ${dash ? `[${dash.map(n2).join(" ")}] 0 d` : "[] 0 d"}`);
+    this.ops.push(pts.map((q, i) => `${n2(q[0])} ${n2(q[1])} ${i ? "l" : "m"}`).join(" ") + " S");
+  }
+  /** Filled circle (Bezier approximation). */
+  circle(x: number, y: number, r: number, c: RGB) {
+    const k = 0.5523 * r;
+    this.col(c);
+    this.ops.push(`${n2(x + r)} ${n2(y)} m ${n2(x + r)} ${n2(y + k)} ${n2(x + k)} ${n2(y + r)} ${n2(x)} ${n2(y + r)} c ${n2(x - k)} ${n2(y + r)} ${n2(x - r)} ${n2(y + k)} ${n2(x - r)} ${n2(y)} c ${n2(x - r)} ${n2(y - k)} ${n2(x - k)} ${n2(y - r)} ${n2(x)} ${n2(y - r)} c ${n2(x + k)} ${n2(y - r)} ${n2(x + r)} ${n2(y - k)} ${n2(x + r)} ${n2(y)} c f`);
+  }
+  pageCount(): number { return this.pages.length + 1; }
+  /** Draw on an already finished page (0-based) — used for "Page i of N" footers. */
+  drawOn(i: number, fn: () => void) {
+    if (i >= this.pages.length) { this.c = null; fn(); this.c = null; return; }
+    const save = this.ops;
+    this.ops = this.pages[i]; this.c = null;
+    fn();
+    this.pages[i] = this.ops; this.ops = save; this.c = null;
+  }
   addPage() {
     this.pages.push(this.ops);
     this.ops = [];

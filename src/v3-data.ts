@@ -1,3 +1,4 @@
+import { SI_MONTHLY } from "./straightin-monthly"
 // ─────────────────────────────────────────────────────────────────────────────
 // v3 data layer — one record per Gershon client NUMBER, per calendar month.
 //
@@ -18,6 +19,7 @@ export interface RegistryEntry {
   campaigns?: string[]    // LinkedIn campaigns (Straight-in) run under this one client number
   accountKeys?: Record<string, string> // company key → LinkedIn account name (when each account has its own Streak pipeline)
   linalysis?: string[]    // Linalysis account email(s) of the LinkedIn profile used for the campaign
+  reportTo?: string       // default professional email(s) of the person(s) we run the campaign for — Settings overrides
   services: Services      // what Gershon delivers for this client (Olivier's table, 2026-10-28); Settings can override
 }
 
@@ -29,16 +31,16 @@ const P_ONLY: Services = { promote: true, network: false, engage: false }
 
 export const CLIENT_REGISTRY: RegistryEntry[] = [
   // 175 and 229: one client number, two LinkedIn campaigns each, no Promote (Olivier, 2026-10-13)
-  { no: 175, name: 'Finance Montreal',       keys: ['finance-montreal', 'finance-montreal-noza'], socialId: 'cmp0eqm9o000rbqj3ayeto7zp', services: NE, campaigns: ['Steve', 'Noza'], accountKeys: { 'finance-montreal': 'Steve', 'finance-montreal-noza': 'Noza' } },
-  { no: 200, name: 'MAbSilico',              keys: ['mabsilico'],              socialId: 'cmnzg13dn0000j4oeke3nh3ko', services: NE, linalysis: ['vincent.puard@gmail.com'] },
-  { no: 212, name: 'Wallix',                 keys: ['wallix'],                 socialId: 'cmp0eqlsx000dbqj3hmvwldbe', services: P_ONLY },
-  { no: 229, name: 'Altavia',                keys: ['altavia', 'altavia-alexandre'], socialId: 'cmp0eqm3y000mbqj321j14ksw', services: NE, campaigns: ['Anne', 'Alexandre'], accountKeys: { 'altavia': 'Anne', 'altavia-alexandre': 'Alexandre' }, linalysis: ['abougel@altavia.co'] },
-  { no: 233, name: 'Valos',                  keys: ['valos'],                  socialId: 'cmp0eqlp4000abqj325ow1eyf', services: ALL, linalysis: ['dmitri.petratchenko@valos.it'] },
-  { no: 245, name: 'PhiTech Bioinformatics', keys: ['phitech-bioinformatics'], socialId: 'cmoda8pxb000pmayx7fbslr0j', services: ALL },
-  { no: 246, name: 'Enzymicals AG',          keys: ['enzymicals-ag'],          socialId: 'cmrumcbd6000011b111l8s53r', services: ALL, linalysis: ['david.liese12@gmail.com'] },
-  { no: 247, name: 'Flying Secoya',          keys: ['flying-secoya'],          socialId: 'cmrnknd4e0000q7qo69o3193g', services: ALL },
-  { no: 248, name: 'Meteor Biotech',         keys: ['meteor-biotech'],         socialId: 'cmrumd4gb000c11b193zq0t2h', services: ALL, linalysis: ['amoslee89@gmail.com'] },
-  { no: 250, name: 'Amphasys',               keys: [],                         socialId: 'cmv6rya4i0001nh4l1a92cf48', services: ALL, linalysis: ['markus.bernasconi@amphasys.com'] },
+  { no: 175, name: 'Finance Montreal',       reportTo: 'steve.gauthier@finance-montreal.com, noza.mutalova@finance-montreal.com', keys: ['finance-montreal', 'finance-montreal-noza'], socialId: 'cmp0eqm9o000rbqj3ayeto7zp', services: NE, campaigns: ['Steve', 'Noza'], accountKeys: { 'finance-montreal': 'Steve', 'finance-montreal-noza': 'Noza' } },
+  { no: 200, name: 'MAbSilico',              reportTo: 'vincent.puard@mabsilico.com', keys: ['mabsilico'],              socialId: 'cmnzg13dn0000j4oeke3nh3ko', services: NE, linalysis: ['vincent.puard@gmail.com'] },
+  { no: 212, name: 'Wallix',                 reportTo: 'ldescormiers@wallix.com', keys: ['wallix'],                 socialId: 'cmp0eqlsx000dbqj3hmvwldbe', services: P_ONLY },
+  { no: 229, name: 'Altavia',                reportTo: 'abougel@altavia.co, arouleau@altavia.co', keys: ['altavia', 'altavia-alexandre'], socialId: 'cmp0eqm3y000mbqj321j14ksw', services: NE, campaigns: ['Anne', 'Alexandre'], accountKeys: { 'altavia': 'Anne', 'altavia-alexandre': 'Alexandre' }, linalysis: ['abougel@altavia.co'] },
+  { no: 233, name: 'Valos',                  reportTo: 'dmitri.petratchenko@valos.it', keys: ['valos'],                  socialId: 'cmp0eqlp4000abqj325ow1eyf', services: ALL, linalysis: ['dmitri.petratchenko@valos.it'] },
+  { no: 245, name: 'PhiTech Bioinformatics', reportTo: 'tunahan.cakir@phitech.bio', keys: ['phitech-bioinformatics'], socialId: 'cmoda8pxb000pmayx7fbslr0j', services: ALL },
+  { no: 246, name: 'Enzymicals AG',          reportTo: 'david.liese@enzymicals.com', keys: ['enzymicals-ag'],          socialId: 'cmrumcbd6000011b111l8s53r', services: ALL, linalysis: ['david.liese12@gmail.com'] },
+  { no: 247, name: 'Flying Secoya',          reportTo: 'charles@flyingsecoya.io', keys: ['flying-secoya'],          socialId: 'cmrnknd4e0000q7qo69o3193g', services: ALL },
+  { no: 248, name: 'Meteor Biotech',         reportTo: 'amos.lee@meteorbiotech.com', keys: ['meteor-biotech'],         socialId: 'cmrumd4gb000c11b193zq0t2h', services: ALL, linalysis: ['amoslee89@gmail.com'] },
+  { no: 250, name: 'Amphasys',               reportTo: 'markus.bernasconi@amphasys.com', keys: [],                         socialId: 'cmv6rya4i0001nh4l1a92cf48', services: ALL, linalysis: ['markus.bernasconi@amphasys.com'] },
 ]
 
 // Lost clients (Oct 2026): data kept, never shown — Manoeuvre Group, Urban Factory, APM Music.
@@ -62,7 +64,9 @@ export interface V3Settings {
   internalEmail: string            // our own monthly report
   straightinEmail: string          // provider report (Straight-in)
   clientEmails: Record<string, string> // client number → comma-separated recipients
-  autoSendClients: boolean         // monthly cron mails clients directly (else to internalEmail for review)
+  autoSendClients: boolean         // legacy — clients are now only mailed on the first Friday after validation (v3-approval.ts)
+  approverEmails: { aina: string; olivier: string } // who validates client reports before the first-Friday delivery
+  approvalMode: 'either' | 'both'  // validation needed from Aina OR Olivier (either) or from both
   services: Record<string, Partial<Services>> // client number → service on/off overrides (Settings page)
   linalysis: Record<string, string>           // client number → Linalysis account email(s), comma-separated (overrides registry)
   accounts: Record<string, AccountProfile[]>  // client number → one profile per LinkedIn account (multi-account clients: Altavia, Finance Montreal)
@@ -106,6 +110,8 @@ export const DEFAULT_SETTINGS: V3Settings = {
   straightinEmail: '',
   clientEmails: {},
   autoSendClients: false,
+  approverEmails: { aina: 'aina.rama@gershonconsulting.com', olivier: 'olivier@gershonconsulting.com' },
+  approvalMode: 'either',
   services: {},
   linalysis: {},
   accounts: {},
@@ -115,6 +121,14 @@ export function linalysisFor(entry: RegistryEntry, s?: V3Settings): string[] {
   const base = o ? o.split(/[,;\s]+/).map(x => x.trim().toLowerCase()).filter(x => x.includes('@')) : (entry.linalysis || [])
   const extra = profilesFor(entry, s).map(p => p.linalysis.toLowerCase()).filter(x => x.includes('@'))
   return [...new Set([...base, ...extra])]
+}
+// Client report recipients: Settings value if set, else the registry default (professional emails, 2026-11-05).
+// Our own addresses (report@gershonconsulting.com…) are never a client recipient: if Settings only holds
+// those, the registry default is used.
+const OWN_DOMAINS = /@(gershonconsulting\.(com|net)|gershon\.ai|gershoncrm\.com)$/i
+export function clientRecipientsOf(entry: RegistryEntry, s?: V3Settings): string {
+  const set = String((s?.clientEmails || {})[String(entry.no)] || '').split(/[,;\s]+/).map(x => x.trim()).filter(x => x.includes('@') && !OWN_DOMAINS.test(x))
+  return set.length ? set.join(', ') : String(entry.reportTo || '')
 }
 export function servicesFor(entry: RegistryEntry, s?: V3Settings): Services {
   return { ...entry.services, ...((s?.services || {})[String(entry.no)] || {}) }
@@ -133,6 +147,8 @@ export async function saveSettings(kv: KVNamespace, s: Partial<V3Settings>): Pro
   next.promoteUnit = next.promoteUnit === 'week' ? 'week' : 'day'
   next.acceptTarget = Math.max(1, Math.min(100, Number(next.acceptTarget) || 20))
   next.leadsPerMonth = Math.max(1, Math.min(500, Number(next.leadsPerMonth) || 10))
+  next.approvalMode = next.approvalMode === 'both' ? 'both' : 'either'
+  next.approverEmails = { ...DEFAULT_SETTINGS.approverEmails, ...(cur.approverEmails || {}), ...((s as any).approverEmails || {}) }
   const linIn = (s as any).linalysis && typeof (s as any).linalysis === 'object' ? (s as any).linalysis : cur.linalysis || {}
   next.linalysis = {}
   for (const r of CLIENT_REGISTRY) { const v = String(linIn[String(r.no)] || '').trim(); if (v && v !== (r.linalysis || []).join(', ')) next.linalysis[String(r.no)] = v }
@@ -607,7 +623,7 @@ export function computeGaps(entry: RegistryEntry, cm: ClientMonth, win: MonthWin
     const late = lacking.filter(m => due(m) <= today), coming = lacking.filter(m => due(m) > today)
     const md = (d: string) => d.slice(5).replace('-', '/')
     if (N.pending) g.push({ col: 'weeks', level: 'missing', area: 'Network', what: `No Straight-in week of ${win.label} received yet.`, effect: 'No network numbers for the month.', owner: 'Straight-in (weekly links)' })
-    else if (lacking.length) g.push({ col: 'weeks', level: 'partial', area: 'Network',
+    else if (lacking.length && (N as any).source !== 'straightin-monthly') g.push({ col: 'weeks', level: 'partial', area: 'Network',
       what: [late.length ? `Straight-in weeks late: ${late.map(md).join(', ')}.` : '', coming.length ? `Not in yet: ${coming.map(m => `${md(m)} (due about ${md(due(m))})`).join(', ')}.` : ''].filter(Boolean).join(' '),
       effect: `Network covers ${N.weeks.length} of ${N.weeks.length + lacking.length} weeks; totals are understated until they arrive.`, owner: 'Straight-in (weekly links)' })
     for (const c of N.missingCampaigns || []) g.push({ col: 'weeks', level: 'partial', area: 'Network', what: `No report for the ${c} campaign.`, effect: 'That campaign is not counted.', owner: 'Straight-in links page' })
@@ -636,7 +652,7 @@ export function computeGaps(entry: RegistryEntry, cm: ClientMonth, win: MonthWin
   else if (!L) g.push({ col: 'profile', level: 'missing', area: 'Profile', what: `Linalysis has no capture in ${win.label} for ${lin.join(', ')}.`, effect: 'No LinkedIn profile block.', owner: 'Linalysis extension' })
   else if (L.missing.length) g.push({ col: 'profile', level: 'partial', area: 'Profile', what: `Linalysis opening values missing: ${L.missing.map(f => f.replace(/_/g, ' ')).join(', ')}.`, effect: 'Those figures show a value but no monthly change.', owner: 'Linalysis' })
   // Delivery
-  if (!emailsOf(s.clientEmails?.[String(entry.no)] || '').length) g.push({ col: 'recipient', level: 'missing', area: 'Delivery', what: 'No client recipient email set.', effect: `The report goes to ${s.internalEmail} only.`, owner: 'Targets & recipients' })
+  if (!emailsOf(clientRecipientsOf(entry, s)).length) g.push({ col: 'recipient', level: 'missing', area: 'Delivery', what: 'No client recipient email set.', effect: `The report goes to ${s.internalEmail} only.`, owner: 'Targets & recipients' })
   // Definition — two meanings of "lead"
   if (E && N && !N.pending && E.newLeads !== N.opportunities) g.push({ col: 'goal', level: 'decision', area: 'Goal', what: `"Qualified lead" has two counts: ${E.newLeads} new Streak accounts vs ${N.opportunities} Straight-in opportunities.`, effect: `The ${E.target}/month goal reads ${pctOf(E.newLeads, E.target)}% or ${pctOf(N.opportunities, E.target)}% depending on the source.`, owner: 'Olivier' })
   for (const x of g) if (x.col && !x.fix) x.fix = fixFor(x.col, { streakUrl, no: entry.no })
@@ -695,12 +711,13 @@ export async function collectClientMonth(env: { COMPANIES_KV: KVNamespace }, dep
   }
   const errors: string[] = []
   const why = { v: "" }
-  const [promote, network, engage, profile] = await Promise.all([
+  const [promote, network0, engage, profile] = await Promise.all([
     collectPromote(deps, entry, win, prev, settings, why).catch(e => { errors.push('promote: ' + e.message); return null }),
     reports.some(r => !r.oppsOnly) ? collectNetwork(reports, win, prev, settings, entry.campaigns || []).catch(e => { errors.push('network: ' + e.message); return null }) : Promise.resolve(null),
     svc.engage ? collectEngage(deps, companies, win, prev, settings, (entry.campaigns || []).length || 1).catch(e => { errors.push('engage: ' + e.message); return null }) : Promise.resolve(null),
     svc.network ? collectProfile(deps, entry, win, settings).catch(e => { errors.push('profile: ' + e.message); return null }) : Promise.resolve(null),
   ])
+  const network = svc.network ? applySiMonthly(network0, entry, win, prev, settings) : network0
   const accounts = accountRows(entry, network, engage, settings, profileKeys)
   const cm: ClientMonth = { promoteWhy: svc.promote && !promote ? why.v || undefined : undefined, accounts, no: entry.no, name: entry.name, keys: entry.keys, promoteInPlan: svc.promote, services: svc, campaigns: entry.campaigns || [], month: win.key, generatedAt: new Date().toISOString(), promote, network, engage, profile, gaps: [], errors }
   const pk = (companies.find((co: any) => co?.pipelineKey) as any)?.pipelineKey
@@ -708,10 +725,34 @@ export async function collectClientMonth(env: { COMPANIES_KV: KVNamespace }, dep
   return cm
 }
 
+// Straight-in monthly reports (full month) override the summed weekly trajectories when present.
+function applySiMonthly(network: any, entry: RegistryEntry, win: MonthWin, prev: MonthWin, s: V3Settings): any {
+  const cur = (SI_MONTHLY[win.key] || []).filter(a => a.no === entry.no)
+  const pr = (SI_MONTHLY[prev.key] || []).filter(a => a.no === entry.no)
+  if (!cur.length && !pr.length) return network
+  const n: any = network ? { ...network } : { weeks: [], prevSent: 0, prevAccepted: 0, prevRate: 0, staleCampaigns: [], missingCampaigns: [], namedOpps: [], campaigns: [], lastReport: '' }
+  const tot = (L: typeof cur, k: 'sent' | 'accepted' | 'messages' | 'opportunities' | 'followups' | 'inmails') => L.reduce((a, x) => a + x[k], 0)
+  if (cur.length) {
+    n.sent = tot(cur, 'sent'); n.accepted = tot(cur, 'accepted'); n.messages = tot(cur, 'messages'); n.opportunities = tot(cur, 'opportunities')
+    n.followups = tot(cur, 'followups'); n.inmails = tot(cur, 'inmails')
+    n.rate = n.sent ? r1((n.accepted / n.sent) * 100) : 0
+    n.pending = false; n.missingCampaigns = []; n.staleCampaigns = []
+    n.pct = pctOf(n.rate, s.acceptTarget)
+    n.campaigns = cur.map(a => ({ label: a.label, account: a.account || undefined, sent: a.sent, accepted: a.accepted, rate: a.sent ? r1((a.accepted / a.sent) * 100) : 0, opportunities: a.opportunities }))
+    n.namedOpps = cur.flatMap(a => a.opps.map(o => ({ name: o.name, company: o.company, title: o.title, type: '', date: o.date }))).sort((a, b) => b.date.localeCompare(a.date))
+    n.lastReport = `Straight-in monthly report — ${win.label}`
+    n.source = 'straightin-monthly'
+  }
+  if (pr.length) {
+    n.prevSent = tot(pr, 'sent'); n.prevAccepted = tot(pr, 'accepted'); n.prevRate = n.prevSent ? r1((n.prevAccepted / n.prevSent) * 100) : 0
+  }
+  return n
+}
+
 // KV cache: 30 min for the current month, 12 h for closed months.
 export async function getClientMonth(env: { COMPANIES_KV: KVNamespace }, deps: Deps, entry: RegistryEntry, monthKey: string, opts: { fresh?: boolean; settings?: V3Settings } = {}): Promise<ClientMonth> {
   const win = monthWin(monthKey)
-  const ck = `v3:cm9:${win.key}:${entry.no}`
+  const ck = `v3:cm10:${win.key}:${entry.no}`
   if (!opts.fresh) {
     try {
       const raw = await env.COMPANIES_KV.get(ck)

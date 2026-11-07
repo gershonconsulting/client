@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/cloudflare-workers'
 import { registerV3, shell as v3Shell } from './v3'
-import { registerUsers, linkedInConfigured } from './users'
+import { registerUsers, linkedInConfigured, passwordLogin } from './users'
 
 type Bindings = {
   COMPANIES_KV: KVNamespace
@@ -93,7 +93,7 @@ app.get('/login', (c) => {
     : liErr ? (LI_ERRORS[liErr] || 'Sign-in failed. Please try again.') + (liErr === 'not_registered' && c.req.query('detail') ? ` (LinkedIn account: ${String(c.req.query('detail')).replace(/[<>&"]/g, '')})` : '')
     : undefined
   const invite = (c.req.query('invite') || '').replace(/[^a-zA-Z0-9-]/g, '').slice(0, 64)
-  return c.html(renderLoginPage(next, error, invite, linkedInConfigured(c.env)))
+  return c.html(renderLoginPage(next, error, invite, linkedInConfigured(c.env), c.req.query('sent') === '1', c.req.query('forgot') === '1'))
 })
 
 app.get('/favicon.ico', (c) => c.redirect('/static/clients-icon.svg', 301))
@@ -125,14 +125,20 @@ app.post('/api/auth/login', async (c) => {
   const providedHash = await sha256Hex(password)
 
   const userOk = logins.includes(email.trim().toLowerCase())
-  const ok = userOk && safeEqual(providedHash, expectedHash)
+  let ok = userOk && safeEqual(providedHash, expectedHash)
+  let sessionId = expectedUser
+  if (!ok) {
+    // Personal logins (Olivier, Aina, Juliana…): e-mail + own password — src/users.ts
+    const personal = await passwordLogin(c.env.COMPANIES_KV, email, password).catch(() => null)
+    if (personal) { ok = true; sessionId = personal }
+  }
 
   if (!ok) {
     if (wantsJson) return c.json({ error: 'Invalid credentials' }, 401)
     return c.redirect(`/login?error=1&next=${encodeURIComponent(next)}`, 302)
   }
 
-  const token = await createSessionToken(c.env, expectedUser)
+  const token = await createSessionToken(c.env, sessionId)
   c.header('Set-Cookie', `${SESSION_COOKIE}=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL_SECONDS}`)
 
   // Only allow same-origin redirects
@@ -218,12 +224,16 @@ const PUBLIC_PATH_PREFIXES = [
   '/favicon',
   '/api/chat/',
   '/r/', // signed interactive client reports (HMAC link, see v3-story.ts)
+  '/approve/', // signed validation links for Aina / Olivier (HMAC, see v3-approval.ts)
 ]
 const PUBLIC_EXACT_PATHS = [
   '/', // landing page when signed out; the handler redirects to the dashboard when signed in
   '/api/reports/weekly/send',
   '/api/reports/monthly/send',
   '/api/v3/monthly/run',
+  '/api/v3/monthly/deliver',
+  '/api/v3/monthly/deliver/summary',
+  '/api/v3/approval/request',
 ]
 
 function isPublicPath(path: string): boolean {
@@ -307,6 +317,7 @@ registerUsers(app, {
   sessionUser: async (c: any) => { const t = readCookie(c.req.header('Cookie'), SESSION_COOKIE); return t ? verifySessionToken(c.env, t) : null },
   sessionCookie: SESSION_COOKIE,
   sessionTtl: SESSION_TTL_SECONDS,
+  sign: (env: Bindings, payload: string) => hmacHex(sessionSecret(env), payload),
 }, (body: string) => v3Shell({ title: 'Users', active: 'users', h1: 'Users <span class="muted" style="font-size:13px;font-weight:500">who can sign in with LinkedIn</span>', body }))
 
 function renderHomePage(): string {
@@ -479,7 +490,7 @@ function renderHomePage(): string {
 </html>`
 }
 
-function renderLoginPage(next: string, error?: string, invite = '', liOn = true): string {
+function renderLoginPage(next: string, error?: string, invite = '', liOn = true, sent = false, forgot = false): string {
   const liHref = '/api/auth/linkedin/login?next=' + encodeURIComponent(next === '/' ? '/dashboard' : next) + (invite ? '&invite=' + invite : '')
   // Linalysis design, Gershon.ai red — same tokens as /static/gershon.css
   return `<!DOCTYPE html>
@@ -528,6 +539,14 @@ function renderLoginPage(next: string, error?: string, invite = '', liOn = true)
           <input id="password" name="password" type="password" autocomplete="current-password" required /></div>
         <button type="submit" class="btn primary">Sign in</button>
       </form>
+      ${sent ? `<div class="inv" style="margin:16px 0 0"><b>Check your inbox.</b> If this e-mail has access, a link to choose your password is on its way.</div>` : ''}
+      <details style="margin-top:16px;font-size:13px"${forgot ? ' open' : ''}><summary style="cursor:pointer;color:var(--brand);font-weight:700">First time, or forgot your password?</summary>
+        <form method="POST" action="/api/auth/password-link" style="margin-top:12px">
+          <label for="pwEmail">Your work e-mail</label>
+          <input id="pwEmail" name="email" type="email" autocomplete="email" required placeholder="name@gershonconsulting.com" />
+          <button type="submit" class="btn" style="width:100%;justify-content:center;margin-top:10px">E-mail me a link to set my password</button>
+        </form>
+      </details>
     </div>
     <p style="text-align:center;font-size:12px;color:var(--text-muted);margin-top:16px">Gershon Consulting — internal use only</p>
   </div></div>

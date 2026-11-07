@@ -237,7 +237,7 @@
       ev.preventDefault();
       var f = ev.target, body = { promoteTargets: {}, clientEmails: {}, services: {}, accounts: {} };
       ['promoteTarget', 'acceptTarget', 'leadsPerMonth'].forEach(function (k) { body[k] = Number(f[k].value); });
-      body.promoteUnit = f.promoteUnit.value; body.internalEmail = f.internalEmail.value.trim(); body.straightinEmail = f.straightinEmail.value.trim(); body.autoSendClients = f.autoSendClients.checked;
+      body.promoteUnit = f.promoteUnit.value; body.internalEmail = f.internalEmail.value.trim(); body.straightinEmail = f.straightinEmail.value.trim(); body.autoSendClients = false; body.approvalMode = f.approvalMode.value; body.approverEmails = { aina: f.approverAina.value.trim(), olivier: f.approverOlivier.value.trim() };
       Array.prototype.forEach.call(f.elements, function (el) {
         if (/^pt_/.test(el.name) && el.value !== '') body.promoteTargets[el.name.slice(3)] = Number(el.value);
         if (/^ce_/.test(el.name) && el.value.trim()) body.clientEmails[el.name.slice(3)] = el.value.trim();

@@ -5,8 +5,11 @@
 //   client     : one per client, always positive — one-pager in the email body + PDF attached
 // Email HTML uses inline styles only (Gmail strips <style>). PDFs are one Letter
 // page each, drawn with the Linalysis/Social zero-dependency writer.
+// Client-facing text never names the outreach provider (Olivier, 2026-11-06).
 // ─────────────────────────────────────────────────────────────────────────────
 import { MrPdf, strWidth as W, type RGB } from './pdf-writer'
+import { clientPdfBase64, crmAsk, CLIENT_CONTACT_LINE, type ClientPdfInput } from './v3-client-pdf'
+import type { StoryHistory } from './v3-story'
 import { band, clientLabel, overallScore, pctOf, dotsFor, GAP_COLUMNS, fixFor, type ClientMonth, type Portfolio, type V3Settings, type Dot } from './v3-data'
 
 export type ReportKind = 'straightin' | 'internal' | 'client' | 'gaps'
@@ -38,8 +41,9 @@ export interface ReportModel {
   footer: string
   subject: string
   filename: string
-  link?: string          // interactive web report (client reports)
+  link?: string          // interactive web report (not used in client reports since 2026-11-05)
   linkLabel?: string
+  clientPdf?: ClientPdfInput  // client reports: multi-page PDF with charts (v3-client-pdf.ts)
 }
 
 // ── Improvement sources (internal) / requests (Straight-in) ──────────────────
@@ -194,7 +198,7 @@ export function straightinModel(p: Portfolio, s: V3Settings): ReportModel {
   }
 }
 
-export function clientModel(c: ClientMonth, monthLabel: string, monthKey: string, extra: { link?: string; insights?: { title: string; text: string }[] } = {}): ReportModel {
+export function clientModel(c: ClientMonth, monthLabel: string, monthKey: string, extra: { insights?: { title: string; text: string }[]; history?: StoryHistory | null; acceptTarget?: number } = {}): ReportModel {
   const tiles: Tile[] = []
   const P = c.promote, N = c.network, E = c.engage
   if (P && P.posts > 0) tiles.push({ label: 'POSTS PUBLISHED', value: fmt(P.posts), sub: P.platforms.join(' + ') || 'social', color: RED })
@@ -271,6 +275,9 @@ export function clientModel(c: ClientMonth, monthLabel: string, monthKey: string
     ...(sv.network ? ['Turn new connections into conversations with personal follow-ups.'] : []),
     ...(sv.engage ? ['Book qualified prospects into calls — we will keep you posted as they move.'] : []),
   ]
+  // Fit / Interest missing in the client's CRM (Streak) → ask them to fill it in
+  const ask = crmAsk(c)
+  const footer = 'Gershon Consulting · US market entry · gershonconsulting.com'
   return {
     kind: 'client', eyebrow: `Gershon Consulting · Monthly report · Client #${c.no}`, title: c.name, month: monthLabel,
     headline, subline, tiles: tiles.slice(0, 4),
@@ -281,11 +288,13 @@ export function clientModel(c: ClientMonth, monthLabel: string, monthKey: string
       ...(accLines.length ? [{ title: 'By LinkedIn account', lines: accLines }] : []),
       ...(presence.length ? [{ title: 'Your LinkedIn presence', lines: presence.slice(0, 6) }] : []),
       { title: 'Next month', lines: next },
+      ...(ask ? [{ title: 'One thing we need from you', lines: [ask] }] : []),
+      { title: 'Questions about this report?', lines: [CLIENT_CONTACT_LINE] },
     ],
-    footer: 'Gershon Consulting · US market entry · gershonconsulting.com',
+    footer,
     subject: `${c.name} — your ${monthLabel} results with Gershon`,
     filename: `Gershon-${c.name.replace(/[^A-Za-z0-9]+/g, '-')}-${monthKey}.pdf`,
-    link: extra.link, linkLabel: 'Open your interactive report',
+    clientPdf: { cm: c, monthKey, monthLabel, headline, subline, history: extra.history || null, next, acceptTarget: extra.acceptTarget ?? 20, footer },
   }
 }
 
@@ -408,7 +417,7 @@ export function reportHtml(m: ReportModel): string {
   ${m.link ? `<div style="margin:18px 0 4px;text-align:center;"><a href="${esc(m.link)}" style="display:inline-block;background:${RED};color:#fff;font-weight:800;font-size:14px;text-decoration:none;padding:12px 22px;border-radius:10px;">${esc(m.linkLabel || 'Open the interactive report')} &rarr;</a><div style="font-size:11px;color:${MUT};margin-top:6px;">Charts of your campaign since launch, week by week, pipeline and insights</div></div>` : ''}
   ${bars}
   ${m.sections.map(sec).join('')}
-  <div style="margin-top:22px;padding-top:10px;border-top:1px solid ${RULE};font-size:10px;color:${MUT};">${esc(m.footer)}${m.kind === 'client' ? ' · The full one-page report is attached as a PDF.' : m.kind === 'gaps' ? '' : ' · PDF attached.'}</div>
+  <div style="margin-top:22px;padding-top:10px;border-top:1px solid ${RULE};font-size:10px;color:${MUT};">${esc(m.footer)}${m.kind === 'client' ? ' · Your full report, with charts of your campaign since launch, is attached as a PDF.' : m.kind === 'gaps' ? '' : ' · PDF attached.'}</div>
  </div>
 </div></body></html>`
 }
@@ -437,6 +446,7 @@ function wrap(s: string, size: number, bold: boolean, max: number, maxLines: num
   return lines
 }
 export function reportPdfBase64(m: ReportModel): string {
+  if (m.kind === 'client' && m.clientPdf) return clientPdfBase64(m.clientPdf)
   const p = new MrPdf(PW, PH)
   let y = PH - M
   // head

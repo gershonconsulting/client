@@ -27,6 +27,9 @@ export interface AppUser {
   inviteToken?: string
   invitedAt?: string
   createdAt?: string
+  passwordHash?: string
+  passwordSalt?: string
+  passwordSetAt?: string
 }
 
 export interface UsersDeps {
@@ -34,6 +37,8 @@ export interface UsersDeps {
   sessionUser: (c: any) => Promise<string | null>
   sessionCookie: string
   sessionTtl: number
+  /** HMAC-SHA256 hex with the session secret (signs password-setup links) */
+  sign: (env: any, payload: string) => Promise<string>
 }
 
 const USERS_KEY = '__app_users__'
@@ -42,6 +47,11 @@ const SITE = 'https://client.gershon.ai'
 /** Olivier — always let in, always owner of the Users panel. The password login (admin@gershonconsulting) is his too. */
 export const OWNER_EMAILS = ['olivier@attia.com', 'oattia@gmail.com', 'olivier@gershonconsulting.com', 'admin@gershonconsulting', 'admin@gershonconsulting.com']
 const DEFAULT_USERS: AppUser[] = [{ id: 'olivier', name: 'Olivier Attia', email: 'olivier@attia.com', role: 'admin', linkedinEmail: 'oattia@gmail.com' }]
+/** Internal team (2026-11-05): always present, sign in with e-mail + their own password (LinkedIn optional). */
+const TEAM_SEED: AppUser[] = [
+  { id: 'aina', name: 'Aina Rama', email: 'aina.rama@gershonconsulting.com', role: 'admin' },
+  { id: 'juliana', name: 'Juliana Ravao', email: 'juliana.ravao@gershonconsulting.com', role: 'team' },
+]
 
 const esc = (s: any) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 const norm = (s: any) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9@.]+/g, ' ').trim()
@@ -67,9 +77,87 @@ export async function loadUsers(kv: KVNamespace): Promise<AppUser[]> {
   try {
     const raw = await kv.get(USERS_KEY)
     const list = raw ? JSON.parse(raw) : null
-    if (Array.isArray(list) && list.length) return list
+    if (Array.isArray(list) && list.length) return withSeed(list)
   } catch { /* fall through */ }
-  return DEFAULT_USERS
+  return withSeed(DEFAULT_USERS)
+}
+function withSeed(list: AppUser[]): AppUser[] {
+  const out = [...list]
+  for (const t of TEAM_SEED) if (!out.some(m => norm(m.email) === norm(t.email) || m.id === t.id)) out.push({ ...t })
+  return out
+}
+
+// ── E-mail + password sign-in (per user, PBKDF2-SHA256, salted) ─────────────
+const PBKDF2_ITER = 100000
+const hex = (b: ArrayBuffer | Uint8Array) => Array.from(new Uint8Array(b as ArrayBuffer)).map(x => x.toString(16).padStart(2, '0')).join('')
+async function pbkdf2(password: string, saltHex: string): Promise<string> {
+  const enc = new TextEncoder()
+  const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits'])
+  const salt = new Uint8Array((saltHex.match(/../g) || []).map(h => parseInt(h, 16)))
+  return hex(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: PBKDF2_ITER }, key, 256))
+}
+const same = (a: string, b: string) => { if (a.length !== b.length) return false; let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0 }
+/** The user an e-mail signs in as (own e-mail, LinkedIn e-mail, or any of Olivier's addresses → owner row). */
+export function userForEmail(users: AppUser[], email: string): AppUser | undefined {
+  const e = norm(email)
+  if (!e) return undefined
+  const direct = users.find(m => norm(m.email) === e || (m.linkedinEmail && norm(m.linkedinEmail) === e))
+  if (direct) return direct
+  if (OWNER_EMAILS.includes(e)) return users.find(m => OWNER_EMAILS.includes(norm(m.email)) || OWNER_EMAILS.includes(norm(m.linkedinEmail)))
+  return undefined
+}
+/** Returns the session identity when the e-mail/password match a user's own password, else null. */
+export async function passwordLogin(kv: KVNamespace, email: string, password: string): Promise<string | null> {
+  if (!password) return null
+  const users = await loadUsers(kv)
+  const m = userForEmail(users, email)
+  if (!m || !m.passwordHash || !m.passwordSalt) return null
+  if (!same(await pbkdf2(password, m.passwordSalt), m.passwordHash)) return null
+  try { await saveUsers(kv, users.map(x => x.id === m.id ? { ...x, lastLogin: new Date().toISOString() } : x)) } catch { /* ignore */ }
+  return m.email || m.id
+}
+const PW_LINK_TTL = 7 * 24 * 3600 * 1000
+async function pwSig(deps: UsersDeps, env: any, m: AppUser, exp: number) { return (await deps.sign(env, `pw|${m.id}|${exp}|${m.passwordSetAt || ''}`)).slice(0, 40) }
+async function passwordLink(deps: UsersDeps, env: any, site: string, m: AppUser): Promise<string> {
+  const exp = Date.now() + PW_LINK_TTL
+  return `${site}/login/set-password?u=${encodeURIComponent(m.id)}&e=${exp}&s=${await pwSig(deps, env, m, exp)}`
+}
+function passwordEmailHtml(name: string, email: string, url: string, hasPw: boolean): string {
+  return `<!doctype html><html><body style="margin:0;background:#fafafa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1d1d1f;">
+<div style="max-width:560px;margin:0 auto;padding:28px 16px;">
+  <div style="margin-bottom:18px;font-weight:800;font-size:18px;color:#CC3333;">Gershon <span style="color:#6e6e73;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;">Client results</span></div>
+  <div style="background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:24px;">
+    <h1 style="margin:0 0 10px;font-size:20px;">Hi ${esc(name.split(' ')[0])}, ${hasPw ? 'reset your password' : 'your login is ready'}</h1>
+    <p style="margin:0 0 18px;font-size:15px;line-height:1.5;color:#3a3a3c;">Your login for <strong>client.gershoncrm.com</strong> is <strong>${esc(email)}</strong>. Choose your password with the button below — you are signed in right after.</p>
+    <a href="${esc(url)}" style="display:inline-block;background:#CC3333;color:#fff;text-decoration:none;font-weight:700;padding:12px 22px;border-radius:8px;font-size:15px;">${hasPw ? 'Choose a new password' : 'Create my password'}</a>
+    <p style="margin:18px 0 0;font-size:12px;color:#6e6e73;">Personal link, valid 7 days and only until a password is set. Then sign in at https://client.gershoncrm.com/login</p>
+  </div>
+</div></body></html>`
+}
+async function sendPasswordEmail(deps: UsersDeps, c: any, m: AppUser): Promise<{ ok: boolean; error?: string; url: string }> {
+  const site = new URL(c.req.url).origin
+  const url = await passwordLink(deps, c.env, site, m)
+  if (!m.email) return { ok: false, error: 'This user has no e-mail', url }
+  if (!c.env.RESEND_API_KEY) return { ok: false, error: 'E-mail is not configured', url }
+  const r = await fetch('https://api.resend.com/emails', {
+    method: 'POST', headers: { Authorization: `Bearer ${c.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: 'Gershon Consulting <reports@gershon.ai>', to: [m.email], reply_to: 'olivier@gershonconsulting.com', subject: m.passwordHash ? 'Reset your Gershon client results password' : 'Your login to Gershon client results', html: passwordEmailHtml(m.name, m.email, url, !!m.passwordHash) }),
+  })
+  return r.ok ? { ok: true, url } : { ok: false, error: 'E-mail failed: ' + (await r.text()).slice(0, 200), url }
+}
+function setPasswordPage(msg: string, form: { u: string; e: string; s: string } | null, name = ''): string {
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Choose your password · Gershon</title><link rel="icon" type="image/svg+xml" href="/static/clients-icon.svg"></head>
+<body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#fff5f5,#fafafa 55%);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1d1d1f">
+<div style="width:100%;max-width:400px;padding:24px"><div style="text-align:center;font-weight:800;font-size:21px;color:#CC3333;margin-bottom:18px">Gershon <span style="font-size:11px;color:#6e6e73;letter-spacing:.08em;text-transform:uppercase">Client results</span></div>
+<div style="background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:26px">
+${msg ? `<div style="background:#fff5f5;color:#a80f02;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:14px">${esc(msg)}</div>` : ''}
+${form ? `<h1 style="font-size:19px;margin:0 0 6px">${name ? 'Hi ' + esc(name.split(' ')[0]) + ', c' : 'C'}hoose your password</h1><p style="font-size:13px;color:#6e6e73;margin:0 0 16px">At least 10 characters.</p>
+<form method="POST"><input type="hidden" name="u" value="${esc(form.u)}"><input type="hidden" name="e" value="${esc(form.e)}"><input type="hidden" name="s" value="${esc(form.s)}">
+<label style="display:block;font-size:12px;font-weight:700;margin-bottom:6px">New password</label><input name="p1" type="password" autocomplete="new-password" required minlength="10" style="width:100%;box-sizing:border-box;border:1px solid #e5e7eb;border-radius:8px;padding:11px 12px;font:inherit;margin-bottom:14px">
+<label style="display:block;font-size:12px;font-weight:700;margin-bottom:6px">Repeat it</label><input name="p2" type="password" autocomplete="new-password" required minlength="10" style="width:100%;box-sizing:border-box;border:1px solid #e5e7eb;border-radius:8px;padding:11px 12px;font:inherit;margin-bottom:16px">
+<button style="width:100%;background:#CC3333;color:#fff;border:0;border-radius:8px;padding:12px;font-weight:800;font-size:15px;cursor:pointer">Save and sign in</button></form>`
+  : `<p style="margin:0 0 14px">Ask for a new link on the <a href="/login?forgot=1" style="color:#CC3333;font-weight:700">sign-in page</a>.</p>`}
+</div></div></body></html>`
 }
 async function saveUsers(kv: KVNamespace, users: AppUser[]) { await kv.put(USERS_KEY, JSON.stringify(users)) }
 
@@ -104,10 +192,11 @@ function matchUser(users: AppUser[], li: LiIdentity): AppUser | null {
 }
 
 function publicUser(m: AppUser, site: string) {
-  const { linkedinSub, inviteToken, ...rest } = m
+  const { linkedinSub, inviteToken, passwordHash, passwordSalt, ...rest } = m
   return {
     ...rest,
     linkedinLinked: !!linkedinSub,
+    hasPassword: !!passwordHash,
     inviteUrl: inviteToken && !linkedinSub ? `${site}/login?invite=${inviteToken}` : undefined,
     owner: OWNER_EMAILS.includes(norm(m.email)) || OWNER_EMAILS.includes(norm(m.linkedinEmail)),
   }
@@ -220,10 +309,12 @@ export function usersPageBody(): string {
       '<div style="display:flex;align-items:flex-end;gap:8px"><button class="btn primary" data-a="save" data-id="'+esc(u.id)+'">Save</button><button class="btn" data-a="cancel">Cancel</button></div></div></div>'}
     var ini=(u.name||'?').split(/\\s+/).slice(0,2).map(function(p){return p[0]}).join('').toUpperCase();
     var av=u.picture?'<img class="u-av" src="'+esc(u.picture)+'" referrerpolicy="no-referrer" alt="">':'<span class="u-av">'+esc(ini)+'</span>';
-    var st=u.linkedinLinked?'<span class="u-pill ok">Active'+(u.lastLogin?' · last sign-in '+day(u.lastLogin):'')+'</span>':'<span class="u-pill wait">'+(u.invitedAt?'Invited '+day(u.invitedAt)+' · ':'')+'not signed in yet</span>';
+    var pwSt=u.hasPassword?'<span class="u-pill ok">Password set</span>':'';
+    var st=pwSt+(u.linkedinLinked||u.hasPassword?(u.linkedinLinked?'<span class="u-pill ok">LinkedIn linked</span>':'')+(u.lastLogin?'<span class="u-pill ok">last sign-in '+day(u.lastLogin)+'</span>':''):'<span class="u-pill ok">Active'+(u.lastLogin?' · last sign-in '+day(u.lastLogin):'')+'</span>':'<span class="u-pill wait">'+(u.invitedAt?'Invited '+day(u.invitedAt)+' · ':'')+'not signed in yet</span>');
     var acts='';
     if(!u.linkedinLinked){acts+='<button class="btn" data-a="copy" data-id="'+esc(u.id)+'"><i class="fas fa-link"></i> Copy invite link</button>';if(u.email)acts+='<button class="btn" data-a="mail" data-id="'+esc(u.id)+'"><i class="fas fa-envelope"></i> E-mail invite</button>'}
     else if(!u.owner)acts+='<button class="btn" data-a="reset" data-id="'+esc(u.id)+'">Reset LinkedIn</button>';
+    if(u.email)acts+='<button class="btn" data-a="pw" data-id="'+esc(u.id)+'"><i class="fas fa-key"></i> '+(u.hasPassword?'Reset password':'E-mail password link')+'</button>';
     acts+='<button class="btn" data-a="edit" data-id="'+esc(u.id)+'">Edit</button>';
     if(!u.owner)acts+='<button class="btn" data-a="del" data-id="'+esc(u.id)+'" style="color:var(--text-muted)">Remove</button>';
     return '<div class="u-row">'+av+'<div class="u-main"><div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px"><b>'+esc(u.name)+'</b><span class="u-pill '+(u.role==='admin'?'admin':'')+'">'+u.role+'</span>'+(u.owner?'<span class="u-pill owner">owner</span>':'')+st+'</div>'+
@@ -242,6 +333,7 @@ export function usersPageBody(): string {
     }).then(function(t){msg('ok',t);f.reset();delete f.name.dataset.touched;return load()}).catch(function(er){msg('err',er.message)}).then(function(){b.disabled=false})});
   $('list').addEventListener('click',function(e){var b=e.target.closest('[data-a]');if(!b)return;var a=b.dataset.a,id=b.dataset.id,u=byId(id);
     if(a==='copy'){if(u.inviteUrl)copy(u.inviteUrl);else api('POST','/api/users/invite',{id:id}).then(function(d){copy(d.inviteUrl);load()}).catch(function(er){msg('err',er.message)})}
+    if(a==='pw')api('POST','/api/users/password-link',{id:id}).then(function(){msg('ok','Password link e-mailed to '+u.email+'.')}).catch(function(er){msg('err',er.message)});
     if(a==='mail')api('POST','/api/users/invite',{id:id,send:true}).then(function(){msg('ok','Invite e-mailed to '+u.email+'.');load()}).catch(function(er){msg('err',er.message)});
     if(a==='reset'&&confirm('Reset '+u.name+"'s LinkedIn link? They will need a new invite to sign in."))api('PATCH','/api/users',{id:id,unlink:true}).then(function(){msg('ok',u.name+"'s LinkedIn link reset — a new invite link is ready.");load()}).catch(function(er){msg('err',er.message)});
     if(a==='del'&&confirm('Remove '+u.name+'? They will no longer be able to sign in.'))api('DELETE','/api/users?id='+encodeURIComponent(id)).then(function(){msg('ok',u.name+' removed.');load()}).catch(function(er){msg('err',er.message)});
@@ -265,6 +357,53 @@ export function registerUsers(app: Hono<any>, deps: UsersDeps, shell: (body: str
     h.append('Set-Cookie', cookie('li_state', '', 0)); h.append('Set-Cookie', cookie('li_invite', '', 0))
     return new Response(null, { status: 302, headers: h })
   }
+
+  // ── password setup / reset (public; the link is HMAC-signed and dies once a password is set) ──
+  const checkLink = async (c: any, u: string, e: string, sg: string) => {
+    const users = await loadUsers(c.env.COMPANIES_KV)
+    const m = users.find(x => x.id === u)
+    const exp = Number(e)
+    if (!m || !exp || exp < Date.now() || !same(await pwSig(deps, c.env, m, exp), String(sg))) return { users, m: null as AppUser | null }
+    return { users, m }
+  }
+  app.get('/login/set-password', async (c) => {
+    const { u = '', e = '', s = '' } = c.req.query()
+    const { m } = await checkLink(c, u, e, s)
+    if (!m) return c.html(setPasswordPage('This link has expired or was already used.', null))
+    return c.html(setPasswordPage('', { u, e, s }, m.name))
+  })
+  app.post('/login/set-password', async (c) => {
+    const f = await c.req.parseBody()
+    const u = String(f.u || ''), e = String(f.e || ''), sg = String(f.s || '')
+    const { users, m } = await checkLink(c, u, e, sg)
+    if (!m) return c.html(setPasswordPage('This link has expired or was already used.', null))
+    const p1 = String(f.p1 || ''), p2 = String(f.p2 || '')
+    if (p1.length < 10) return c.html(setPasswordPage('The password must be at least 10 characters.', { u, e, s: sg }, m.name))
+    if (p1 !== p2) return c.html(setPasswordPage('The two passwords are different.', { u, e, s: sg }, m.name))
+    const salt = hex(crypto.getRandomValues(new Uint8Array(16)))
+    const now = new Date().toISOString()
+    const upd: AppUser = { ...m, passwordSalt: salt, passwordHash: await pbkdf2(p1, salt), passwordSetAt: now, lastLogin: now }
+    const exists = users.some(x => x.id === m.id)
+    await saveUsers(c.env.COMPANIES_KV, exists ? users.map(x => x.id === m.id ? upd : x) : [...users, upd])
+    const tok = await deps.createSessionToken(c.env, m.email || m.id)
+    const h = new Headers({ Location: '/dashboard' })
+    h.append('Set-Cookie', cookie(deps.sessionCookie, tok, deps.sessionTtl))
+    return new Response(null, { status: 302, headers: h })
+  })
+  // "Create / forgot my password" — mails a setup link to a registered user only; same answer either way.
+  app.post('/api/auth/password-link', async (c) => {
+    const ct = c.req.header('Content-Type') || ''
+    const b: any = ct.includes('json') ? await c.req.json().catch(() => ({})) : await c.req.parseBody()
+    const email = String(b.email || '').trim().toLowerCase()
+    const kv = c.env.COMPANIES_KV as KVNamespace
+    const m = userForEmail(await loadUsers(kv), email)
+    if (m && m.email) {
+      const rl = `__pwlink_rl__:${m.id}`
+      if (!(await kv.get(rl))) { const r = await sendPasswordEmail(deps, c, m); if (r.ok) await kv.put(rl, '1', { expirationTtl: 300 }) }
+    }
+    if (ct.includes('json')) return c.json({ ok: true })
+    return c.redirect('/login?sent=1', 302)
+  })
 
   app.get('/api/auth/linkedin/health', (c) => c.json({
     site: siteUrl(c),
@@ -415,6 +554,15 @@ export function registerUsers(app: Hono<any>, deps: UsersDeps, shell: (body: str
     if (OWNER_EMAILS.includes(norm(m.email)) || OWNER_EMAILS.includes(norm(m.linkedinEmail))) return c.json({ error: 'The owner cannot be removed' }, 400)
     await saveUsers(kv, users.filter(x => x.id !== id))
     return c.json({ ok: true })
+  })
+
+  app.post('/api/users/password-link', async (c) => {
+    const g = await owner(c); if (g instanceof Response) return g
+    const b = await c.req.json().catch(() => ({} as any))
+    const m = (await loadUsers(c.env.COMPANIES_KV)).find(x => x.id === b.id)
+    if (!m) return c.json({ error: 'User not found' }, 404)
+    const r = await sendPasswordEmail(deps, c, m)
+    return r.ok ? c.json({ ok: true, sent: true }) : c.json({ error: r.error, url: r.url }, 502)
   })
 
   app.post('/api/users/invite', async (c) => {
