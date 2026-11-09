@@ -234,6 +234,7 @@ const PUBLIC_EXACT_PATHS = [
   '/api/v3/monthly/deliver',
   '/api/v3/monthly/deliver/summary',
   '/api/v3/approval/request',
+  '/api/v3/recipients/sync', // pushes Settings recipients to Social (no input, counts only)
 ]
 
 function isPublicPath(path: string): boolean {

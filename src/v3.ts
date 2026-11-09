@@ -10,6 +10,7 @@ import {
 } from './v3-data'
 import { registerHistory, clientProjection } from './v3-history'
 import { registerCampaign } from './v3-campaign'
+import { registerRecipientsSync, syncRecipientsToSocial } from './v3-recipients-sync'
 import { storyPage, insightsOf, reportLink, verifyReportSig, type StoryHistory } from './v3-story'
 import { OWNER_EMAILS } from './users'
 import { APPROVERS, recipientCheck, deliveryWindow, upcomingReportMonth, readApproval, approvalKey, deliveryKey, isValidated, approverLink, verifyApproverSig, type ApproverId, type ApprovalRecord } from './v3-approval'
@@ -308,6 +309,7 @@ export function registerV3(app: Hono<any>, deps: Deps) {
     const s = await readSettings(c.env.COMPANIES_KV)
     return c.json({ clients: CLIENT_REGISTRY, settings: s, today: todayNY(), lastMonth: lastFullMonthKey(), resend: !!c.env.RESEND_API_KEY })
   })
+  registerRecipientsSync(app)
   app.post('/api/v3/settings', async (c) => {
     const b = await c.req.json().catch(() => ({})) as any
     const s = await saveSettings(c.env.COMPANIES_KV, b)
@@ -315,6 +317,8 @@ export function registerV3(app: Hono<any>, deps: Deps) {
     if (b && b.accounts) { for (const r of CLIENT_REGISTRY) for (const m of [monthWin(todayNY().slice(0, 7)).key, lastFullMonthKey()]) await c.env.COMPANIES_KV.delete(`v3:cm10:${m}:${r.no}`).catch(() => {}) }
     // targets changed → drop cached month records so percentages recompute
     await Promise.all([monthWin().key, lastFullMonthKey()].flatMap(m => CLIENT_REGISTRY.map(r => c.env.COMPANIES_KV.delete(`v3:cm10:${m}:${r.no}`).catch(() => null))))
+    // recipients changed → same people on Social / Social Tracking monthly reports
+    try { c.executionCtx.waitUntil(syncRecipientsToSocial(c.env, s)) } catch { await syncRecipientsToSocial(c.env, s) }
     return c.json({ ok: true, settings: s })
   })
   app.get('/api/v3/client/:no', async (c) => {
