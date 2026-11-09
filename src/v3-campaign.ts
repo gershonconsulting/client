@@ -75,7 +75,7 @@ export async function campaignOf(env: any, deps: Deps, r: RegistryEntry, s: V3Se
 export function registerCampaign(app: Hono<any>, deps: Deps) {
   registerHold(app)
   registerCrmQuality(app, deps)
-  registerSettingsUi(app)
+  registerSettingsUi(app, deps)
   app.get('/api/v3/campaign/:no', async (c) => {
     const r = registryByNo(c.req.param('no'))
     if (!r) return c.json({ error: 'Unknown client number' }, 404)
