@@ -2,6 +2,8 @@ HANDOFF — gershonconsulting/client (client.gershon.ai / client.gershoncrm.com)
 Updated 2026-10-15 by Claude (2026-10-22 nightly section added). Read the master handoff: gershonconsulting/memory -> HANDOFF.txt
 Rules: Olivier never runs commands/uploads. Executors: Ariel (code/repo), Charles (dashboards).
 
+2026-11-06 nightly: page title → Client by Gershon.AI ✅ ready to test on preview (PR #8)
+
 2026-10-22 nightly — unified Gershon design (v1.4.0). Rebuilt 2026-11-04 on current main (1.3.75)
   as branch nightly/2026-11-04-client-rebuilt; that PR replaces PR #1.
   What: client.gershonCRM re-skinned to the unified design (Linalysis layout, Gershon.ai red #CC3333).
