@@ -77,7 +77,7 @@ export async function campaignOf(env: any, deps: Deps, r: RegistryEntry, s: V3Se
 export function registerCampaign(app: Hono<any>, deps: Deps) {
   registerHold(app)
   registerCrmQuality(app, deps)
-  registerSettingsUi(app)
+  registerSettingsUi(app, deps)
   registerNextDue(app)
   app.get('/api/v3/campaign/:no', async (c) => {
     const r = registryByNo(c.req.param('no'))
