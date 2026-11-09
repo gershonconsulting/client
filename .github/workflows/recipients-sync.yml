@@ -1,0 +1,28 @@
+name: Sync report recipients to Social
+
+# client.gershon.ai Settings → Social / Social Tracking (OrgSetting report_email:<socialId>),
+# so every client's monthly Social Tracking report goes to the same people as the client report.
+# Daily, plus once right after this file lands on main (waits for the deploy to answer).
+
+on:
+  schedule:
+    - cron: '0 10 * * *'   # daily, before Social Tracking's monthly run (1st, 12:00 UTC)
+  push:
+    branches: [main]
+    paths: ['.github/workflows/recipients-sync.yml']
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Push recipients
+        run: |
+          for i in $(seq 1 20); do
+            OUT=$(curl -s -w '\n%{http_code}' -X POST https://client.gershon.ai/api/v3/recipients/sync)
+            CODE=$(echo "$OUT" | tail -1); BODY=$(echo "$OUT" | head -n -1)
+            echo "try $i: HTTP $CODE $BODY"
+            if [ "$CODE" = "200" ] && echo "$BODY" | grep -q '"ok":true'; then exit 0; fi
+            sleep 60
+          done
+          exit 1
