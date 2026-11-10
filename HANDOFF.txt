@@ -62,6 +62,28 @@ PENDING ❌
 - ❌ Unified design PR (nightly/2026-11-04-client-rebuilt, replaces #1): merge pending (Olivier's call).
 - ❌ Roles: team vs admin are stored but every signed-in user still sees all pages.
 
+PENDING ❌ (2026-11-07 nightly — branch nightly/2026-11-07-client-crons, PR replaces #5: Monday crons #24 + #07)
+  What: src/next-due.ts ([07] GC Pipeline Next Due Dates, registered from src/v3-campaign.ts — index.tsx untouched),
+    once-per-NY-day sent-log for #24 (middleware on /api/reports/weekly/send, KV __report_sent__:24:<date>),
+    cron/ = Worker gershon-client-cron (Mon 09:05 UTC → #24, Mon 13:10 UTC → #07), deploy-cron.yml (main only).
+    Cron path for #07: POST /api/reports/weekly/send?report=next-due (already public; REPORT_CRON_KEY required,
+    never sends #24), so src/index.tsx needs NO change. Signed-in: POST /api/reports/next-due/send.
+  ✅ npm run build passes. tsc: 190 errors vs 166 on main; the 24 extra are in next-due.ts and are the same
+     missing-lib typing kind as the rest (fetch/crypto/URL; tsconfig has no DOM/workers lib) - 0 with --lib dom. Tested on the built worker: 2nd weekly
+     send same day is skipped, ?force=1 resends; #07 alias without key = 401, with key reaches the #07 sender
+     (not #24); /api/reports/next-due/send without session = 401.
+  ❌ Ariel: add .github/workflows/deploy-cron.yml (the nightly agent's GitHub token cannot write workflow files;
+     full text in the PR description; same as PR #5's file plus a REPORT_CRON_KEY-present check). Until then
+     the cron Worker is never deployed, so nothing is scheduled.
+  ❌ Optional (Ariel): add '/api/reports/next-due/send' to PUBLIC_EXACT_PATHS in src/index.tsx and point
+     cron/worker.js at it (cleaner URL; not required).
+  ❌ Charles: REPORT_CRON_KEY (long random string) as GitHub Actions secret AND as Pages secret on gershoncrm-client;
+     GOOGLE_CALENDAR_CLIENT_ID / _SECRET Pages secrets (OAuth Web client, Calendar API, redirect
+     https://client.gershoncrm.com/api/auth/google-calendar/callback, scope calendar.readonly), then open
+     /api/admin/google-calendar/connect once signed in as olivier@gershonconsulting.com. Check /api/admin/google-calendar/status.
+  ❌ nextduedate@gershon.ai needs gershon.ai verified in Resend.
+  ❌ Merge = Olivier's call. After one good Monday each, retire Claude tasks #24 and #07.
+
 GOTCHAS
 - Do not commit dist/ (CI builds). npm ci works. CI version-bump job can race on double triggers (harmless).
 - Routes using SESSION_COOKIE must be registered after its const declaration in index.tsx (TDZ).
