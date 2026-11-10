@@ -125,11 +125,11 @@ async function passwordLink(deps: UsersDeps, env: any, site: string, m: AppUser)
 function passwordEmailHtml(name: string, email: string, url: string, hasPw: boolean): string {
   return `<!doctype html><html><body style="margin:0;background:#fafafa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1d1d1f;">
 <div style="max-width:560px;margin:0 auto;padding:28px 16px;">
-  <div style="margin-bottom:18px;font-weight:800;font-size:18px;color:#CC3333;">Gershon <span style="color:#6e6e73;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;">Client results</span></div>
+  <div style="margin-bottom:18px;font-weight:800;font-size:18px;color:#FE1B04;">Gershon <span style="color:#6e6e73;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;">Client results</span></div>
   <div style="background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:24px;">
     <h1 style="margin:0 0 10px;font-size:20px;">Hi ${esc(name.split(' ')[0])}, ${hasPw ? 'reset your password' : 'your login is ready'}</h1>
     <p style="margin:0 0 18px;font-size:15px;line-height:1.5;color:#3a3a3c;">Your login for <strong>client.gershoncrm.com</strong> is <strong>${esc(email)}</strong>. Choose your password with the button below — you are signed in right after.</p>
-    <a href="${esc(url)}" style="display:inline-block;background:#CC3333;color:#fff;text-decoration:none;font-weight:700;padding:12px 22px;border-radius:8px;font-size:15px;">${hasPw ? 'Choose a new password' : 'Create my password'}</a>
+    <a href="${esc(url)}" style="display:inline-block;background:#FE1B04;color:#fff;text-decoration:none;font-weight:700;padding:12px 22px;border-radius:8px;font-size:15px;">${hasPw ? 'Choose a new password' : 'Create my password'}</a>
     <p style="margin:18px 0 0;font-size:12px;color:#6e6e73;">Personal link, valid 7 days and only until a password is set. Then sign in at https://client.gershoncrm.com/login</p>
   </div>
 </div></body></html>`
@@ -148,15 +148,15 @@ async function sendPasswordEmail(deps: UsersDeps, c: any, m: AppUser): Promise<{
 function setPasswordPage(msg: string, form: { u: string; e: string; s: string } | null, name = ''): string {
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Choose your password · Gershon</title><link rel="icon" type="image/svg+xml" href="/static/clients-icon.svg"></head>
 <body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#fff5f5,#fafafa 55%);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1d1d1f">
-<div style="width:100%;max-width:400px;padding:24px"><div style="text-align:center;font-weight:800;font-size:21px;color:#CC3333;margin-bottom:18px">Gershon <span style="font-size:11px;color:#6e6e73;letter-spacing:.08em;text-transform:uppercase">Client results</span></div>
+<div style="width:100%;max-width:400px;padding:24px"><div style="text-align:center;font-weight:800;font-size:21px;color:#FE1B04;margin-bottom:18px">Gershon <span style="font-size:11px;color:#6e6e73;letter-spacing:.08em;text-transform:uppercase">Client results</span></div>
 <div style="background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:26px">
 ${msg ? `<div style="background:#fff5f5;color:#a80f02;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:14px">${esc(msg)}</div>` : ''}
 ${form ? `<h1 style="font-size:19px;margin:0 0 6px">${name ? 'Hi ' + esc(name.split(' ')[0]) + ', c' : 'C'}hoose your password</h1><p style="font-size:13px;color:#6e6e73;margin:0 0 16px">At least 10 characters.</p>
 <form method="POST"><input type="hidden" name="u" value="${esc(form.u)}"><input type="hidden" name="e" value="${esc(form.e)}"><input type="hidden" name="s" value="${esc(form.s)}">
 <label style="display:block;font-size:12px;font-weight:700;margin-bottom:6px">New password</label><input name="p1" type="password" autocomplete="new-password" required minlength="10" style="width:100%;box-sizing:border-box;border:1px solid #e5e7eb;border-radius:8px;padding:11px 12px;font:inherit;margin-bottom:14px">
 <label style="display:block;font-size:12px;font-weight:700;margin-bottom:6px">Repeat it</label><input name="p2" type="password" autocomplete="new-password" required minlength="10" style="width:100%;box-sizing:border-box;border:1px solid #e5e7eb;border-radius:8px;padding:11px 12px;font:inherit;margin-bottom:16px">
-<button style="width:100%;background:#CC3333;color:#fff;border:0;border-radius:8px;padding:12px;font-weight:800;font-size:15px;cursor:pointer">Save and sign in</button></form>`
-  : `<p style="margin:0 0 14px">Ask for a new link on the <a href="/login?forgot=1" style="color:#CC3333;font-weight:700">sign-in page</a>.</p>`}
+<button style="width:100%;background:#FE1B04;color:#fff;border:0;border-radius:8px;padding:12px;font-weight:800;font-size:15px;cursor:pointer">Save and sign in</button></form>`
+  : `<p style="margin:0 0 14px">Ask for a new link on the <a href="/login?forgot=1" style="color:#FE1B04;font-weight:700">sign-in page</a>.</p>`}
 </div></div></body></html>`
 }
 async function saveUsers(kv: KVNamespace, users: AppUser[]) { await kv.put(USERS_KEY, JSON.stringify(users)) }
@@ -215,7 +215,7 @@ function readCookie(header: string | undefined, name: string): string | null {
 function inviteEmailHtml(name: string, url: string): string {
   return `<!doctype html><html><body style="margin:0;background:#fafafa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1d1d1f;">
 <div style="max-width:560px;margin:0 auto;padding:28px 16px;">
-  <div style="margin-bottom:18px;font-weight:800;font-size:18px;color:#CC3333;">Gershon <span style="color:#6e6e73;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;">Client results</span></div>
+  <div style="margin-bottom:18px;font-weight:800;font-size:18px;color:#FE1B04;">Gershon <span style="color:#6e6e73;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;">Client results</span></div>
   <div style="background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:24px;">
     <h1 style="margin:0 0 10px;font-size:20px;">Hi ${esc(name.split(' ')[0])}, your access is ready</h1>
     <p style="margin:0 0 18px;font-size:15px;line-height:1.5;color:#3a3a3c;">Olivier Attia gave you access to <strong>client.gershon.ai</strong>, the Gershon Consulting client results dashboard. Sign in once with your LinkedIn account through the button below — after that, the normal “Sign in with LinkedIn” button works.</p>
@@ -270,7 +270,7 @@ export function usersPageBody(): string {
     <div><label>Role</label><select class="u-in" name="role"><option value="team">Team</option><option value="admin">Admin</option></select></div>
     <div class="full" style="display:flex;flex-wrap:wrap;align-items:center;gap:16px;margin-top:4px">
       <button class="btn primary" type="submit" id="createBtn"><i class="fas fa-user-plus"></i> Create user</button>
-      <label style="display:inline-flex;align-items:center;gap:8px;margin:0;font-size:13px;font-weight:500;color:var(--text)"><input type="checkbox" name="send" checked style="accent-color:#CC3333"> E-mail the invite</label>
+      <label style="display:inline-flex;align-items:center;gap:8px;margin:0;font-size:13px;font-weight:500;color:var(--text)"><input type="checkbox" name="send" checked style="accent-color:#FE1B04"> E-mail the invite</label>
     </div>
   </form>
 </div>

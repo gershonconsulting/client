@@ -26,7 +26,7 @@ function build(inp){
   var vals=String(inp.value||inp.getAttribute('data-onfile')||'').split(/[,;\\s]+/).filter(function(x){return x.indexOf('@')>0});
   if(!vals.length)vals=[''];vals.forEach(function(v){row(v)});
   var add=document.createElement('button');add.type='button';add.textContent='+ Add person';
-  add.style.cssText='border:0;background:none;color:#CC3333;font-weight:800;cursor:pointer;padding:2px 0;font-size:13px';
+  add.style.cssText='border:0;background:none;color:#FE1B04;font-weight:800;cursor:pointer;padding:2px 0;font-size:13px';
   add.onclick=function(){row('').focus()};wrap.appendChild(add);
   inp.style.display='none';inp.parentNode.insertBefore(wrap,inp);
 }
@@ -69,8 +69,8 @@ async function onFileOf(kv: any, deps: Deps, s: V3Settings): Promise<Record<stri
 
 export function onFileCard(s: V3Settings, onFile: Record<string, OnFile>): string {
   const muted = (t: string) => `<span style="color:var(--muted)">${t}</span>`
-  const link = (u: string, t: string) => `<a href="${esc(u)}" target="_blank" rel="noopener" style="color:#CC3333">${esc(t)}</a>`
-  const missing = (where: string, href: string) => `<span style="color:#b91c1c">● Missing</span> ${muted('— add in')} <a href="${href}" style="color:#CC3333">${where}</a>`
+  const link = (u: string, t: string) => `<a href="${esc(u)}" target="_blank" rel="noopener" style="color:#FE1B04">${esc(t)}</a>`
+  const missing = (where: string, href: string) => `<span style="color:#b91c1c">● Missing</span> ${muted('— add in')} <a href="${href}" style="color:#FE1B04">${where}</a>`
   const rows = CLIENT_REGISTRY.map(r => {
     const f = onFile[String(r.no)] || { pipelines: [], reports: [] }
     const sv: any = servicesFor(r, s)

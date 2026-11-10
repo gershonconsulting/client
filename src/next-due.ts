@@ -275,7 +275,7 @@ function table(list: any[]): string {
 <tr><th style="${th}">Date</th><th style="${th}">Company</th><th style="${th}">Stage</th><th style="${th}">Event</th></tr>
 ${list.map(r => `<tr>
 <td style="${td};white-space:nowrap">${esc(fmtWhen(r))}</td>
-<td style="${td}"><a href="https://www.streak.com/a/boxes/${esc(r.boxKey)}" style="color:#CC3333;font-weight:600;text-decoration:none">${esc(r.name)}</a><br><span style="color:#6b7280;font-size:12px">${esc(r.email)}</span></td>
+<td style="${td}"><a href="https://www.streak.com/a/boxes/${esc(r.boxKey)}" style="color:#FE1B04;font-weight:600;text-decoration:none">${esc(r.name)}</a><br><span style="color:#6b7280;font-size:12px">${esc(r.email)}</span></td>
 <td style="${td};color:#374151">${esc(r.stage)}</td>
 <td style="${td}">${r.eventLink ? `<a href="${esc(r.eventLink)}" style="color:#1d4ed8;text-decoration:none">${esc(r.eventTitle)}</a>` : esc(r.eventTitle)}</td>
 </tr>`).join('')}
@@ -286,7 +286,7 @@ export function renderNextDue(d: any): string {
   const h2 = 'font-size:16px;color:#111827;margin:28px 0 4px'
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#ffffff;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
 <div style="max-width:680px;margin:0 auto;padding:24px 16px;background:#ffffff">
-<div style="border-top:4px solid #CC3333;padding-top:16px">
+<div style="border-top:4px solid #FE1B04;padding-top:16px">
 <div style="font-size:12px;color:#6b7280;letter-spacing:.06em;text-transform:uppercase">[07] GC Pipeline</div>
 <h1 style="font-size:22px;color:#111827;margin:4px 0 6px">Next Due Dates from Calendar — ${esc(d.date)}</h1>
 <p style="font-size:14px;color:#374151;margin:0"><b>${d.boxCount}</b> boxes in the active stages (Recycled excluded) ·
@@ -296,7 +296,7 @@ ${d.noEvent.length} with no meeting scheduled · ${d.noEmail} without a contact 
 <h2 style="${h2}">Next 7 days</h2>${table(d.next7)}
 <h2 style="${h2}">All upcoming (sorted by date)</h2>${table(d.all)}
 <h2 style="${h2}">No upcoming meeting (${d.noEvent.length})</h2>
-<p style="font-size:13px;color:#374151;line-height:1.7;margin:6px 0 0">${d.noEvent.map((r: any) => `<a href="https://www.streak.com/a/boxes/${esc(r.boxKey)}" style="color:#CC3333;text-decoration:none">${esc(r.name)}</a> <span style="color:#9ca3af">(${esc(r.stage)})</span>`).join(' · ') || 'None.'}</p>
+<p style="font-size:13px;color:#374151;line-height:1.7;margin:6px 0 0">${d.noEvent.map((r: any) => `<a href="https://www.streak.com/a/boxes/${esc(r.boxKey)}" style="color:#FE1B04;text-decoration:none">${esc(r.name)}</a> <span style="color:#9ca3af">(${esc(r.stage)})</span>`).join(' · ') || 'None.'}</p>
 <p style="font-size:12px;color:#9ca3af;margin-top:28px">Calendar searched: next ${HORIZON_DAYS} days (${d.eventsScanned} events). Sent automatically by client.gershoncrm.com every Monday.</p>
 </div></body></html>`
 }

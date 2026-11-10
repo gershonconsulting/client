@@ -110,7 +110,7 @@ function reportsPage(s: V3Settings): string {
 <div class="grid cols-3">
 ${card('straightin', 'fa-handshake', 'Straight-in — leads goal & acceptance goal', 'For our LinkedIn provider: two equally important goals per client — ' + s.leadsPerMonth + ' qualified leads per LinkedIn user per month (Finance Montreal and Altavia run 2 users) and an acceptance rate above ' + s.acceptTarget + '%. Shows how far each client is from each goal, in %, and ends with concrete requests for next month.', esc(s.straightinEmail || s.internalEmail + ' (to forward — add Straight-in\'s email in Settings)'))}
 ${card('internal', 'fa-chart-line', 'Gershon — our results', 'Portfolio score, every client against target on Promote, Network and Engage, and the sources of improvement ranked by impact.', esc(s.internalEmail))}
-${card('client', 'fa-star', 'Client — monthly report', 'Always positive on the campaign\'s actions: what we did, insights, and a multi-page PDF with charts since launch (network growth, monthly activity, acceptance, opportunities, weeks, accounts, seniority, pipeline, brand visibility, LinkedIn presence). Summary in the email, full report attached. No link to the interactive web report.', 'review copy to ' + esc(s.internalEmail) + ' on the 1st; to the client (professional email) on the first Friday, from client@gershon.ai, once validated — <a href="/delivery" style="color:#CC3333">validation status</a>', `<div class="field" style="margin:0"><select id="clientSel">${opts}</select></div>`)}
+${card('client', 'fa-star', 'Client — monthly report', 'Always positive on the campaign\'s actions: what we did, insights, and a multi-page PDF with charts since launch (network growth, monthly activity, acceptance, opportunities, weeks, accounts, seniority, pipeline, brand visibility, LinkedIn presence). Summary in the email, full report attached. No link to the interactive web report.', 'review copy to ' + esc(s.internalEmail) + ' on the 1st; to the client (professional email) on the first Friday, from client@gershon.ai, once validated — <a href="/delivery" style="color:#FE1B04">validation status</a>', `<div class="field" style="margin:0"><select id="clientSel">${opts}</select></div>`)}
 </div>
 <div class="card" id="previewCard" style="display:none"><div class="card-header"><h3 id="previewTitle">Preview</h3><button class="btn" onclick="document.getElementById('previewCard').style.display='none'">Close</button></div><iframe class="preview" id="previewFrame"></iframe></div>`,
   })
@@ -152,7 +152,7 @@ function settingsPage(s: V3Settings, resendOk: boolean, shared: Record<string, s
     </div>`
     }).join('')
     return `<div class="card" style="margin-bottom:16px"><div class="card-header"><h3><span class="cno">#${r.no}</span> ${esc(r.name)} — LinkedIn account profiles</h3></div>
-    <div class="hint" style="margin:-4px 0 10px">${ps.length} profiles, goal ${s.leadsPerMonth} leads each. ${sharedUrl ? `Shared client pipeline: <a href="${esc(sharedUrl)}" target="_blank" style="color:#CC3333">open in Streak</a>. ` : ''}Give each profile its own Streak link to split leads per person.</div>
+    <div class="hint" style="margin:-4px 0 10px">${ps.length} profiles, goal ${s.leadsPerMonth} leads each. ${sharedUrl ? `Shared client pipeline: <a href="${esc(sharedUrl)}" target="_blank" style="color:#FE1B04">open in Streak</a>. ` : ''}Give each profile its own Streak link to split leads per person.</div>
     <div class="grid cols-2">${blocks}</div></div>`
   }).join('')
   return shell({
@@ -216,7 +216,7 @@ function gapsPage(monthKey: string, label: string, rows: ClientMonth[]): string 
     const body = g.length
       ? `<table style="width:100%;border-collapse:collapse;font-size:13px">${g.map(x => `<tr style="border-top:1px solid #e5e7eb">
           <td style="padding:7px 8px;width:90px;color:#6e6e73;font-weight:600">${esc(x.area)}</td>
-          <td style="padding:7px 8px"><b>${esc(x.what)}</b><div style="color:#6e6e73;font-size:12px;margin-top:2px">${esc(x.effect)}</div>${x.fix ? `<div style="font-size:12px;margin-top:3px"><a href="${esc(x.fix.url)}" target="_blank" style="color:#CC3333;font-weight:700;text-decoration:none">Add it →</a> <span style="color:#6e6e73">${esc(x.fix.place)}</span></div>` : ''}</td>
+          <td style="padding:7px 8px"><b>${esc(x.what)}</b><div style="color:#6e6e73;font-size:12px;margin-top:2px">${esc(x.effect)}</div>${x.fix ? `<div style="font-size:12px;margin-top:3px"><a href="${esc(x.fix.url)}" target="_blank" style="color:#FE1B04;font-weight:700;text-decoration:none">Add it →</a> <span style="color:#6e6e73">${esc(x.fix.place)}</span></div>` : ''}</td>
           <td style="padding:7px 8px;width:190px;color:#6e6e73">${esc(x.owner)}</td>
           <td style="padding:7px 8px;width:90px;text-align:right">${lvl(x.level)}</td></tr>`).join('')}</table>`
       : `<div style="padding:8px;color:#6e6e73">Nothing missing for ${esc(label)}.</div>`
@@ -474,7 +474,7 @@ export function registerV3(app: Hono<any>, deps: Deps) {
       const appr = APPROVERS.map(a => `<div style="font-size:12px">${d.rec[a.id] ? `<span style="color:#057642">✔</span> ${a.label} · ${esc(fmtNy(d.rec[a.id]))}` : `<span style="color:#b91c1c">○</span> ${a.label}`}</div>`).join('')
       const box = who && d.active && !locked && !d.delivered ? `<label style="display:inline-flex;gap:6px;align-items:center;font-weight:700;cursor:pointer"><input type="checkbox" name="ok" value="${d.no}"${d.rec[who] ? ' checked' : ''} style="width:18px;height:18px"> Validated</label>` : ''
       const to = d.pro.length ? esc(d.pro.join(', ')) : '<span style="color:#b91c1c">no professional email</span>'
-      return `<tr style="border-top:1px solid #e5e7eb;vertical-align:top"><td style="padding:10px 8px"><b>#${d.no} ${esc(d.name)}</b><div style="font-size:12px;margin-top:3px">${d.active ? `<a href="${esc(d.link)}" target="_blank" style="color:#CC3333;font-weight:700">Open report</a> · <a href="${esc(d.pdf)}" target="_blank" style="color:#CC3333">PDF</a>` : ''}</div></td>
+      return `<tr style="border-top:1px solid #e5e7eb;vertical-align:top"><td style="padding:10px 8px"><b>#${d.no} ${esc(d.name)}</b><div style="font-size:12px;margin-top:3px">${d.active ? `<a href="${esc(d.link)}" target="_blank" style="color:#FE1B04;font-weight:700">Open report</a> · <a href="${esc(d.pdf)}" target="_blank" style="color:#FE1B04">PDF</a>` : ''}</div></td>
         <td style="padding:10px 8px;font-size:12px">${to}${d.personal.length ? `<div style="color:#b76b00">personal, not used: ${esc(d.personal.join(', '))}</div>` : ''}</td><td style="padding:10px 8px">${appr}</td><td style="padding:10px 8px">${st}</td>${who ? `<td style="padding:10px 8px">${box}</td>` : ''}</tr>`
     }).join('')
     return `<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="text-align:left;color:#6e6e73;font-size:12px"><th style="padding:6px 8px">Client</th><th style="padding:6px 8px">Sent to (professional)</th><th style="padding:6px 8px">Validation</th><th style="padding:6px 8px">Friday</th>${who ? '<th style="padding:6px 8px">Your validation</th>' : ''}</tr></thead><tbody>${tr}</tbody></table>`
@@ -501,13 +501,13 @@ export function registerV3(app: Hono<any>, deps: Deps) {
     const name = APPROVERS.find(a => a.id === who)!.label
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Validate client reports · ${esc(label)}</title><link rel="icon" type="image/svg+xml" href="/static/clients-icon.svg"><link rel="stylesheet" href="/static/gershon.css?v=5"><link rel="stylesheet" href="${UNIFIED_THEME_HREF}"></head>
 <body style="background:#f6f6f7"><div style="max-width:1100px;margin:0 auto;padding:24px 16px;font-family:system-ui,-apple-system,Segoe UI,sans-serif">
-<div style="font-weight:900;color:#CC3333;letter-spacing:.04em">GERSHON · CLIENT REPORTS</div>
+<div style="font-weight:900;color:#FE1B04;letter-spacing:.04em">GERSHON · CLIENT REPORTS</div>
 <h1 style="margin:6px 0 4px">Hi ${esc(name)} — validate the ${esc(label)} client reports</h1>
 <p style="color:#444;margin:0 0 14px">Each report you tick is sent to the client on <b>${esc(dw.sendLabel)}</b> from client@gershon.ai (report in the email + PDF). ${s.approvalMode === 'both' ? 'Both Aina and Olivier must validate.' : 'One validation (Aina or Olivier) is enough.'} Deadline: <b>${esc(dw.deadlineLabel)}</b> — anything not validated by then is not sent.</p>
 ${msg ? `<div style="background:#ecfdf3;border:1px solid #057642;color:#057642;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-weight:700">${esc(msg)}</div>` : ''}
 ${locked ? `<div style="background:#fef2f2;border:1px solid #b91c1c;color:#b91c1c;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-weight:700">The deadline has passed — validations are locked for this month.</div>` : ''}
 <form method="post"><div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:8px;overflow:auto">${deliveryTable(rows, who, locked)}</div>
-${locked ? '' : `<div style="margin-top:14px;display:flex;gap:10px;align-items:center"><button type="submit" style="background:#CC3333;color:#fff;border:0;border-radius:999px;padding:12px 22px;font-weight:800;font-size:15px;cursor:pointer">Save my validation</button><span style="color:#6e6e73;font-size:13px">Unticking removes your validation.</span></div>`}</form>
+${locked ? '' : `<div style="margin-top:14px;display:flex;gap:10px;align-items:center"><button type="submit" style="background:#FE1B04;color:#fff;border:0;border-radius:999px;padding:12px 22px;font-weight:800;font-size:15px;cursor:pointer">Save my validation</button><span style="color:#6e6e73;font-size:13px">Unticking removes your validation.</span></div>`}</form>
 </div></body></html>`
   }
   app.get('/approve/:month/:who/:sig', async (c) => {
@@ -564,10 +564,10 @@ ${locked ? '' : `<div style="margin-top:14px;display:flex;gap:10px;align-items:c
       // in "either" mode a reminder goes only if the other approver has not covered everything
       const link = await approverLink(c.env, originOf(c), month, a.id)
       const label = monthWin(month).label
-      const html = `<div style="font-family:Arial,sans-serif;max-width:640px;color:#111"><div style="font-weight:900;color:#CC3333">GERSHON · CLIENT REPORTS</div>
+      const html = `<div style="font-family:Arial,sans-serif;max-width:640px;color:#111"><div style="font-weight:900;color:#FE1B04">GERSHON · CLIENT REPORTS</div>
 <h2 style="margin:8px 0">${reminder ? 'Reminder — ' : ''}${esc(a.label)}, please validate the ${esc(label)} client reports</h2>
 <p>They go out to clients on <b>${esc(dw.sendLabel)}</b> (first Friday) from client@gershon.ai. Deadline: <b>${esc(dw.deadlineLabel)}</b>. ${s.approvalMode === 'both' ? 'Both Aina and Olivier must validate.' : 'One validation (Aina or Olivier) is enough.'} Anything not validated is <b>not sent</b>.</p>
-<p style="margin:20px 0"><a href="${esc(link)}" style="background:#CC3333;color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:800">Review &amp; validate</a></p>
+<p style="margin:20px 0"><a href="${esc(link)}" style="background:#FE1B04;color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:800">Review &amp; validate</a></p>
 <p style="font-size:13px;color:#444">${pending.length} of ${rows.filter(r => r.active).length} reports still waiting for validation:</p><ul style="font-size:13px">${pending.map(r => `<li>#${r.no} ${esc(r.name)}${r.pro.length ? '' : ' — <span style="color:#b91c1c">no professional email</span>'}</li>`).join('')}</ul></div>`
       out.push({ who: a.id, to, ...(await sendPlain(c.env, to, `${reminder ? 'Reminder: ' : ''}Validate the ${label} client reports by ${dw.deadlineLabel}`, html)) })
     }
@@ -610,7 +610,7 @@ ${locked ? '' : `<div style="margin-top:14px;display:flex;gap:10px;align-items:c
     await c.env.COMPANIES_KV.put(sumKey, new Date().toISOString(), { expirationTtl: 60 * 60 * 24 * 400 })
     const rows = await deliveryRows(c, month, s)
     const sent = rows.filter(r => r.delivered), held = rows.filter(r => r.active && !r.delivered)
-    const html = `<div style="font-family:Arial,sans-serif;max-width:680px;color:#111"><div style="font-weight:900;color:#CC3333">GERSHON · CLIENT REPORTS</div><h2 style="margin:8px 0">${esc(monthWin(month).label)} client reports — ${sent.length} sent, ${held.length} held back</h2>${deliveryTable(rows, null, true)}</div>`
+    const html = `<div style="font-family:Arial,sans-serif;max-width:680px;color:#111"><div style="font-weight:900;color:#FE1B04">GERSHON · CLIENT REPORTS</div><h2 style="margin:8px 0">${esc(monthWin(month).label)} client reports — ${sent.length} sent, ${held.length} held back</h2>${deliveryTable(rows, null, true)}</div>`
     const to = [...new Set([...emails(s.internalEmail), ...emails(s.approverEmails?.aina || ''), ...emails(s.approverEmails?.olivier || '')])]
     return c.json(await sendPlain(c.env, to, `Client reports ${monthWin(month).label}: ${sent.length} sent, ${held.length} held back`, html))
   })
