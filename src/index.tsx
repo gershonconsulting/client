@@ -235,6 +235,7 @@ const PUBLIC_EXACT_PATHS = [
   '/api/v3/monthly/deliver/summary',
   '/api/v3/approval/request',
   '/api/v3/recipients/sync', // pushes Settings recipients to Social (no input, counts only)
+  '/api/machine/leads', // read-only lead counts for health.gershon.ai; checks a SHA-256 of the matrix secret
 ]
 
 function isPublicPath(path: string): boolean {
@@ -1567,6 +1568,37 @@ app.get('/api/companies', async (c) => {
   const includeArchived = c.req.query('includeArchived') === 'true'
   const companiesList = await getAllCompanies(c.env.COMPANIES_KV, includeArchived)
   return c.json({ companies: companiesList, count: companiesList.length })
+})
+
+// Read-only lead counts per client for health.gershon.ai (Business tab).
+// POST {secret, weekStart?, weekEnd?} (dates YYYY-MM-DD). Auth: SHA-256 of the
+// client-platform-matrix secret, so no new secret is needed and none is stored here.
+const MACHINE_SECRET_SHA = 'a0bd24f14ca4d279b49b83bd43efad23545ba720156bdbb33c043392e9d33982'
+app.post('/api/machine/leads', async (c) => {
+  let b: any = {}
+  try { b = await c.req.json() } catch {}
+  if (typeof b.secret !== 'string' || (await sha256Hex(b.secret)) !== MACHINE_SECRET_SHA) return c.json({ ok: false, error: 'unauthorized' }, 401)
+  const day = 86400000
+  const end = /^\d{4}-\d{2}-\d{2}$/.test(b.weekEnd || '') ? Date.parse(b.weekEnd + 'T00:00:00Z') : Date.now()
+  const start = /^\d{4}-\d{2}-\d{2}$/.test(b.weekStart || '') ? Date.parse(b.weekStart + 'T00:00:00Z') : end - 7 * day
+  const companies = await getAllCompanies(c.env.COMPANIES_KV, false)
+  const rows = await Promise.all(companies.map(async (co: any) => {
+    try {
+      const boxes = await callStreakAPI(`/pipelines/${co.pipelineKey}/boxes`)
+      const ts = (Array.isArray(boxes) ? boxes : []).map((x: any) => Number(x.creationTimestamp) || 0).filter(Boolean)
+      const first = ts.length ? Math.min(...ts) : null
+      const months = first ? Math.max(1, Math.round((end - first) / (30.44 * day) * 10) / 10) : 0
+      return {
+        key: co.key, name: co.name, total: ts.length,
+        week: ts.filter(t => t >= start && t < end).length,
+        prev_week: ts.filter(t => t >= start - 7 * day && t < start).length,
+        last30: ts.filter(t => t >= end - 30 * day && t < end).length,
+        months, avg_per_month: months ? Math.round(ts.length / months * 10) / 10 : 0,
+        first_lead: first ? new Date(first).toISOString().slice(0, 10) : null,
+      }
+    } catch (e: any) { return { key: co.key, name: co.name, error: String(e?.message || e) } }
+  }))
+  return c.json({ ok: true, start: new Date(start).toISOString().slice(0, 10), end: new Date(end).toISOString().slice(0, 10), generated_at: new Date().toISOString(), companies: rows })
 })
 
 app.post('/api/companies', async (c) => {
