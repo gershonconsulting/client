@@ -44,7 +44,7 @@ function banner(st: HoldState): string {
   const line = st.paused
     ? `<b style="color:#b91c1c">⛔ ALL automatic sending is paused</b> <span style="color:#6e6e73">(${esc(st.paused)})</span>`
     : blocked.length ? `<b style="color:#b91c1c">⛔ Blocked:</b> ${esc(blocked.join(' · '))}` : `<span style="color:#057642;font-weight:700">● Automatic sending is on</span>`
-  return `<div style="background:#fff;border:1px solid ${st.paused || blocked.length ? '#b91c1c' : '#e5e7eb'};border-radius:12px;padding:12px 16px;margin:0 0 14px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap"><div>${line}</div><a href="/delivery/blocks" style="background:#CC3333;color:#fff;text-decoration:none;border-radius:999px;padding:8px 16px;font-weight:800;font-size:13px">⛔ Block / unblock sending</a></div>`
+  return `<div style="background:#fff;border:1px solid ${st.paused || blocked.length ? '#b91c1c' : '#e5e7eb'};border-radius:12px;padding:12px 16px;margin:0 0 14px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap"><div>${line}</div><a href="/delivery/blocks" style="background:#FE1B04;color:#fff;text-decoration:none;border-radius:999px;padding:8px 16px;font-weight:800;font-size:13px">⛔ Block / unblock sending</a></div>`
 }
 async function rewrite(c: any, st: HoldState, anchor: string) {
   const ct = c.res.headers.get('content-type') || ''
@@ -88,7 +88,7 @@ export function registerHold(app: Hono<any>) {
 
   // ── The control page ───────────────────────────────────────────────────────
   const page = (st: HoldState, msg: string) => {
-    const btn = (id: string, on: boolean) => `<form method="post" style="margin:0"><input type="hidden" name="id" value="${esc(id)}"><input type="hidden" name="on" value="${on ? '0' : '1'}"><button type="submit" style="border:0;border-radius:999px;padding:8px 16px;font-weight:800;cursor:pointer;${on ? 'background:#057642;color:#fff' : 'background:#CC3333;color:#fff'}">${on ? 'Unblock' : '⛔ Block'}</button></form>`
+    const btn = (id: string, on: boolean) => `<form method="post" style="margin:0"><input type="hidden" name="id" value="${esc(id)}"><input type="hidden" name="on" value="${on ? '0' : '1'}"><button type="submit" style="border:0;border-radius:999px;padding:8px 16px;font-weight:800;cursor:pointer;${on ? 'background:#057642;color:#fff' : 'background:#FE1B04;color:#fff'}">${on ? 'Unblock' : '⛔ Block'}</button></form>`
     const row = (label: string, sub: string, id: string) => {
       const on = !!st.holds[id] || (id === 'all' && !!st.paused)
       const status = id === 'all' ? (st.paused ? `<b style="color:#b91c1c">⛔ PAUSED</b> <span style="color:#6e6e73;font-size:12px">${esc(st.paused)}</span>` : '<b style="color:#057642">● On</b>')
@@ -102,7 +102,7 @@ export function registerHold(app: Hono<any>) {
     ].join('')
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Block automatic sending · Gershon</title><link rel="icon" type="image/svg+xml" href="/static/clients-icon.svg"><link rel="stylesheet" href="/static/gershon.css?v=5"></head>
 <body style="background:#f6f6f7"><div style="max-width:900px;margin:0 auto;padding:24px 16px;font-family:system-ui,-apple-system,Segoe UI,sans-serif">
-<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:900;color:#CC3333;letter-spacing:.04em">GERSHON · CLIENT REPORTS</div><a href="/delivery" style="color:#CC3333;font-weight:700">← Client delivery</a></div>
+<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:900;color:#FE1B04;letter-spacing:.04em">GERSHON · CLIENT REPORTS</div><a href="/delivery" style="color:#FE1B04;font-weight:700">← Client delivery</a></div>
 <h1 style="margin:6px 0 4px">Block automatic sending</h1>
 <p style="color:#444;margin:0 0 14px">A blocked report is <b>never sent automatically</b>, even if it was validated, until you unblock it. Sending a report by hand from the Reports page still works.</p>
 ${msg ? `<div style="background:#ecfdf3;border:1px solid #057642;color:#057642;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-weight:700">${esc(msg)}</div>` : ''}

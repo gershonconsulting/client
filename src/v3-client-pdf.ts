@@ -34,7 +34,7 @@ export interface ClientPdfInput {
 
 const hex = (h: string): RGB => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255) as RGB
 const C = {
-  RED: hex('#CC3333'), RED_D: hex('#A8281F'), RED_T: hex('#F6D6D6'), RED_TT: hex('#FFF5F5'),
+  RED: hex('#FE1B04'), RED_D: hex('#d11200'), RED_T: hex('#F6D6D6'), RED_TT: hex('#FFF5F5'),
   BLUE: hex('#4A7BC0'), BLUE_T: hex('#DCE6F4'), GOLD: hex('#B88300'), GREEN: hex('#057642'),
   INK: hex('#111317'), MUT: hex('#6E6E73'), RULE: hex('#E4E2DC'), GRID: hex('#EEEDE9'),
   BG: hex('#F5F4F0'), GREY: hex('#C9CBD0'), WHITE: [1, 1, 1] as RGB,
@@ -493,7 +493,7 @@ export function clientPdfBase64(inp: ClientPdfInput): string {
         d.y -= 24
         const bw = Math.max(40, (s.n / max) * (CW - 160)), bx = M + 110 + (CW - 160 - bw) / 2
         p.text(M, d.y + 6, s.label, 8.6, true, C.INK)
-        p.rect(bx, d.y, bw, 18, i === 0 ? C.RED : i === funnel.length - 1 ? C.RED_D : hex(['#CC3333', '#D45A5A', '#DC7D7D', '#B83030', '#A8281F'][i] || '#CC3333'))
+        p.rect(bx, d.y, bw, 18, i === 0 ? C.RED : i === funnel.length - 1 ? C.RED_D : hex(['#FE1B04', '#D45A5A', '#DC7D7D', '#B83030', '#d11200'][i] || '#FE1B04'))
         p.ctext(bx + bw / 2, d.y + 6, fmt(s.n), 9, true, C.WHITE)
       })
       d.y -= 12

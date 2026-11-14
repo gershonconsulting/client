@@ -1,11 +1,11 @@
 /* client.gershonCRM — "Where we stand" campaign section on /client/:no
    Data: GET /api/v3/campaign/:no (whole campaign since launch).
-   Charts: Chart.js 4. Palette as the interactive report: red #CC3333 · blue #4A7BC0 · gold #B88300. */
+   Charts: Chart.js 4. Palette as the interactive report: red #FE1B04 · blue #4A7BC0 · gold #B88300. */
 (function () {
   var root = document.getElementById('campaign');
   if (!root) return;
   var no = root.getAttribute('data-no');
-  var RED = '#CC3333', BLUE = '#4A7BC0', GOLD = '#B88300', GREEN = '#057642', GREY = '#8e8e93', GRID = '#eef0f3', MUT = '#6e6e73';
+  var RED = '#FE1B04', BLUE = '#4A7BC0', GOLD = '#B88300', GREEN = '#057642', GREY = '#8e8e93', GRID = '#eef0f3', MUT = '#6e6e73';
   var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   var MONL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   var mL = function (k) { return MON[+k.slice(5, 7) - 1] + ' ' + k.slice(2, 4); };
@@ -202,7 +202,7 @@
     // Acceptance rate — a month can show more acceptances than invitations (earlier invitations accepted later): cap the axis at 70% so one outlier does not flatten the chart; the tooltip keeps the real value.
     var rateCap = ms.some(function (m) { return m.sent > 0 && m.accepted / m.sent > .7; }) ? 70 : undefined;
     mk('chRate', { type: 'line', data: { labels: labels, datasets: [
-      { label: 'Acceptance rate', data: ms.map(function (m) { return pct(m.accepted, m.sent); }), borderColor: RED, backgroundColor: 'rgba(204,51,51,.10)', fill: true, borderWidth: 2.5, tension: .25, pointRadius: 3.5, pointHoverRadius: 6, pointBackgroundColor: partialPt(RED), pointBorderColor: RED, spanGaps: true },
+      { label: 'Acceptance rate', data: ms.map(function (m) { return pct(m.accepted, m.sent); }), borderColor: RED, backgroundColor: 'rgba(254,27,4,.10)', fill: true, borderWidth: 2.5, tension: .25, pointRadius: 3.5, pointHoverRadius: 6, pointBackgroundColor: partialPt(RED), pointBorderColor: RED, spanGaps: true },
       flat('Campaign average (' + f1(S.rate) + '%)', S.rate, '#1d1d1f'),
       flat('Target (' + T.acceptRate + '%)', T.acceptRate, GREEN, [2, 3]),
       flat('Gershon average (' + B.acceptanceRate + '%)', B.acceptanceRate, GREY, [8, 4])] },
@@ -221,13 +221,13 @@
     // Activity
     mk('chAct', { type: 'bar', data: { labels: labels, datasets: [
       { label: 'Invitations', data: ms.map(function (m) { return m.sent; }), backgroundColor: ms.map(function (m) { return m.partial ? 'rgba(74,123,192,.35)' : BLUE; }), borderRadius: 4, maxBarThickness: 22 },
-      { label: 'Accepted', data: ms.map(function (m) { return m.accepted; }), backgroundColor: ms.map(function (m) { return m.partial ? 'rgba(204,51,51,.35)' : RED; }), borderRadius: 4, maxBarThickness: 22 }] }, options: base() });
+      { label: 'Accepted', data: ms.map(function (m) { return m.accepted; }), backgroundColor: ms.map(function (m) { return m.partial ? 'rgba(254,27,4,.35)' : RED; }), borderRadius: 4, maxBarThickness: 22 }] }, options: base() });
 
     // Cumulative
     var cA = 0, cO = 0;
     var cum = ms.map(function (m) { cA += m.accepted; cO += m.opportunities; return [cA, cO]; });
     mk('chCum', { type: 'line', data: { labels: labels, datasets: [
-      { label: 'Connections (to date)', data: cum.map(function (x) { return x[0]; }), borderColor: RED, backgroundColor: 'rgba(204,51,51,.10)', fill: true, borderWidth: 2, tension: .3, pointRadius: 2, yAxisID: 'y' },
+      { label: 'Connections (to date)', data: cum.map(function (x) { return x[0]; }), borderColor: RED, backgroundColor: 'rgba(254,27,4,.10)', fill: true, borderWidth: 2, tension: .3, pointRadius: 2, yAxisID: 'y' },
       { label: 'Leads (to date)', data: cum.map(function (x) { return x[1]; }), borderColor: GOLD, borderWidth: 2.5, tension: .3, pointRadius: 2, yAxisID: 'y1' }] },
       options: base({ scales: { x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } }, y: { beginAtZero: true, grid: { color: GRID }, border: { display: false }, title: { display: true, text: 'connections' } }, y1: { beginAtZero: true, position: 'right', grid: { display: false }, border: { display: false }, title: { display: true, text: 'leads' } } } }) });
 
@@ -292,7 +292,7 @@
       '.camp-tbl th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);border-bottom:1px solid var(--border);padding:7px 8px;white-space:nowrap}',
       '.camp-tbl td{padding:7px 8px;border-bottom:1px solid #f2f2f4;white-space:nowrap}.camp-tbl .n{text-align:right;font-variant-numeric:tabular-nums}',
       '.camp-tbl td.g{color:var(--success);font-weight:700}.camp-tbl td.r{color:var(--brand);font-weight:700}',
-      '.camp-tbl tr.avg td{background:#fdf2f2;font-weight:800}.camp-tbl tr.part td{color:var(--text-muted)}',
+      '.camp-tbl tr.avg td{background:#fff5f5;font-weight:800}.camp-tbl tr.part td{color:var(--text-muted)}',
       '.camp-note{color:var(--text-muted);font-size:11.5px;margin:12px 0 0}',
       '.sec-title{font-size:13px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);margin:6px 0 12px;font-weight:800}.sec-title i{color:var(--brand);margin-right:6px}',
       'body.call-mode .sidebar,body.call-mode .menu-toggle{display:none!important}',

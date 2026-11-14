@@ -8,7 +8,7 @@
 //     white text. Rule: Gershon-internal reports use a display name starting
 //     with "GC " → "GC Client Report". The ADDRESS and the recipients are kept.
 //   • House style: white page, single column, max-width 680px, dark text
-//     #12211d, links #1f6f5c, brand red #CC3333 as the accent line, never light
+//     #12211d, links #1f6f5c, brand red #FE1B04 as the accent line, never light
 //     text on a dark band, one-line "Source: … · Data as of …" footer.
 //   • Promote "0 followers · +0": social.gershon.ai holds no follower snapshot
 //     for these clients (the Chrome extension collects posts, not follower
@@ -38,7 +38,7 @@ export const REPORT_FROM_NAME = 'GC Client Report'
 const LEGACY_V3_NAME = 'GC Client Reports <'
 const INK = '#12211d'
 const LINK = '#1f6f5c'
-const RED = '#CC3333'
+const RED = '#FE1B04'
 
 /** "Anything <addr>" or "addr" → "GC Client Report <addr>" (address unchanged). */
 export function reportFrom(from: string): string {
@@ -88,7 +88,7 @@ export function restyleLegacyReportHtml(html: string, asOf: Date = new Date()): 
   rep('border-spacing:10px 14px;margin:2px 0 6px;', 'border-spacing:0;margin:12px 0 6px;table-layout:fixed;')
 
   // Indigo / cyan brand accents → dark text; client badges → red tint.
-  rep('background:#eef2ff;color:#4f46e5;', 'background:#fdf2f2;color:#a8281f;')
+  rep('background:#eef2ff;color:#4f46e5;', 'background:#fff5f5;color:#d11200;')
   rep('color:#6366f1;', `color:${INK};`)
   rep('color:#0ea5e9;', `color:${INK};`)
   rep('color:#1e293b;', `color:${INK};`)

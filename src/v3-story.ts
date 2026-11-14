@@ -7,13 +7,13 @@
 //   GET /r/:no/:month/:sig      public, HMAC-signed link sent to the client
 //   GET /client/:no/story       signed-in shortcut → redirects to the signed link
 // Charts: Chart.js 4 (CDN). Palette validated with the dataviz validator
-// (light surface): red #CC3333 · blue #4A7BC0 · gold #B88300 — all checks PASS.
+// (light surface): red #FE1B04 · blue #4A7BC0 · gold #B88300 — all checks PASS.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { ClientMonth } from './v3-data'
 import type { MonthPoint } from './history-model'
 import { HISTORY_BENCHMARKS as B } from './history-benchmarks'
 
-const RED = '#CC3333', BLUE = '#4A7BC0', GOLD = '#B88300', INK = '#1d1d1f', MUT = '#6e6e73'
+const RED = '#FE1B04', BLUE = '#4A7BC0', GOLD = '#B88300', INK = '#1d1d1f', MUT = '#6e6e73'
 const esc = (s: any) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 const fmt = (n: number | null | undefined) => (n == null ? '—' : Math.round(n).toLocaleString('en-US'))
 const plural = (n: number, w: string, pl?: string) => `${fmt(n)} ${Math.round(n) === 1 ? w : (pl || w + 's')}`
@@ -181,7 +181,7 @@ export function storyPage(c: ClientMonth, monthKey: string, monthLabel: string, 
 .eyebrow{font-size:12px;font-weight:700;color:${MUT};letter-spacing:.05em;text-transform:uppercase}
 h1{font-size:30px;margin:4px 0 0;font-weight:800}.brand{font-weight:900;color:${RED};letter-spacing:.14em;font-size:12px;text-align:right}
 .month{font-size:22px;font-weight:800;color:${RED};text-align:right}
-.hero{margin:22px 0;padding:22px 24px;border-radius:16px;background:linear-gradient(120deg,${RED},#a8281f);color:#fff}
+.hero{margin:22px 0;padding:22px 24px;border-radius:16px;background:linear-gradient(120deg,${RED},#d11200);color:#fff}
 .hero .h{font-size:24px;font-weight:800;line-height:1.25}.hero .s{opacity:.92;margin-top:6px}
 .hero .btns{margin-top:14px;display:flex;gap:10px;flex-wrap:wrap}.hero a{color:#fff;border:1px solid rgba(255,255,255,.6);padding:7px 12px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600}
 h3.sec{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:${MUT};margin:30px 0 12px}
@@ -230,7 +230,7 @@ var bar=function(label,data,color){return {type:'bar',label:label,data:data,back
 function mk(id,cfg){var el=document.getElementById(id);if(el)new Chart(el,cfg)}
 if(D.cum.length>1){
  mk('cCum',{type:'line',data:{labels:D.cum.map(function(x){return x.m}),datasets:[
-  {label:'Decision-makers connected (to date)',data:D.cum.map(function(x){return x.cA}),borderColor:RED,backgroundColor:'rgba(204,51,51,.12)',fill:true,borderWidth:2,tension:.3,pointRadius:3,pointHoverRadius:6}]},options:base()});
+  {label:'Decision-makers connected (to date)',data:D.cum.map(function(x){return x.cA}),borderColor:RED,backgroundColor:'rgba(254,27,4,.12)',fill:true,borderWidth:2,tension:.3,pointRadius:3,pointHoverRadius:6}]},options:base()});
  mk('cMonthly',{type:'bar',data:{labels:D.cum.map(function(x){return x.m}),datasets:[bar('Invitations',D.cum.map(function(x){return x.sent}),BLUE),bar('Accepted',D.cum.map(function(x){return x.acc}),RED)]},options:base()});
  var cumOpp=document.getElementById('cCum');
  if(D.cum[D.cum.length-1].cO>0&&cumOpp){var box=document.createElement('div');box.className='chart';box.style.height='200px';box.style.marginTop='14px';box.innerHTML='<canvas id="cCumO"></canvas>';cumOpp.parentNode.after(box);
