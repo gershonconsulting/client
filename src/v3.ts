@@ -28,6 +28,14 @@ const UNIFIED_THEME_LINK = '<link rel="stylesheet" href="' + UNIFIED_THEME_HREF 
 const withUnifiedTheme = (html: string) =>
   html.includes('/static/unified-theme.css') ? html : html.includes('</head>') ? html.replace('</head>', UNIFIED_THEME_LINK + '</head>') : UNIFIED_THEME_LINK + html
 
+// Brand red (#FE1B04, dark #d11200, tint #fff5f5) replaces the legacy indigo/violet
+// accents baked into the legacy report HTML in index.tsx (nightly 2026-11-14).
+const LEGACY_ACCENTS: [RegExp, string][] = [
+  [/#4f46e5\b/gi, '#FE1B04'], [/#6366f1\b/gi, '#FE1B04'],
+  [/#7c3aed\b/gi, '#d11200'], [/#eef2ff\b/gi, '#fff5f5'],
+]
+export const brandLegacyColors = (html: string) => LEGACY_ACCENTS.reduce((h, [re, to]) => h.replace(re, to), html)
+
 // ── Shell ────────────────────────────────────────────────────────────────────
 export function shell(opts: { title: string; active: string; h1: string; right?: string; body: string; data?: Record<string, string> }): string {
   const nav = (href: string, icon: string, label: string, key: string) =>
@@ -88,7 +96,7 @@ function clientPage(no: number, name: string, keys: string[]): string {
     body: `
 <div id="campaign" data-no="${no}"><div class="card"><span class="skeleton">Loading the whole campaign since launch…………………………</span></div></div>
 <h2 class="sec-title" id="monthTitle"><i class="fas fa-calendar-day"></i> This month in detail</h2>
-<div class="summary" id="summary"><div class="summary-text" id="summaryText"><span class="skeleton">Loading…………………………………</span></div><div id="scoreBox"></div></div>
+<div class="summary" id="summary"><div class="summary-text" id="summaryText"><span class="skeleton">Loading………………………………</span></div><div id="scoreBox"></div></div>
 <div class="grid cols-3" id="channels"></div>
 <div id="accounts"></div>
 <div class="grid cols-2" id="details"></div>
@@ -241,6 +249,7 @@ export function registerV3(app: Hono<any>, deps: Deps) {
     const icon = '<link rel="icon" type="image/svg+xml" href="/static/clients-icon.svg"><link rel="apple-touch-icon" href="/static/clients-icon.svg">'
     html = html.replace(/<link[^>]+rel=["'](?:shortcut )?icon["'][^>]*>/gi, '')
     html = html.includes('</head>') ? html.replace('</head>', icon + '</head>') : icon + html
+    html = brandLegacyColors(html)
     if (html.includes('/static/gershon.css')) {
       html = withUnifiedTheme(html)
       const h0 = new Headers(c.res.headers); h0.delete('content-length')
