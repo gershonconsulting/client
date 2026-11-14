@@ -19,7 +19,7 @@ jobs:
       - name: Push recipients
         run: |
           for i in $(seq 1 20); do
-            OUT=$(curl -s -w '\n%{http_code}' -X POST https://client.gershon.ai/api/v3/recipients/sync)
+            OUT=$(curl -s -w '\n%{http_code}' -X POST https://client.gershoncrm.com/api/v3/recipients/sync)
             CODE=$(echo "$OUT" | tail -1); BODY=$(echo "$OUT" | head -n -1)
             echo "try $i: HTTP $CODE $BODY"
             if [ "$CODE" = "200" ] && echo "$BODY" | grep -q '"ok":true'; then exit 0; fi
