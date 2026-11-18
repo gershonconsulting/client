@@ -39,7 +39,7 @@ Rules: Olivier never runs commands/uploads. Executors: Ariel (code/repo), Charle
   ❌ No branch test link: Pages builds main only (CI). Merge = live (Olivier's call).
   Deploy route: merge the rebuilt PR -> GitHub Actions builds and deploys to Pages project
     gershoncrm-client (client.gershoncrm.com / client.gershon.ai). CI bumps the patch on merge,
-    so production will show v1.4.1.
+    so production showed v1.4.1 right after that merge (main is now at v1.4.29).
   Next action: Olivier reviews the preview and merges the rebuilt PR. After the merge, hard-refresh once
     (the stylesheet link has a ?v=<version> cache-buster).
 
@@ -54,7 +54,7 @@ DONE ✅ (2026-10-15)
 - ✅ client.gershon.ai attached to Pages project gershoncrm-client (.github/workflows/attach-domain.yml).
 
 PENDING ❌
-- ❌ 2026-10-28 (nightly): POST /api/matrix-stats (src/matrix-stats.ts, mounted by src/entry.ts) for the weekly
+- ✅ (merged: PR #6, main) 2026-10-28 (nightly): POST /api/matrix-stats (src/matrix-stats.ts, mounted by src/entry.ts) for the weekly
   Client Platform Matrix, column "client". Branch nightly/2026-10-28-matrix-stats -> deploy on merge (Ariel),
   then SQL block 5 in task repo supabase/sql/2026-10-27_matrix_live_endpoints.sql (Charles).
 - ❌ DNS CNAME client -> gershoncrm-client.pages.dev in gershon.ai zone (CF token lacks DNS edit;
@@ -62,7 +62,7 @@ PENDING ❌
 - ❌ LINKEDIN_CLIENT_SECRET Pages secret (Charles, same doc). Until then the LinkedIn button is greyed out.
 - ❌ After both: optional 308 redirect of pages from client.gershoncrm.com -> client.gershon.ai
   (keep /api/* on old host; social calls it). See social docs/DOMAIN-MOVE-PLAYBOOK.md.
-- ❌ Unified design PR (nightly/2026-11-04-client-rebuilt, replaces #1): merge pending (Olivier's call).
+- ✅ Unified design (v1.4.0) is merged: main is at v1.4.29.
 - ❌ Roles: team vs admin are stored but every signed-in user still sees all pages.
 
 PENDING ❌ (2026-11-07 nightly — branch nightly/2026-11-07-client-crons, PR replaces #5: Monday crons #24 + #07)
@@ -90,3 +90,5 @@ PENDING ❌ (2026-11-07 nightly — branch nightly/2026-11-07-client-crons, PR r
 GOTCHAS
 - Do not commit dist/ (CI builds). npm ci works. CI version-bump job can race on double triggers (harmless).
 - Routes using SESSION_COOKIE must be registered after its const declaration in index.tsx (TDZ).
+
+2026-11-18 nightly: docs refreshed (version 1.4.29, deploy route GitHub Actions -> Cloudflare Pages project gershoncrm-client, client.gershoncrm.com / client.gershon.ai). The v1.4.1 note is historic; README.md still says v1.0.0 and is outdated (not edited tonight).
