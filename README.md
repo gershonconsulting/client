@@ -1,9 +1,9 @@
-# Gershon CRM - Client Dashboard v1.0.0
+# Gershon CRM - Client Dashboard v1.4.30
 
 ## Project Overview
 - **Name**: Gershon CRM Client Dashboard
-- **Version**: 1.0.0
-- **Domain**: https://client.gershoncrm.com
+- **Version**: 1.4.30 (source of truth: `package.json`, bumped automatically on every merge to `main`)
+- **Domain**: https://client.gershoncrm.com (live URL; `client.gershon.ai` does not resolve)
 - **Goal**: Multi-company pipeline tracking with three sections: PROMOTE, NETWORK (LinkedIn), and ENGAGE (Streak CRM)
 - **Companies**: 10+ tracked companies with individual pipelines and 10 leads/month objective
 - **Database**: Cloudflare D1 (SQLite) for persistent multi-user company management
@@ -413,7 +413,7 @@ webapp/
 - ✅ Subdomain ready (client.gershoncrm.com)
 - ✅ Admin Panel with add/edit/delete functionality
 - ✅ Settings tab for source URL configuration
-- ✅ Onboarding tab for Notion integration
+- ✅ Onboarding tab for Notion integration status
 - ✅ Multi-user persistent storage with D1
 - 📋 Add NETWORK data for other companies
 - 📋 Implement PROMOTE section
@@ -423,14 +423,16 @@ webapp/
 ## 📞 Deployment Notes
 
 **Current Status**: Production ready with D1 database integration
-**Version**: v1.0.0
+**Version**: v1.4.30 (see `package.json`)
 **Domain**: client.gershoncrm.com
 **Database**: Cloudflare D1 (gershoncrm-companies)
-**Git Commit**: 90fdd3f
-**Build Size**: 204.99 kB
+**Git Commit**: 90fdd3f (original v1.0.0 build; current state: `git log`)
+**Build Size**: 204.99 kB (v1.0.0 build)
 **Backup**: https://www.genspark.ai/api/files/s/99sV05Zj
 
 ---
-**Last Updated**: 2026-03-12  
+**Last Updated**: 2026-11-18  
 **Status**: ✅ Production Ready with D1 Database  
-**Subdomain**: client.gershoncrm.com
+**Subdomain**: client.gershoncrm.com  
+
+2026-11-18 nightly: docs refreshed.
