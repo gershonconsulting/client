@@ -7,6 +7,7 @@ Last updated: 2026-11-19
 - Deploy route: merge to main → GitHub Actions builds and deploys (CI bumps the patch version).
 
 ## ✅ Done
+- ✅ 2026-11-19: /login page renamed "Client by Gershon.AI" (title + heading) via src/entry.ts (login route is declared before the title middleware); text only. CI bumps the patch version on deploy.
 - ✅ 2026-11-19: "Client by Gershon.AI" wordmark + visible footer version on the landing page, v3 titles/sidebar (src/page-title.ts).
 - ✅ 2026-11-10: POST /api/machine/leads — read-only lead counts per client (total, week, previous week, last 30 days, months, average per month) for health.gershon.ai's Business tab. Auth = SHA-256 of the client-platform-matrix secret; no new secret.
 
