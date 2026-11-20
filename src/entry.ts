@@ -10,10 +10,13 @@ root.all(MATRIX_STATS_PATH, (c) => handleMatrixStats(c.req.raw, c.env))
 
 // 2026-11-19: /login is declared in index.tsx before the page-title middleware, so it is
 // renamed here ("Client by Gershon.AI"), text only; the login flow is untouched.
+declare const __APP_VERSION__: string
+const LOGIN_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : ''
 const LOGIN_REWRITES: [string, string][] = [
   ['<title>Sign in — client.gershonCRM</title>', '<title>Client by Gershon.AI</title>'],
   ['letter-spacing:-.02em;line-height:1">Gershon</div>', 'letter-spacing:-.02em;line-height:1">Client</div>'],
   ['text-transform:uppercase">Client results</div>', 'text-transform:uppercase">by Gershon.AI</div>'],
+  ['>Gershon Consulting — internal use only</p>', '>Client by Gershon.AI · v' + LOGIN_VERSION + ' · Internal use only</p>'],
 ]
 root.use('/login', async (c, next) => {
   await next()

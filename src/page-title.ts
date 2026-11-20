@@ -20,9 +20,14 @@ export const NEW_HOME_TITLE = '<title>Client by Gershon.AI — Client Performanc
 const HOME_REWRITES: [string, string][] = [
   [OLD_HOME_TITLE, NEW_HOME_TITLE],
   ['<span class="font-bold tracking-tight">client.gershonCRM</span>', '<span class="font-bold tracking-tight">Client by Gershon.AI</span>'],
-  ['>Gershon Consulting — Internal Use Only</p>', '>Client by Gershon.AI · v' + APP_VERSION + ' · Gershon Consulting — Internal Use Only</p>'],
+  ['>Gershon Consulting — Internal Use Only</p>', '>Client by Gershon.AI · v' + APP_VERSION + ' · Internal use only</p>'],
 ]
 const ALL_REWRITES: [string, string][] = [
+  ['<title>Straight-in Week Drop | client.gershonCRM</title>', '<title>Straight-in Week Drop | Client by Gershon.AI</title>'],
+  ['<title>Campaign Effectiveness — client.gershonCRM</title>', '<title>Campaign Effectiveness — Client by Gershon.AI</title>'],
+  ['<p class="font-bold text-sm leading-tight">client.gershonCRM</p>', '<p class="font-bold text-sm leading-tight">Client by Gershon.AI</p>'],
+  ['Collected from social.gershonCRM.com', 'Collected from social.gershoncrm.com'],
+  ['Gershon Consulting — client reporting', 'Client reporting'],
   [' · client.gershonCRM</title>', ' · Client by Gershon.AI</title>'],
   ['<span>Gershon<span class="tag">Client results</span></span>', '<span>Client<span class="tag">by Gershon.AI</span></span>'],
 ]
