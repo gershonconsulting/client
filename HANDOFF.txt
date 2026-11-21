@@ -94,3 +94,5 @@ GOTCHAS
 2026-11-18 nightly: docs refreshed (version 1.4.29, deploy route GitHub Actions -> Cloudflare Pages project gershoncrm-client, client.gershoncrm.com / client.gershon.ai). The v1.4.1 note is historic; README.md still says v1.0.0 and is outdated (not edited tonight).
 
 2026-11-19 nightly: naming "Client by Gershon.AI" — landing wordmark + footer version line (v from package.json) and v3 shell title/sidebar wordmark, all via src/page-title.ts middleware (index.tsx untouched). v1.4.32 (CI bumps one more patch on deploy). Login page (route declared before the middleware) still says Gershon / Client results.
+
+2026-11-21 nightly: ✅ landing page (/) blue/indigo accents -> Gershon.AI red #FE1B04 (hover #D91600) via brandRedHome() in src/page-title.ts (index.tsx untouched). v1.4.36 (CI may bump one more patch on deploy). Verify live: no "indigo-600" in served HTML.
