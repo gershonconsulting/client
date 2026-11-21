@@ -32,6 +32,19 @@ const ALL_REWRITES: [string, string][] = [
   ['<span>Gershon<span class="tag">Client results</span></span>', '<span>Client<span class="tag">by Gershon.AI</span></span>'],
 ]
 
+// 2026-11-21: landing page blue/indigo accents -> Gershon.AI red #FE1B04 (hover #D91600).
+// index.tsx is ~470KB, so the class swap is done here on the served "/" HTML.
+const RED = '#FE1B04', RED_HOVER = '#D91600'
+export function brandRedHome(html: string): string {
+  return html
+    .split('bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700').join('bg-[' + RED + '] hover:bg-[' + RED_HOVER + ']')
+    .split('bg-gradient-to-br from-blue-600 to-indigo-600').join('bg-[' + RED + ']')
+    .split('bg-gradient-to-br from-blue-50 via-white to-indigo-50').join('bg-gradient-to-br from-red-50 via-white to-red-50')
+    .replace(/\b(bg|text)-(blue|indigo)-(500|600)\b/g, (_m, k) => k + '-[' + RED + ']')
+    .replace(/\b(bg|text)-(blue|indigo)-700\b/g, (_m, k) => k + '-[' + RED_HOVER + ']')
+    .replace(/\b(bg|text)-(blue|indigo)-(50|100)\b/g, (_m, k, _c, n) => k + '-red-' + n)
+}
+
 export function registerPageTitle(app: Hono<any>) {
   app.use('*', async (c, next) => {
     await next()
@@ -40,6 +53,7 @@ export function registerPageTitle(app: Hono<any>) {
     const isHome = new URL(c.req.url).pathname === '/'
     let out = await c.res.text()
     for (const [a, b] of (isHome ? HOME_REWRITES.concat(ALL_REWRITES) : ALL_REWRITES)) out = out.split(a).join(b)
+    if (isHome) out = brandRedHome(out)
     const headers = new Headers(c.res.headers); headers.delete('content-length')
     c.res = new Response(out, { status: c.res.status, headers })
   })
