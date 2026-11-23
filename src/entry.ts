@@ -4,6 +4,7 @@
 import { Hono } from 'hono'
 import app from './index'
 import { MATRIX_STATS_PATH, handleMatrixStats } from './matrix-stats'
+import { PW_EYE_JS } from './pw-eye'
 
 const root = new Hono<{ Bindings: { COMPANIES_KV: KVNamespace } }>()
 root.all(MATRIX_STATS_PATH, (c) => handleMatrixStats(c.req.raw, c.env))
@@ -23,6 +24,7 @@ root.use('/login', async (c, next) => {
   if (c.req.method !== 'GET' || !(c.res.headers.get('content-type') || '').includes('text/html')) return
   let out = await c.res.text()
   for (const [a, b] of LOGIN_REWRITES) out = out.split(a).join(b)
+  out = out.replace('</body>', '<script>' + PW_EYE_JS + '</script></body>') // 2026-11-23 show/hide password eye
   const headers = new Headers(c.res.headers); headers.delete('content-length')
   c.res = new Response(out, { status: c.res.status, headers })
 })
